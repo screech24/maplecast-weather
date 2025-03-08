@@ -1,0 +1,154 @@
+.radar-map-container {
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.radar-map-container h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.radar-map {
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: 0 4px 10px var(--shadow-color);
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.radar-map .leaflet-container {
+  height: 550px !important;
+  width: 100%;
+  z-index: 1;
+}
+
+.radar-legend {
+  margin-top: 1rem;
+  color: var(--light-text);
+  font-size: 0.9rem;
+}
+
+.legend-colors {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.color-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.color-box.light {
+  background-color: #1e88e5;
+}
+
+.color-box.moderate {
+  background-color: #43a047;
+}
+
+.color-box.heavy {
+  background-color: #e53935;
+}
+
+.dark-mode .radar-legend {
+  color: var(--light-text);
+}
+
+/* Radar controls */
+.radar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0 0.5rem;
+}
+
+.radar-control-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px var(--shadow-color);
+  transition: all 0.2s ease;
+}
+
+.radar-control-btn:hover {
+  background-color: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+.radar-control-btn i {
+  font-size: 1rem;
+}
+
+.radar-opacity-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+}
+
+.radar-opacity-control input[type="range"] {
+  -webkit-appearance: none;
+  width: 100px;
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 3px;
+  outline: none;
+}
+
+.radar-opacity-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.radar-opacity-control input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dark-mode .radar-opacity-control input[type="range"] {
+  background: #3a3a3a;
+}
+
+@media (max-width: 768px) {
+  .radar-map .leaflet-container {
+    height: 400px !important;
+  }
+  
+  .radar-controls {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+} 

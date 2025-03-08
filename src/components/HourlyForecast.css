@@ -1,0 +1,158 @@
+.hourly-forecast {
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.hourly-container {
+  display: flex;
+  overflow-x: auto;
+  gap: 1rem;
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 1rem;
+  position: relative;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hourly-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0.75rem;
+  border-radius: 10px;
+  min-width: 100px;
+  background-color: var(--hover-color);
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.hourly-item:hover {
+  transform: translateY(-3px);
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.hourly-item.current-hour {
+  background-color: var(--primary-color);
+  color: white;
+  position: relative;
+}
+
+.hourly-item.current-hour::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--primary-color);
+}
+
+.hourly-time {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.hourly-icon {
+  font-size: 2rem;
+  margin: 0.5rem 0;
+  color: var(--primary-color);
+}
+
+.hourly-item:hover .hourly-icon,
+.hourly-item.current-hour .hourly-icon {
+  color: white;
+}
+
+.hourly-temp {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.hourly-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.hourly-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hourly-detail i {
+  width: 15px;
+  text-align: center;
+}
+
+/* Pagination */
+.hourly-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.pagination-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--hover-color);
+  color: var(--text-color);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.pagination-btn:hover:not(.active) {
+  background-color: var(--border-color);
+}
+
+/* Dark mode adjustments */
+.dark-mode .hourly-item {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark-mode .hourly-item:hover {
+  background-color: var(--primary-color);
+}
+
+.dark-mode .pagination-btn {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .pagination-btn:hover:not(.active) {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .hourly-container {
+    padding-bottom: 0.5rem;
+  }
+  
+  .hourly-item {
+    min-width: 90px;
+  }
+  
+  .hourly-icon {
+    font-size: 1.75rem;
+  }
+  
+  .hourly-temp {
+    font-size: 1.25rem;
+  }
+} 
