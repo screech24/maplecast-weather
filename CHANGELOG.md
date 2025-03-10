@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added version tracking system to display current version in the footer
 - Created CHANGELOG.md to document project changes
 - Updated GitHub Pages deployment URL to https://screech24.github.io/maplecast-weather/
-- Created enhanced deployment script with automatic git operations and remote URL management
+- Created enhanced deployment script with automatic git operations, remote URL management, and pull-rebase functionality
 
 ### Changed
 - Improved code organization in EnhancedRadarMap component

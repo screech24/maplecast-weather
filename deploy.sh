@@ -57,10 +57,13 @@ if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
     git add .
     git commit -m "$COMMIT_MSG"
     
-    echo "⬆️ Pushing changes to repository..."
-    if ! git push origin $(git branch --show-current) 2>/dev/null; then
-      echo "⚠️ Push failed. You may need to pull changes from the remote repository first."
-      echo "   Try running: git pull --rebase origin $(git branch --show-current)"
+    # Get current branch
+    CURRENT_BRANCH=$(git branch --show-current)
+    
+    # Try to pull changes from remote before pushing
+    echo "⬇️ Pulling latest changes from remote repository..."
+    if ! git pull --rebase origin $CURRENT_BRANCH 2>/dev/null; then
+      echo "⚠️ Pull failed. There might be merge conflicts."
       
       # Ask if user wants to continue with deployment anyway
       read -p "Continue with deployment anyway? (y/n): " continue_deploy
@@ -70,6 +73,24 @@ if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
       fi
       
       echo "Continuing with deployment..."
+    else
+      echo "✅ Successfully pulled latest changes."
+    fi
+    
+    echo "⬆️ Pushing changes to repository..."
+    if ! git push origin $CURRENT_BRANCH 2>/dev/null; then
+      echo "⚠️ Push failed even after pulling. There might be other issues."
+      
+      # Ask if user wants to continue with deployment anyway
+      read -p "Continue with deployment anyway? (y/n): " continue_deploy
+      if [[ $continue_deploy != "y" && $continue_deploy != "Y" ]]; then
+        echo "Deployment aborted."
+        exit 1
+      fi
+      
+      echo "Continuing with deployment..."
+    else
+      echo "✅ Successfully pushed changes to repository."
     fi
   else
     echo "✓ No changes to commit"

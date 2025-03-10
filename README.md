@@ -134,7 +134,9 @@ Or from the project root:
 The script will:
 - Automatically navigate to the correct directory
 - Check and update the git remote URL if needed
-- Commit and push your source code changes
+- Commit your source code changes
+- Pull latest changes from the remote repository with rebase
+- Push your changes to the repository
 - Build the application
 - Deploy to GitHub Pages
 - Deploy to GitHub Pages
