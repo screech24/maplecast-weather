@@ -1,25 +1,28 @@
 {
-  "name": "weather-app",
+  "name": "maplecast",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://screech24.github.io/canada-weather-radar",
+  "homepage": "https://screech24.github.io/maplecast",
   "dependencies": {
+    "@react-leaflet/core": "^3.0.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.8.2",
+    "iso8601-js-period": "^0.2.1",
     "leaflet": "^1.9.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "xml2js": "^0.6.2"
   },
   "scripts": {
-    "start": "HOST=0.0.0.0 react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "HOST=0.0.0.0 react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"
@@ -43,6 +46,15 @@
     ]
   },
   "devDependencies": {
-    "gh-pages": "^6.3.0"
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "gh-pages": "^6.3.0",
+    "process": "^0.11.10",
+    "react-app-rewired": "^2.2.1",
+    "stream-browserify": "^3.0.0",
+    "timers-browserify": "^2.0.12",
+    "util": "^0.12.5",
+    "webpack": "^5.76.0"
   }
 }

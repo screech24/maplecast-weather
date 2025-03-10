@@ -130,16 +130,26 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   height: 300px;
   color: var(--text-color);
+  text-align: center;
+  padding: 40px;
+}
+
+.loading-subtext {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .loading-spinner {
+  display: inline-block;
   width: 50px;
   height: 50px;
-  border: 5px solid rgba(0, 0, 0, 0.1);
-  border-top-color: var(--primary-color);
+  border: 5px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  border-top-color: var(--primary-color);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 20px;
 }
 
 .dark-mode .loading-spinner {
@@ -228,4 +238,30 @@ h1, h2, h3, h4, h5, h6 {
   background-color: rgba(255, 243, 205, 0.1);
   color: #ffd54f;
   border: 1px solid rgba(255, 238, 186, 0.2);
+}
+
+/* Add styles for the welcome container */
+.welcome-container {
+  text-align: center;
+  padding: 2rem;
+  margin: 2rem auto;
+  max-width: 600px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .welcome-container {
+  background-color: #2a2a2a;
+  color: #f5f5f5;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.welcome-container h2 {
+  margin-bottom: 1rem;
+  color: #2a6cc8;
+}
+
+.dark-mode .welcome-container h2 {
+  color: #70b5f9;
 }

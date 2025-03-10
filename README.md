@@ -1,14 +1,16 @@
-# Canada Weather Radar App
+# Weather App
 
-A React-based weather application that displays local weather data and live radar specifically for Canada. This app uses OpenWeatherMap for weather information and Environment Canada's free radar API.
+A React-based weather application that displays local weather data. This app uses OpenWeatherMap for weather information and functions as a Progressive Web App (PWA) with push notifications.
 
 ## Features
 
 - **Current Weather Conditions**: Temperature, humidity, wind speed, and more
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
-- **Live Radar Map**: Integrated radar data from Environment Canada
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)
+- **Progressive Web App**: Install on your device and use offline
+- **Weather Alerts**: Push notifications for severe weather conditions
+- **Customizable Notifications**: Set up alerts for specific weather conditions
 
 ## Getting Started
 
@@ -54,21 +56,35 @@ The app will open in your browser at [http://localhost:3000](http://localhost:30
 - Allow location access when prompted to see weather data for your current location
 - View current conditions at the top of the page
 - Scroll down to see the 7-day forecast
-- Explore the radar map to see precipitation patterns
-- The map can be zoomed and panned for more detailed viewing
+- Enable notifications when prompted to receive weather alerts
+- Install as a PWA by clicking "Add to Home Screen" in your browser's menu
+
+## PWA Features
+
+This application is a Progressive Web App, which means you can:
+
+- Install it on your home screen
+- Use it offline with cached data
+- Receive push notifications for weather alerts
+- Get updates automatically
+
+### Notification Setup
+
+1. When first using the app, you'll be prompted to allow notifications
+2. You can customize which types of alerts you want to receive
+3. Weather alerts will be sent even when the app is not open
 
 ## Data Sources
 
 - **Weather Data**: [OpenWeatherMap API](https://openweathermap.org/api)
-- **Radar Data**: [Environment Canada GeoMet](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/) (WMS layer)
 
 ## Technologies Used
 
 - React.js
-- Leaflet (for mapping)
 - Axios (for API requests)
-- Environment Canada GeoMet WMS (for radar data)
 - OpenWeatherMap API (for weather data)
+- Service Workers (for PWA functionality)
+- Web Push API (for notifications)
 
 ## License
 
@@ -77,5 +93,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Weather data provided by OpenWeatherMap
-- Radar data provided by Environment Canada
 - Icons and design inspiration from various weather services

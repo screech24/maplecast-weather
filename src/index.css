@@ -11,3 +11,117 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Notification prompt styles */
+.notification-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.notification-prompt-content {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dark-mode .notification-prompt-content {
+  background-color: #2c3e50;
+  color: #ecf0f1;
+}
+
+.notification-prompt-buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  gap: 10px;
+}
+
+button.primary-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.primary-button:hover {
+  background-color: #2980b9;
+}
+
+button.secondary-button {
+  background-color: transparent;
+  color: #7f8c8d;
+  border: 1px solid #bdc3c7;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dark-mode button.secondary-button {
+  color: #ecf0f1;
+  border: 1px solid #7f8c8d;
+}
+
+button.secondary-button:hover {
+  background-color: #ecf0f1;
+}
+
+.dark-mode button.secondary-button:hover {
+  background-color: #34495e;
+}
+
+/* Weather alerts header and refresh button */
+.weather-alerts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.weather-alerts-header h2 {
+  margin: 0;
+}
+
+button.refresh-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+button.refresh-button:hover {
+  background-color: #2980b9;
+}
+
+button.refresh-button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.dark-mode button.refresh-button {
+  background-color: #2980b9;
+}
+
+.dark-mode button.refresh-button:hover {
+  background-color: #3498db;
+}
+
+.dark-mode button.refresh-button:disabled {
+  background-color: #7f8c8d;
+}

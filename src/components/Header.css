@@ -16,6 +16,7 @@
 .logo-container {
   display: flex;
   align-items: center;
+  gap: 10px;
 }
 
 .logo-container h1 {
@@ -33,6 +34,18 @@
   background-size: contain;
 }
 
+.maple-leaf-icon {
+  width: 30px;
+  height: 30px;
+  animation: gently-sway 3s ease-in-out infinite;
+}
+
+@keyframes gently-sway {
+  0% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+  100% { transform: rotate(-5deg); }
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -42,6 +55,18 @@
 .header h2 {
   font-size: 1.25rem;
   font-weight: 400;
+}
+
+.notification-status {
+  display: flex;
+  align-items: center;
+  margin-right: 15px;
+  color: #e11d48;
+  cursor: pointer;
+}
+
+.notification-status i {
+  font-size: 1.2rem;
 }
 
 @media (max-width: 768px) {
