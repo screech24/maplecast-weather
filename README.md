@@ -131,11 +131,12 @@ Or from the project root:
 ```bash
 ./weather-app/deploy.sh
 ```
-
 The script will:
 - Automatically navigate to the correct directory
+- Check and update the git remote URL if needed
 - Commit and push your source code changes
 - Build the application
+- Deploy to GitHub Pages
 - Deploy to GitHub Pages
 
 Additional deployment options:

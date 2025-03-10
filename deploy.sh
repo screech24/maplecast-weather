@@ -21,6 +21,28 @@ fi
 
 # Check if we're in a git repository
 if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+  # Get the homepage URL from package.json
+  HOMEPAGE=$(grep '"homepage"' package.json | cut -d '"' -f 4)
+  
+  # Extract the repository name from the homepage URL
+  REPO_NAME=$(echo "$HOMEPAGE" | sed -E 's|https://[^/]+/([^/]+)/?.*|\1|')
+  
+  # Check if the remote URL needs to be updated
+  CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
+  EXPECTED_REMOTE="https://github.com/screech24/$REPO_NAME.git"
+  
+  if [[ "$CURRENT_REMOTE" != "$EXPECTED_REMOTE" ]]; then
+    echo "⚠️ Git remote URL needs to be updated."
+    echo "Current:  $CURRENT_REMOTE"
+    echo "Expected: $EXPECTED_REMOTE"
+    
+    read -p "Update git remote URL? (y/n): " update_remote
+    if [[ $update_remote == "y" || $update_remote == "Y" ]]; then
+      git remote set-url origin "$EXPECTED_REMOTE"
+      echo "✅ Git remote URL updated."
+    fi
+  fi
+  
   # Check for uncommitted changes
   if [ -n "$(git status --porcelain)" ]; then
     # Get commit message
@@ -36,7 +58,19 @@ if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
     git commit -m "$COMMIT_MSG"
     
     echo "⬆️ Pushing changes to repository..."
-    git push origin $(git branch --show-current)
+    if ! git push origin $(git branch --show-current) 2>/dev/null; then
+      echo "⚠️ Push failed. You may need to pull changes from the remote repository first."
+      echo "   Try running: git pull --rebase origin $(git branch --show-current)"
+      
+      # Ask if user wants to continue with deployment anyway
+      read -p "Continue with deployment anyway? (y/n): " continue_deploy
+      if [[ $continue_deploy != "y" && $continue_deploy != "Y" ]]; then
+        echo "Deployment aborted."
+        exit 1
+      fi
+      
+      echo "Continuing with deployment..."
+    fi
   else
     echo "✓ No changes to commit"
   fi
