@@ -2,7 +2,7 @@
   "name": "maplecast",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://screech24.github.io/maplecast",
+  "homepage": "https://screech24.github.io/canada-weather-radar",
   "dependencies": {
     "@react-leaflet/core": "^3.0.0",
     "@testing-library/dom": "^10.4.0",
