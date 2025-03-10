@@ -1,16 +1,23 @@
-# Weather App
+# MapleCast Weather App
 
-A React-based weather application that displays local weather data. This app uses OpenWeatherMap for weather information and functions as a Progressive Web App (PWA) with push notifications.
+A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
+
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
 
 - **Current Weather Conditions**: Temperature, humidity, wind speed, and more
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
+- **Hourly Forecast**: Detailed hourly predictions for the next 24 hours
+- **Enhanced Radar Visualization**: Interactive radar map with animation controls
+- **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
+- **Weather Alerts**: Real-time alerts for severe weather conditions with push notifications
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)
 - **Progressive Web App**: Install on your device and use offline
-- **Weather Alerts**: Push notifications for severe weather conditions
-- **Customizable Notifications**: Set up alerts for specific weather conditions
+- **Dark Mode**: Toggle between light and dark themes
+- **Responsive Design**: Optimized for all device sizes
 
 ## Getting Started
 
@@ -77,14 +84,74 @@ This application is a Progressive Web App, which means you can:
 ## Data Sources
 
 - **Weather Data**: [OpenWeatherMap API](https://openweathermap.org/api)
+- **Radar Data**: [Environment Canada GeoMet-Weather](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/)
+- **Weather Alerts**: [Environment Canada Weather Alerts](https://weather.gc.ca/warnings/index_e.html)
 
 ## Technologies Used
 
 - React.js
 - Axios (for API requests)
 - OpenWeatherMap API (for weather data)
+- Environment Canada (for radar and weather alerts)
+- Leaflet & React-Leaflet (for interactive maps)
 - Service Workers (for PWA functionality)
 - Web Push API (for notifications)
+- GitHub Pages (for deployment)
+
+## Versioning and Deployment
+
+### Version Tracking
+
+The app uses semantic versioning (MAJOR.MINOR.PATCH):
+- MAJOR version for incompatible API changes
+- MINOR version for new functionality in a backward compatible manner
+- PATCH version for backward compatible bug fixes
+
+Current version is displayed in the footer of the application.
+
+### Changelog
+
+All notable changes to this project are documented in the [CHANGELOG.md](./CHANGELOG.md) file.
+
+### Deployment
+
+The app is deployed to GitHub Pages. To deploy a new version:
+
+1. Make your changes and update the version number in `package.json`
+2. Update the `CHANGELOG.md` with your changes
+3. Run the deployment script from the weather-app directory:
+
+```bash
+cd weather-app
+./deploy.sh
+```
+
+Or from the project root:
+
+```bash
+./weather-app/deploy.sh
+```
+
+The script will:
+- Automatically navigate to the correct directory
+- Commit and push your source code changes
+- Build the application
+- Deploy to GitHub Pages
+
+Additional deployment options:
+
+```bash
+# Install dependencies and deploy
+./deploy.sh --install
+
+# Deploy with a custom commit message
+./deploy.sh "Your custom commit message"
+
+# Install dependencies and deploy with a custom commit message
+./deploy.sh --install "Your custom commit message"
+```
+
+This will build the app and deploy it to GitHub Pages at: https://screech24.github.io/maplecast-weather/
 
 ## License
 

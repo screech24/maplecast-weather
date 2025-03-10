@@ -7,7 +7,7 @@ import HourlyForecast from './components/HourlyForecast';
 import LocationInfo from './components/LocationInfo';
 import LocationSearch from './components/LocationSearch';
 import WeatherAlerts from './components/WeatherAlerts';
-import RadarMap from './components/RadarMap';
+import EnhancedRadarMap from './components/EnhancedRadarMap';
 import { getCurrentPosition, fetchWeatherData, fetchWeatherAlerts, isLocationInCanada } from './utils/api';
 import axios from 'axios';
 
@@ -582,8 +582,8 @@ function App() {
                   </div>
                 </div>
                 
-                {/* Radar map moved to bottom of page */}
-                <RadarMap
+                {/* Enhanced Radar Visualization */}
+                <EnhancedRadarMap
                   coordinates={coordinates}
                   isDarkMode={isDarkMode}
                 />
@@ -594,8 +594,8 @@ function App() {
       </div>
       
       <footer className="footer">
-        <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Radar data provided by Environment Canada</p>
-        <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI</p>
+        <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
+        <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.2.0</span></p>
       </footer>
 
       {showNotificationPrompt && (
