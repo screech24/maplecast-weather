@@ -10,6 +10,9 @@ const CurrentWeather = ({ data }) => {
     feels_like,
     humidity,
     wind_speed,
+    wind_gust,
+    pressure,
+    visibility,
     weather,
     uvi
   } = data.current;
@@ -25,6 +28,12 @@ const CurrentWeather = ({ data }) => {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     position: 'relative',
+  };
+
+  // Format visibility from meters to kilometers
+  const formatVisibility = (visibility) => {
+    if (!visibility) return 'N/A';
+    return (visibility / 1000).toFixed(1) + ' km';
   };
 
   return (
@@ -66,6 +75,23 @@ const CurrentWeather = ({ data }) => {
             <span className="detail-label">UV Index</span>
             <span className="detail-value">{Math.round(uvi)}</span>
           </div>
+          <div className="weather-detail">
+            <i className="fa-solid fa-gauge-high"></i>
+            <span className="detail-label">Pressure</span>
+            <span className="detail-value">{pressure} hPa</span>
+          </div>
+          <div className="weather-detail">
+            <i className="fa-solid fa-eye"></i>
+            <span className="detail-label">Visibility</span>
+            <span className="detail-value">{formatVisibility(visibility)}</span>
+          </div>
+          {wind_gust && (
+            <div className="weather-detail">
+              <i className="fa-solid fa-wind"></i>
+              <span className="detail-label">Wind Gusts</span>
+              <span className="detail-value">{Math.round(wind_gust * 3.6)} km/h</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -38,6 +38,8 @@ function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Add state for last used location
+  const [lastUsedLocation, setLastUsedLocation] = useState(null);
 
   // Update body class and localStorage when dark mode changes
   useEffect(() => {
@@ -252,6 +254,10 @@ function App() {
       setError(null);
       setCoordinates(position);
       
+      // Save the position to lastUsedLocation state and localStorage
+      setLastUsedLocation(position);
+      localStorage.setItem('lastUsedLocation', JSON.stringify(position));
+      
       // Check if location is in Canada
       const inCanada = await isLocationInCanada(position.lat, position.lon);
       console.log('Is location in Canada:', inCanada);
@@ -271,6 +277,9 @@ function App() {
           };
           console.log('Location data retrieved:', locationData);
           setLocationInfo(locationData);
+          
+          // Save location info to localStorage
+          localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
           
           // Fetch weather alerts if in Canada
           if (inCanada) {
@@ -384,10 +393,12 @@ function App() {
       setAlerts([]);
       setIsLoading(true); // Show loading state while fetching weather data
       
-      const success = await getLocationAndWeatherData({
+      const position = {
         lat: location.lat,
         lon: location.lon
-      });
+      };
+      
+      const success = await getLocationAndWeatherData(position);
       
       if (success) {
         const locationData = {
@@ -397,6 +408,9 @@ function App() {
         
         console.log('Setting location info after successful data fetch:', locationData);
         setLocationInfo(locationData);
+        
+        // Save location info to localStorage
+        localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
       } else {
         console.warn('Failed to get weather data for location');
       }
@@ -408,6 +422,59 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  // Add a useEffect to load the last used location from localStorage
+  useEffect(() => {
+    const loadLastUsedLocation = async () => {
+      const savedLocation = localStorage.getItem('lastUsedLocation');
+      const savedLocationInfo = localStorage.getItem('lastUsedLocationInfo');
+      
+      if (savedLocation) {
+        try {
+          const position = JSON.parse(savedLocation);
+          setLastUsedLocation(position);
+          
+          // Only load weather data if we have a valid position
+          if (position && position.lat && position.lon) {
+            console.log('Loading weather data for last used location:', position);
+            await getLocationAndWeatherData(position);
+          }
+        } catch (error) {
+          console.error('Error parsing saved location:', error);
+        }
+      } else {
+        // If no saved location, set loading to false
+        setIsLoading(false);
+      }
+      
+      if (savedLocationInfo) {
+        try {
+          const locationData = JSON.parse(savedLocationInfo);
+          setLocationInfo(locationData);
+        } catch (error) {
+          console.error('Error parsing saved location info:', error);
+        }
+      }
+    };
+    
+    loadLastUsedLocation();
+  }, [getLocationAndWeatherData]);
+
+  // Add a useEffect to update weather data when the app is resumed
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && lastUsedLocation) {
+        console.log('App resumed, updating weather data');
+        await getLocationAndWeatherData(lastUsedLocation);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [lastUsedLocation, getLocationAndWeatherData]);
 
   // Add a useEffect to initialize API key and mark core functionality as available
   useEffect(() => {
@@ -594,8 +661,10 @@ function App() {
       </div>
       
       <footer className="footer">
-        <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
-        <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.2.0</span></p>
+        <div className="container">
+          <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.4.0</span></p>
+        </div>
       </footer>
 
       {showNotificationPrompt && (

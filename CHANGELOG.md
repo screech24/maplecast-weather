@@ -5,6 +5,19 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-03-11
+
+### Added
+- Enhanced weather background images with more accurate day/night variants
+- Improved clear sky daytime image to show a pure blue sky without clouds
+- Added dynamic snow falling images to replace static snow scene
+- Optimized image loading and rendering for better performance
+
+### Changed
+- Improved visual experience with more accurate weather condition representations
+- Enhanced user experience with time-appropriate background images
+- Updated documentation to reflect recent changes
+
 ## [1.3.0] - 2025-03-11
 
 ### Added

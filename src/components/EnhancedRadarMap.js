@@ -238,7 +238,7 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     layers: 'RADAR_1KM_RRAI',
     format: 'image/png',
     transparent: true,
-    version: '1.3.0',
+    version: '1.4.0',
     opacity: opacity / 100,
     attribution: 'Radar data © Environment Canada'
   };
@@ -248,7 +248,7 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     layers: 'RADAR_1KM_RSNO',
     format: 'image/png',
     transparent: true,
-    version: '1.3.0',
+    version: '1.4.0',
     opacity: opacity / 100,
     attribution: 'Radar data © Environment Canada'
   };
@@ -258,7 +258,7 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     layers: 'RADAR_1KM_RDPR',
     format: 'image/png',
     transparent: true,
-    version: '1.3.0',
+    version: '1.4.0',
     opacity: opacity / 100,
     attribution: 'Radar data © Environment Canada'
   };
@@ -268,7 +268,7 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     layers: 'ALERTS',
     format: 'image/png',
     transparent: true,
-    version: '1.3.0',
+    version: '1.4.0',
     opacity: alertOpacity / 100,
     attribution: 'Weather Alerts © Environment Canada'
   };

@@ -108,7 +108,10 @@ export const fetchWeatherData = async (lat, lon) => {
         temp: currentWeather.main.temp,
         feels_like: currentWeather.main.feels_like,
         humidity: currentWeather.main.humidity,
+        pressure: currentWeather.main.pressure,
+        visibility: currentWeather.visibility,
         wind_speed: currentWeather.wind.speed,
+        wind_gust: currentWeather.wind.gust,
         weather: currentWeather.weather,
         uvi: 0, // Default since we can't get from OneCall
         dt: currentWeather.dt

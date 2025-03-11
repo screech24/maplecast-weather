@@ -41,7 +41,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
     layers: 'RADAR_1KM_RSNO',
     format: 'image/png',
     transparent: true,
-    version: '1.3.0',
+    version: '1.4.0',
     opacity: 0.7,
     attribution: 'Radar data © Environment Canada'
   };
