@@ -12,11 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved clear sky daytime image to show a pure blue sky without clouds
 - Added dynamic snow falling images to replace static snow scene
 - Optimized image loading and rendering for better performance
+- Enhanced location search with Canadian province recognition
+- Added fallback search mechanism when no results are found
+- Increased search results limit from 5 to 10 for more comprehensive options
 
 ### Changed
 - Improved visual experience with more accurate weather condition representations
 - Enhanced user experience with time-appropriate background images
 - Updated documentation to reflect recent changes
+- Improved location search UI with better error handling and feedback
+- Prioritized Canadian locations in search results
+
+### Fixed
+- Fixed issues with location search not recognizing some Canadian cities
+- Improved search algorithm to better handle province abbreviations and names
 
 ## [1.3.0] - 2025-03-11
 
