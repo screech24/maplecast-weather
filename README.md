@@ -2,7 +2,7 @@
 
 A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
@@ -11,6 +11,8 @@ A React-based weather application that displays local weather data with enhanced
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
 - **Hourly Forecast**: Detailed hourly predictions for the next 24 hours
 - **Enhanced Radar Visualization**: Interactive radar map with animation controls
+- **Dynamic Weather Backgrounds**: Background images that change based on weather conditions and time of day
+- **Day/Night Visualization**: Different background images for day and night for all weather conditions
 - **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
 - **Weather Alerts**: Real-time alerts for severe weather conditions with push notifications
 - **Location-based**: Uses your location to show relevant weather information
