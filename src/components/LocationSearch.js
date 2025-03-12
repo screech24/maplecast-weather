@@ -273,14 +273,25 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   };
 
   const handleLocationSelect = (location) => {
-    console.log('Location selected:', location.name);
-    onLocationSelect({
+    console.log('Location selected:', location);
+    
+    // Ensure we have all required properties before calling the callback
+    const locationData = {
       lat: location.lat,
       lon: location.lon,
-      name: location.name,
-      state: location.state,
-      country: location.country
-    });
+      name: location.name || '',
+      state: location.state || '',
+      country: location.country || ''
+    };
+    
+    // Call the parent component's callback with the location data
+    if (onLocationSelect && typeof onLocationSelect === 'function') {
+      onLocationSelect(locationData);
+    } else {
+      console.error('onLocationSelect is not a function or not provided');
+    }
+    
+    // Clear search results and search term
     setSearchResults([]);
     setSearchTerm('');
     if (onSearchTermChange) {
@@ -366,9 +377,17 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
             <li 
               key={index} 
               onClick={() => handleLocationSelect(result)}
-              className={result.country === 'CA' ? 'canadian-location' : ''}
+              className={`search-result-item ${result.country === 'CA' ? 'canadian-location' : ''}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  handleLocationSelect(result);
+                }
+              }}
             >
-              {formatLocationDisplay(result)}
+              <span className="location-name">{formatLocationDisplay(result)}</span>
+              <span className="select-indicator">Select</span>
             </li>
           ))}
         </ul>

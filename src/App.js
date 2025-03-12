@@ -16,7 +16,7 @@ import axios from 'axios';
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.0';
+const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.1';
 
 function App() {
   // eslint-disable-next-line no-unused-vars
@@ -457,20 +457,35 @@ function App() {
 
   const handleLocationSelect = async (location) => {
     console.log('Location selected in App component:', location);
+    
+    // Validate location data
+    if (!location || typeof location !== 'object' || !location.lat || !location.lon) {
+      console.error('Invalid location data received:', location);
+      setError('Invalid location data. Please try selecting a different location.');
+      return;
+    }
+    
     try {
       setAlerts([]);
       setIsLoading(true); // Show loading state while fetching weather data
+      setError(null); // Clear any previous errors
       
       const position = {
         lat: location.lat,
         lon: location.lon
       };
       
+      // Save the selected location to state for potential reuse
+      setLastUsedLocation(position);
+      
+      // Save location to localStorage immediately
+      localStorage.setItem('lastUsedLocation', JSON.stringify(position));
+      
       const success = await getLocationAndWeatherData(position);
       
       if (success) {
         const locationData = {
-          city: location.name,
+          city: location.name || '',
           region: location.state || ''
         };
         
@@ -481,9 +496,8 @@ function App() {
         localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
       } else {
         console.warn('Failed to get weather data for location');
+        setError('Unable to fetch weather data for the selected location. Please try again or select a different location.');
       }
-      
-      // No need to set initialLoadComplete here anymore, as it's handled in getLocationAndWeatherData
     } catch (error) {
       console.error('Error handling location selection:', error);
       setError('Failed to load weather data for the selected location. Please try again.');

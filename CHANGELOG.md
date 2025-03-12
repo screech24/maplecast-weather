@@ -5,6 +5,14 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2025-03-20
+
+### Fixed
+- Fixed issue with location search results not being clickable
+- Improved error handling in location selection process
+- Enhanced search results UI with better visual indicators for selection
+- Added keyboard accessibility for search results navigation
+
 ## [1.8.0] - 2025-03-19
 
 ### Added
