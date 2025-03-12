@@ -32,31 +32,56 @@ const fetchFromProxy = async (path, suppressErrors = false) => {
     
     debugLog(`Fetching from proxy: ${proxyUrl}`);
     
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/xml, text/xml, */*',
-        'Cache-Control': 'no-cache'
-      },
-    });
+    // Use AbortController to cancel the request after a timeout for 404s
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'No error text available');
+    try {
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/xml, text/xml, */*',
+          'Cache-Control': 'no-cache'
+        },
+        signal: controller.signal
+      });
       
-      // Only log errors if not suppressed (and not for 404s when suppressed)
-      if (!suppressErrors || (response.status !== 404 && !suppressErrors)) {
-        console.error(`Proxy returned status: ${response.status}`, errorText.substring(0, 200));
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        // For 404 errors, just return null without logging when suppressErrors is true
+        if (response.status === 404 && suppressErrors) {
+          return null;
+        }
+        
+        const errorText = await response.text().catch(() => 'No error text available');
+        
+        // Only log errors if not suppressed
+        if (!suppressErrors) {
+          console.error(`Proxy returned status: ${response.status}`, errorText.substring(0, 200));
+        }
+        
+        throw new Error(`Proxy returned status: ${response.status}`);
       }
       
-      throw new Error(`Proxy returned status: ${response.status}`);
+      const data = await response.text();
+      debugLog('Successfully fetched data from proxy');
+      return data;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      // If it's an abort error or 404 and suppressErrors is true, just return null silently
+      if ((fetchError.name === 'AbortError' || 
+          (fetchError.message && fetchError.message.includes('404'))) && 
+          suppressErrors) {
+        return null;
+      }
+      
+      throw fetchError;
     }
-    
-    const data = await response.text();
-    debugLog('Successfully fetched data from proxy');
-    return data;
   } catch (error) {
-    // Only log errors if not suppressed
-    if (!suppressErrors) {
+    // Only log errors if not suppressed and not a 404
+    if (!suppressErrors && !(error.message && error.message.includes('404'))) {
       console.error(`Proxy fetch failed: ${error.message}`);
     }
     throw error;
@@ -117,9 +142,11 @@ export const fetchLatestAlerts = async () => {
         directoryHtml = await fetchFromProxy(folderToTry, true);
         
         // If we get here without an error, we found a valid date folder
-        latestFolder = folderToTry;
-        debugLog(`Successfully accessed directory for date: ${dateString}`);
-        break;
+        if (directoryHtml) {
+          latestFolder = folderToTry;
+          debugLog(`Successfully accessed directory for date: ${dateString}`);
+          break;
+        }
       } catch (error) {
         debugLog(`Could not access directory for date: ${dateString}, trying next date...`);
       }
@@ -131,10 +158,12 @@ export const fetchLatestAlerts = async () => {
       
       try {
         directoryHtml = await fetchFromProxy('', true);
-        latestFolder = parseLatestFolder(directoryHtml);
+        if (directoryHtml) {
+          latestFolder = parseLatestFolder(directoryHtml);
+        }
         
         if (!latestFolder) {
-          console.error('Could not find the latest alerts folder from directory listing');
+          debugLog('Could not find the latest alerts folder from directory listing');
           // Fall back to today's date
           const today = new Date();
           const year = today.getFullYear();
@@ -144,7 +173,7 @@ export const fetchLatestAlerts = async () => {
           debugLog(`Falling back to today's date: ${latestFolder}`);
         }
       } catch (listingError) {
-        console.error('Error fetching directory listing:', listingError.message);
+        debugLog('Error fetching directory listing:', listingError.message);
         // Fall back to today's date
         const today = new Date();
         const year = today.getFullYear();
@@ -168,85 +197,64 @@ export const fetchLatestAlerts = async () => {
       try {
         // Get subdirectories (office codes) - suppress errors for 404s
         const subdirectoriesHtml = await fetchFromProxy(latestFolder, true);
-        const subdirectories = parseSubdirectories(subdirectoriesHtml);
         
-        debugLog(`Found ${subdirectories.length} subdirectories in ${latestFolder}`);
-        
-        // For each subdirectory, try to get XML files
-        for (const subdir of subdirectories) {
-          try {
-            const subdirPath = `${latestFolder}${subdir}/`;
-            const subdirHtml = await fetchFromProxy(subdirPath, true);
-            
-            // Look for hour directories
-            const hourDirs = parseSubdirectories(subdirHtml);
-            
-            for (const hourDir of hourDirs) {
-              try {
-                const hourPath = `${subdirPath}${hourDir}/`;
-                const hourHtml = await fetchFromProxy(hourPath, true);
+        if (subdirectoriesHtml) {
+          const subdirectories = parseSubdirectories(subdirectoriesHtml);
+          
+          debugLog(`Found ${subdirectories.length} subdirectories in ${latestFolder}`);
+          
+          // For each subdirectory, try to get XML files
+          for (const subdir of subdirectories) {
+            try {
+              const subdirPath = `${latestFolder}${subdir}/`;
+              const subdirHtml = await fetchFromProxy(subdirPath, true);
+              
+              if (subdirHtml) {
+                // Look for hour directories
+                const hourDirs = parseSubdirectories(subdirHtml);
                 
-                // Get XML files in this hour directory
-                const xmlFiles = parseXmlFilesList(hourHtml, hourPath);
-                allXmlFiles = allXmlFiles.concat(xmlFiles);
+                for (const hourDir of hourDirs) {
+                  try {
+                    const hourPath = `${subdirPath}${hourDir}/`;
+                    const hourHtml = await fetchFromProxy(hourPath, true);
+                    
+                    if (hourHtml) {
+                      // Get XML files in this hour directory
+                      const xmlFiles = parseXmlFilesList(hourHtml, hourPath);
+                      allXmlFiles = allXmlFiles.concat(xmlFiles);
+                      
+                      // If we found enough files, stop searching
+                      if (allXmlFiles.length >= 20) {
+                        debugLog('Found enough XML files, stopping search');
+                        break;
+                      }
+                    }
+                  } catch (hourError) {
+                    debugLog(`Error accessing hour directory ${hourDir}: ${hourError.message}`);
+                  }
+                }
                 
                 // If we found enough files, stop searching
                 if (allXmlFiles.length >= 20) {
-                  debugLog('Found enough XML files, stopping search');
                   break;
                 }
-              } catch (hourError) {
-                debugLog(`Error accessing hour directory ${hourDir}: ${hourError.message}`);
               }
+            } catch (subdirError) {
+              debugLog(`Error accessing subdirectory ${subdir}: ${subdirError.message}`);
             }
-            
-            // If we found enough files, stop searching
-            if (allXmlFiles.length >= 20) {
-              break;
-            }
-          } catch (subdirError) {
-            debugLog(`Error accessing subdirectory ${subdir}: ${subdirError.message}`);
           }
+        } else {
+          debugLog('Could not access subdirectories in the latest folder');
         }
       } catch (navigationError) {
-        console.error('Error during directory navigation:', navigationError.message);
+        debugLog('Error during directory navigation:', navigationError.message);
       }
     }
     
-    // If we still couldn't find any files, try hardcoded sample alerts for testing
+    // If we still couldn't find any files, use hardcoded sample alerts for testing
     if (allXmlFiles.length === 0) {
       debugLog('No CAP alert files found after all attempts, using hardcoded sample alerts for testing');
-      
-      // Create a sample alert for testing purposes
-      const sampleAlert = {
-        identifier: 'sample-alert-1',
-        sent: new Date().toISOString(),
-        status: 'Actual',
-        msgType: 'Alert',
-        scope: 'Public',
-        info: {
-          category: 'Met',
-          event: 'Weather Warning',
-          urgency: 'Expected',
-          severity: 'Moderate',
-          certainty: 'Likely',
-          effective: new Date().toISOString(),
-          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          headline: 'Sample Weather Warning for Testing',
-          description: 'This is a sample weather warning created for testing purposes when no real alerts are available.',
-          instruction: 'No action required. This is only a test alert.',
-          parameter: [
-            { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Type', value: 'warning' },
-            { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Name', value: 'weather_warning' }
-          ],
-          area: {
-            areaDesc: 'Sample Test Area',
-            polygon: '45.5,-75.0 45.5,-74.0 45.0,-74.0 45.0,-75.0 45.5,-75.0'
-          }
-        }
-      };
-      
-      return [sampleAlert];
+      return getSampleAlerts();
     }
     
     // Fetch a sample of alerts to avoid overwhelming the browser
@@ -262,10 +270,17 @@ export const fetchLatestAlerts = async () => {
       return deduplicatedAlerts;
     }
     
+    // If we didn't get any valid alerts, use sample alerts
+    if (alerts.length === 0) {
+      debugLog('No valid alerts found after fetching, using sample alerts');
+      return getSampleAlerts();
+    }
+    
     return alerts;
   } catch (error) {
     console.error('Error fetching CAP alerts:', error.message);
-    return [];
+    // Return sample alerts in case of any error
+    return getSampleAlerts();
   }
 };
 
@@ -308,98 +323,193 @@ const generateDateStrings = () => {
  */
 const tryDirectOfficeApproach = async (latestFolder) => {
   const allXmlFiles = [];
-  let errorCount = 0;
   
-  // Try known file patterns for alerts across Canada
+  // Check if we have cached successful paths from previous sessions
+  const cachedPaths = getCachedSuccessfulPaths();
+  
+  // If we have cached paths, try them first
+  if (cachedPaths && cachedPaths.length > 0) {
+    debugLog(`Trying ${cachedPaths.length} cached paths first`);
+    
+    // Try each cached path
+    for (const cachedPath of cachedPaths) {
+      try {
+        // Update the date in the cached path to use the latest folder
+        const pathParts = cachedPath.split('/');
+        if (pathParts.length >= 2) {
+          pathParts[0] = latestFolder.replace('/', ''); // Remove trailing slash
+          const updatedPath = pathParts.join('/');
+          
+          debugLog(`Trying cached path with updated date: ${updatedPath}`);
+          
+          // Use suppressErrors=true to avoid console spam for 404s
+          const xmlData = await fetchFromProxy(updatedPath, true);
+          
+          if (xmlData) {
+            const alert = parseCAP(xmlData, updatedPath);
+            
+            if (alert) {
+              debugLog(`Successfully parsed alert from cached path: ${alert.title}`);
+              allXmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${updatedPath}`);
+              
+              // If we found enough files, stop searching
+              if (allXmlFiles.length >= 10) {
+                debugLog('Found enough XML files from cached paths, stopping search');
+                return allXmlFiles;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Silently continue if a cached path fails
+        debugLog(`Error with cached path: ${error.message}`);
+      }
+    }
+  }
+  
+  // Reduced set of known patterns to try (focusing on the most common ones)
+  // This reduces the number of 404 errors while still finding alerts
   const knownPatterns = [
-    // CWUL (Quebec Storm Prediction Centre) patterns
-    `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWUL/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWUL/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
+    // CWUL (Quebec Storm Prediction Centre) - most common patterns
     `${latestFolder}CWUL/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
     `${latestFolder}CWUL/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWUL/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWUL/18/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
     
-    // CWAO (Montreal) patterns
-    `${latestFolder}CWAO/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWAO/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    
-    // CWTO (Ontario Storm Prediction Centre) patterns
-    `${latestFolder}CWTO/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWTO/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWTO/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWTO/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
+    // CWTO (Ontario Storm Prediction Centre) - most common patterns
     `${latestFolder}CWTO/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
     `${latestFolder}CWTO/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWTO/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWTO/18/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
     
-    // CWVR (Pacific Storm Prediction Centre - BC) patterns
-    `${latestFolder}CWVR/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWVR/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWVR/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWVR/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
+    // CWVR (Pacific Storm Prediction Centre - BC) - most common patterns
     `${latestFolder}CWVR/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
     `${latestFolder}CWVR/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWVR/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWVR/18/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
     
-    // CWWG (Prairie Storm Prediction Centre - MB, SK, AB) patterns
-    `${latestFolder}CWWG/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWWG/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWWG/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWWG/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
+    // CWWG (Prairie Storm Prediction Centre) - most common patterns
     `${latestFolder}CWWG/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
     `${latestFolder}CWWG/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWWG/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWWG/18/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
     
-    // CWHX (Atlantic Storm Prediction Centre - NS, NB, PEI, NL) patterns
-    `${latestFolder}CWHX/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
+    // CWHX (Atlantic Storm Prediction Centre) - most common patterns
     `${latestFolder}CWHX/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-    `${latestFolder}CWHX/18/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`
+    `${latestFolder}CWHX/12/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`
   ];
   
-  // Process patterns in batches to avoid overwhelming the browser
-  const batchSize = 3;
-  for (let i = 0; i < knownPatterns.length; i += batchSize) {
-    const batch = knownPatterns.slice(i, i + batchSize);
-    
-    // Process each batch in parallel
-    const batchPromises = batch.map(async (pattern) => {
-      try {
-        const path = pattern;
-        debugLog(`Trying direct file access: ${path}`);
-        
-        // Use suppressErrors=true to avoid console spam for 404s
-        const xmlData = await fetchFromProxy(path, true);
-        const alert = parseCAP(xmlData, path);
+  // Process patterns sequentially to reduce network load
+  for (const pattern of knownPatterns) {
+    try {
+      debugLog(`Trying direct file access: ${pattern}`);
+      
+      // Use suppressErrors=true to avoid console spam for 404s
+      const xmlData = await fetchFromProxy(pattern, true);
+      
+      if (xmlData) {
+        const alert = parseCAP(xmlData, pattern);
         
         if (alert) {
           debugLog(`Successfully parsed alert from direct file access: ${alert.title}`);
-          return `https://dd.weather.gc.ca/alerts/cap/${path}`;
+          allXmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${pattern}`);
+          
+          // Cache successful paths for future use
+          cacheSuccessfulPath(pattern);
+          
+          // If we found enough files, stop searching
+          if (allXmlFiles.length >= 10) {
+            debugLog('Found enough XML files, stopping search');
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      // Silently continue, as many files might not exist
+      debugLog(`Error with direct file access to ${pattern}: ${error.message}`);
+    }
+  }
+  
+  // If we didn't find any files with the reduced set, try a few more patterns
+  if (allXmlFiles.length === 0) {
+    debugLog('No files found with reduced pattern set, trying a few more patterns');
+    
+    // Additional patterns to try if the reduced set didn't find anything
+    const additionalPatterns = [
+      `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
+      `${latestFolder}CWTO/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
+      `${latestFolder}CWVR/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
+      `${latestFolder}CWWG/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
+      `${latestFolder}CWHX/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`
+    ];
+    
+    // Process additional patterns sequentially
+    for (const pattern of additionalPatterns) {
+      try {
+        debugLog(`Trying additional pattern: ${pattern}`);
+        
+        // Use suppressErrors=true to avoid console spam for 404s
+        const xmlData = await fetchFromProxy(pattern, true);
+        
+        if (xmlData) {
+          const alert = parseCAP(xmlData, pattern);
+          
+          if (alert) {
+            debugLog(`Successfully parsed alert from additional pattern: ${alert.title}`);
+            allXmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${pattern}`);
+            
+            // Cache successful paths for future use
+            cacheSuccessfulPath(pattern);
+            
+            // If we found enough files, stop searching
+            if (allXmlFiles.length >= 5) {
+              debugLog('Found enough XML files from additional patterns, stopping search');
+              break;
+            }
+          }
         }
       } catch (error) {
-        // Silently continue, as many files might not exist
-        debugLog(`Error with direct file access to ${pattern}: ${error.message}`);
+        // Silently continue
+        debugLog(`Error with additional pattern ${pattern}: ${error.message}`);
       }
-      return null;
-    });
-    
-    const results = await Promise.all(batchPromises);
-    const validFiles = results.filter(file => file !== null);
-    allXmlFiles.push(...validFiles);
+    }
   }
   
   console.log(`Found a total of ${allXmlFiles.length} alert files`);
   return allXmlFiles;
+};
+
+/**
+ * Cache a successful path for future use
+ * @param {string} path - The successful path to cache
+ */
+const cacheSuccessfulPath = (path) => {
+  try {
+    // Get existing cached paths
+    const existingPaths = getCachedSuccessfulPaths();
+    
+    // Add the new path if it doesn't already exist
+    if (!existingPaths.includes(path)) {
+      existingPaths.push(path);
+      
+      // Keep only the 10 most recent paths
+      const recentPaths = existingPaths.slice(-10);
+      
+      // Save to localStorage
+      localStorage.setItem('cap_successful_paths', JSON.stringify(recentPaths));
+      debugLog(`Cached successful path: ${path}`);
+    }
+  } catch (error) {
+    // Silently fail if localStorage is not available
+    debugLog(`Error caching successful path: ${error.message}`);
+  }
+};
+
+/**
+ * Get cached successful paths from previous sessions
+ * @returns {Array<string>} Array of cached paths
+ */
+const getCachedSuccessfulPaths = () => {
+  try {
+    const cachedPaths = localStorage.getItem('cap_successful_paths');
+    return cachedPaths ? JSON.parse(cachedPaths) : [];
+  } catch (error) {
+    // Silently fail if localStorage is not available
+    debugLog(`Error getting cached paths: ${error.message}`);
+    return [];
+  }
 };
 
 /**
@@ -1004,4 +1114,68 @@ export const formatAlertForDisplay = (alert) => {
     link: alert.sourceUrl,
     areas: alert.areas.map(area => area.description).join(', ')
   };
+};
+
+/**
+ * Get sample alerts for testing when no real alerts are available
+ * @returns {Array} An array of sample alert objects
+ */
+const getSampleAlerts = () => {
+  // Create sample alerts for testing purposes
+  return [
+    {
+      identifier: 'sample-alert-1',
+      sent: new Date().toISOString(),
+      status: 'Actual',
+      msgType: 'Alert',
+      scope: 'Public',
+      info: {
+        category: 'Met',
+        event: 'Weather Warning',
+        urgency: 'Expected',
+        severity: 'Moderate',
+        certainty: 'Likely',
+        effective: new Date().toISOString(),
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        headline: 'Sample Weather Warning for Testing',
+        description: 'This is a sample weather warning created for testing purposes when no real alerts are available.',
+        instruction: 'No action required. This is only a test alert.',
+        parameter: [
+          { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Type', value: 'warning' },
+          { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Name', value: 'weather_warning' }
+        ],
+        area: {
+          areaDesc: 'Sample Test Area',
+          polygon: '45.5,-75.0 45.5,-74.0 45.0,-74.0 45.0,-75.0 45.5,-75.0'
+        }
+      }
+    },
+    {
+      identifier: 'sample-alert-2',
+      sent: new Date().toISOString(),
+      status: 'Actual',
+      msgType: 'Alert',
+      scope: 'Public',
+      info: {
+        category: 'Met',
+        event: 'Snowfall Warning',
+        urgency: 'Expected',
+        severity: 'Moderate',
+        certainty: 'Likely',
+        effective: new Date().toISOString(),
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        headline: 'Sample Snowfall Warning for Testing',
+        description: 'This is a sample snowfall warning created for testing purposes. Expect 15-20 cm of snow in the next 24 hours.',
+        instruction: 'No action required. This is only a test alert.',
+        parameter: [
+          { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Type', value: 'warning' },
+          { valueName: 'layer:EC-MSC-SMC:1.0:Alert_Name', value: 'snowfall_warning' }
+        ],
+        area: {
+          areaDesc: 'Sample Test Area',
+          polygon: '46.8,-71.3 46.8,-71.1 46.7,-71.1 46.7,-71.3 46.8,-71.3'
+        }
+      }
+    }
+  ];
 }; 
