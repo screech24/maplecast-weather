@@ -31,15 +31,33 @@ self.addEventListener('install', event => {
 // Activate event - clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.filter(cacheName => {
-          return cacheName !== CACHE_NAME && cacheName !== ALERTS_CACHE_NAME;
-        }).map(cacheName => {
-          return caches.delete(cacheName);
-        })
-      );
-    })
+    Promise.all([
+      // Clean up old caches
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.filter(cacheName => {
+            return cacheName !== CACHE_NAME && cacheName !== ALERTS_CACHE_NAME;
+          }).map(cacheName => {
+            return caches.delete(cacheName);
+          })
+        );
+      }),
+      // Take control of all clients immediately
+      self.clients.claim(),
+      // Register for periodic sync if supported
+      (async () => {
+        if ('periodicSync' in self.registration) {
+          try {
+            await self.registration.periodicSync.register(ALERTS_SYNC_KEY, {
+              minInterval: 60 * 60 * 1000 // Once per hour
+            });
+            console.log('Registered periodic sync for weather alerts');
+          } catch (error) {
+            console.error('Error registering periodic sync:', error);
+          }
+        }
+      })()
+    ])
   );
 });
 
@@ -369,57 +387,52 @@ self.addEventListener('message', event => {
   }
 });
 
+// Utility function to log errors only when necessary
+const logErrorConditionally = (message, error, isImportant = false) => {
+  // Always log important errors
+  if (isImportant) {
+    console.error(message, error);
+    return;
+  }
+  
+  // For 404 errors, only log in debug mode
+  if (error && error.message && error.message.includes('404')) {
+    console.log(message); // Use log instead of error for 404s
+    return;
+  }
+  
+  // For other errors, log as errors
+  console.error(message, error);
+};
+
 // Function to sync weather alerts in the background
 async function syncWeatherAlerts() {
   console.log('[Service Worker] Starting weather alerts sync');
+  
   try {
-    // Get cached location info
-    const locationInfoCache = await caches.open(ALERTS_CACHE_NAME);
-    const locationResponse = await locationInfoCache.match('location-info');
+    // Get the cached alerts and location info
+    const { alerts: cachedAlerts, locationInfo } = await getCachedAlertsAndLocation();
     
-    if (!locationResponse) {
-      console.log('[Service Worker] No cached location info available for alert sync');
-      return;
-    }
-    
-    const locationInfo = await locationResponse.json();
-    
-    if (!locationInfo || !locationInfo.city || !locationInfo.region) {
-      console.log('[Service Worker] Invalid location info for alert sync');
-      return;
+    // If we don't have location info, we can't fetch relevant alerts
+    if (!locationInfo || !locationInfo.region) {
+      console.log('[Service Worker] No location info available, skipping alerts sync');
+      return false;
     }
     
     console.log(`[Service Worker] Syncing alerts for ${locationInfo.city}, ${locationInfo.region}`);
     
-    // Get cached alerts to compare later
-    const alertsResponse = await locationInfoCache.match('alerts-data');
-    let cachedAlerts = [];
-    if (alertsResponse) {
-      try {
-        cachedAlerts = await alertsResponse.json();
-        console.log(`[Service Worker] Found ${cachedAlerts.length} cached alerts`);
-      } catch (e) {
-        console.error('[Service Worker] Error parsing cached alerts', e);
-        cachedAlerts = [];
-      }
-    }
+    // Determine which region codes to try based on the location
+    const regionCodes = getRegionCodes(locationInfo.region);
     
-    // Try multiple CORS proxies
+    // Define CORS proxies to try
     const corsProxies = [
       'https://corsproxy.io/?',
-      'https://cors-anywhere.herokuapp.com/',
-      'https://api.allorigins.win/raw?url='
+      'https://api.allorigins.win/raw?url=',
+      'https://cors-anywhere.herokuapp.com/'
     ];
-    
-    // Try to determine region code
-    const regionCodes = getRegionCodesForProvince(locationInfo.region);
     
     let newAlerts = [];
     let fetchSucceeded = false;
-    
-    // Add timestamp to track when alerts were last checked
-    const lastChecked = Date.now();
-    await locationInfoCache.put('alerts-last-checked', new Response(JSON.stringify({ timestamp: lastChecked })));
     
     // Try each region code with each proxy
     for (const regionCode of regionCodes) {
@@ -439,7 +452,12 @@ async function syncWeatherAlerts() {
           });
           
           if (!response.ok) {
-            console.log(`[Service Worker] Failed to fetch from ${proxy} with status: ${response.status}`);
+            // Log 404s at a lower level
+            if (response.status === 404) {
+              console.log(`[Service Worker] No alerts found at ${proxy} with status: ${response.status}`);
+            } else {
+              console.log(`[Service Worker] Failed to fetch from ${proxy} with status: ${response.status}`);
+            }
             continue;
           }
           
@@ -498,7 +516,8 @@ async function syncWeatherAlerts() {
           fetchSucceeded = true;
           break;
         } catch (error) {
-          console.error(`[Service Worker] Error fetching alerts with proxy ${proxy}:`, error);
+          // Use conditional logging for errors
+          logErrorConditionally(`[Service Worker] Error fetching alerts with proxy ${proxy}:`, error);
         }
       }
     }
@@ -520,7 +539,12 @@ async function syncWeatherAlerts() {
           });
           
           if (!response.ok) {
-            console.log(`[Service Worker] Failed to fetch national feed with status: ${response.status}`);
+            // Log 404s at a lower level
+            if (response.status === 404) {
+              console.log(`[Service Worker] No national alerts found with status: ${response.status}`);
+            } else {
+              console.log(`[Service Worker] Failed to fetch national feed with status: ${response.status}`);
+            }
             continue;
           }
           
@@ -552,36 +576,61 @@ async function syncWeatherAlerts() {
             continue;
           }
           
-          // Process entries to get alerts
+          // Process entries to get alerts (similar to above)
           newAlerts = Array.from(entries)
             .filter(entry => {
+              // For RSS format
+              if (entry.tagName === 'item') {
+                const category = entry.querySelector('category')?.textContent || '';
+                const title = entry.querySelector('title')?.textContent || '';
+                
+                return (
+                  category.toLowerCase().includes('warning') &&
+                  !(title.toLowerCase().includes('no watches or warnings in effect'))
+                );
+              }
+              
+              // For ATOM format
+              const categoryElement = entry.querySelector('category');
+              const category = categoryElement ? categoryElement.getAttribute('term') : '';
+              
               const titleElement = entry.querySelector('title');
               const title = titleElement ? titleElement.textContent : '';
               
-              // Include any entry that doesn't explicitly say "no watches or warnings"
-              return !(title && title.toLowerCase().includes('no watches or warnings in effect'));
+              return (
+                category && category.toLowerCase().includes('warnings and watches') &&
+                !(title && title.toLowerCase().includes('no watches or warnings in effect'))
+              );
             })
             .map(entry => {
-              const id = entry.querySelector('id')?.textContent || 
-                entry.querySelector('guid')?.textContent || 
-                `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              // For RSS format
+              if (entry.tagName === 'item') {
+                const id = entry.querySelector('guid')?.textContent || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const title = entry.querySelector('title')?.textContent || 'Weather Alert';
+                const summary = entry.querySelector('description')?.textContent || 'No details available';
+                const link = entry.querySelector('link')?.textContent || 'https://weather.gc.ca/warnings/index_e.html';
+                const pubDate = entry.querySelector('pubDate')?.textContent || new Date().toISOString();
                 
-              const title = entry.querySelector('title')?.textContent || 'Weather Alert';
+                return {
+                  id,
+                  title,
+                  summary,
+                  published: pubDate,
+                  link,
+                  updated: pubDate
+                };
+              }
               
-              const summary = entry.querySelector('summary')?.textContent || 
-                entry.querySelector('description')?.textContent || 
-                'No details available';
+              // For ATOM format
+              const id = entry.querySelector('id')?.textContent || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              const title = entry.querySelector('title')?.textContent || 'Weather Alert';
+              const summary = entry.querySelector('summary')?.textContent || 'No details available';
               
               const linkElement = entry.querySelector('link');
-              const link = linkElement ? 
-                (linkElement.getAttribute('href') || linkElement.textContent) : 
-                'https://weather.gc.ca/warnings/index_e.html';
+              const link = linkElement ? linkElement.getAttribute('href') : 'https://weather.gc.ca/warnings/index_e.html';
               
-              const published = entry.querySelector('published')?.textContent || 
-                entry.querySelector('pubDate')?.textContent || 
-                new Date().toISOString();
-                
-              const updated = entry.querySelector('updated')?.textContent || published;
+              const published = entry.querySelector('published')?.textContent || new Date().toISOString();
+              const updated = entry.querySelector('updated')?.textContent || new Date().toISOString();
               
               return {
                 id,
@@ -589,16 +638,15 @@ async function syncWeatherAlerts() {
                 summary,
                 published,
                 link,
-                updated,
-                source: nationalAlertsUrl
+                updated
               };
             });
           
-          console.log(`[Service Worker] Found ${newAlerts.length} alerts in national feed`);
           fetchSucceeded = true;
           break;
         } catch (error) {
-          console.error(`[Service Worker] Error fetching national alerts with proxy ${proxy}:`, error);
+          // Use conditional logging for errors
+          logErrorConditionally(`[Service Worker] Error fetching national alerts with proxy ${proxy}:`, error);
         }
       }
     }
@@ -648,23 +696,6 @@ function getRegionCodesForProvince(province) {
   } else {
     return ['mbrm9', 'skrm2', 'ns1', 'nb2', 'nl3', 'pei2', 'yt10', 'nt1', 'nu1'];
   }
-}
-
-// Register for periodic background sync if supported
-if ('periodicSync' in self.registration) {
-  // Try to register for periodic sync
-  const tryRegisterPeriodicSync = async () => {
-    try {
-      await self.registration.periodicSync.register(ALERTS_SYNC_KEY, {
-        minInterval: 60 * 60 * 1000 // Once per hour
-      });
-      console.log('Registered periodic sync for weather alerts');
-    } catch (error) {
-      console.error('Error registering periodic sync:', error);
-    }
-  };
-  
-  tryRegisterPeriodicSync();
 }
 
 // Add an event listener for the 'periodicsync' event

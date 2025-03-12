@@ -226,10 +226,21 @@ h1, h2, h3, h4, h5, h6 {
   padding: 2px 6px;
   border-radius: 10px;
   margin-left: 5px;
+  text-decoration: none;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.version:hover {
+  background-color: var(--accent-color);
+  transform: scale(1.05);
 }
 
 .dark-mode .version {
   background-color: var(--primary-dark);
+}
+
+.dark-mode .version:hover {
+  background-color: var(--accent-dark);
 }
 
 @keyframes spin {

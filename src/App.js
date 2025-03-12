@@ -281,18 +281,9 @@ function App() {
       // Get user location if not provided
       let userLocation;
       
-      // Special case for Lévis, QC - use hardcoded coordinates for testing
-      if (city === 'Lévis' && region === 'Quebec') {
-        console.log('Using hardcoded coordinates for Lévis, QC');
-        userLocation = {
-          latitude: 46.8,
-          longitude: -71.2
-        };
-      } else {
-        userLocation = coordinates ? 
-          { latitude: coordinates.lat, longitude: coordinates.lon } : 
-          await getUserLocation();
-      }
+      userLocation = coordinates ? 
+        { latitude: coordinates.lat, longitude: coordinates.lon } : 
+        await getUserLocation();
       
       console.log(`Using location: ${JSON.stringify(userLocation)}`);
       
@@ -769,7 +760,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.5.1</span></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather" target="_blank" rel="noopener noreferrer" className="version">v1.6.0</a></p>
         </div>
       </footer>
 

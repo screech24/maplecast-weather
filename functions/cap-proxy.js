@@ -18,8 +18,27 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Get the path from the request
-    const path = event.path.replace('/api/cap/', '');
+    // Extract the path after the function name in the Netlify Functions URL
+    let path = '';
+    
+    if (event.path.includes('/.netlify/functions/cap-proxy/')) {
+      // Extract everything after cap-proxy/
+      path = event.path.split('/.netlify/functions/cap-proxy/')[1] || '';
+    } else if (event.path.includes('/api/cap/')) {
+      // Fallback for direct API calls
+      path = event.path.replace('/api/cap/', '');
+    } else if (event.rawUrl) {
+      // Try to extract from the raw URL if available
+      const url = new URL(event.rawUrl);
+      const pathParts = url.pathname.split('/');
+      const capProxyIndex = pathParts.findIndex(part => part === 'cap-proxy');
+      
+      if (capProxyIndex !== -1 && capProxyIndex < pathParts.length - 1) {
+        path = pathParts.slice(capProxyIndex + 1).join('/');
+      }
+    }
+    
+    console.log(`Extracted path: ${path}`);
     
     // Construct the URL to Environment Canada
     const url = `https://dd.weather.gc.ca/alerts/cap/${path}`;
@@ -29,35 +48,76 @@ exports.handler = async function(event, context) {
     // Fetch the data from Environment Canada
     const response = await axios.get(url, {
       headers: {
-        'Accept': 'application/xml, text/xml, */*'
+        'Accept': 'application/xml, text/xml, */*',
+        'User-Agent': 'MapleCast-Weather-App/1.0'
       },
       // Add a timeout to prevent hanging requests
-      timeout: 10000
+      timeout: 15000,
+      // Add validation to handle redirects
+      maxRedirects: 5,
+      validateStatus: function (status) {
+        return status >= 200 && status < 500; // Accept all responses except server errors
+      }
     });
     
-    // Return the data
+    // If we get a 404, return it without logging an error
+    if (response.status === 404) {
+      return {
+        statusCode: 404,
+        headers,
+        body: 'Not Found'
+      };
+    }
+    
+    // For other non-200 responses, log them
+    if (response.status !== 200) {
+      console.log(`Received non-200 status: ${response.status} for URL: ${url}`);
+    }
+    
+    // Return the data from Environment Canada
     return {
-      statusCode: 200,
+      statusCode: response.status,
       headers: {
         ...headers,
-        'Content-Type': response.headers['content-type'] || 'text/plain'
+        'Content-Type': response.headers['content-type'] || 'application/xml'
       },
-      body: typeof response.data === 'string' 
-        ? response.data 
-        : JSON.stringify(response.data)
+      body: typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
     };
   } catch (error) {
-    console.log('Error:', error.message);
+    console.error('Error in cap-proxy:', error.message);
     
-    // Return error details
+    // Return a more specific error message
+    let statusCode = 500;
+    let errorMessage = 'Internal Server Error';
+    
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      statusCode = error.response.status;
+      errorMessage = `Error ${statusCode}: ${error.response.statusText || 'Unknown Error'}`;
+      
+      // For 404s, don't treat as an error
+      if (statusCode === 404) {
+        return {
+          statusCode: 404,
+          headers,
+          body: 'Not Found'
+        };
+      }
+    } else if (error.request) {
+      // The request was made but no response was received
+      statusCode = 503;
+      errorMessage = 'Service Unavailable: No response received';
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      statusCode = 400;
+      errorMessage = `Bad Request: ${error.message}`;
+    }
+    
     return {
-      statusCode: error.response?.status || 500,
+      statusCode,
       headers,
-      body: JSON.stringify({
-        error: error.message,
-        status: error.response?.status,
-        path: event.path
-      })
+      body: errorMessage
     };
   }
 }; 

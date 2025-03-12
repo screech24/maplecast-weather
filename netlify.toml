@@ -4,6 +4,12 @@
   functions = "functions"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/cap/*"
+  to = "/.netlify/functions/cap-proxy/:splat"
+  status = 200 
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200 

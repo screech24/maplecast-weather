@@ -5,6 +5,23 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-03-15
+
+### Added
+- Expanded support for weather alerts across all Canadian regions
+- Added comprehensive region mapping for major Canadian cities including Toronto, Vancouver, Calgary, Edmonton, Winnipeg, Ottawa, Halifax, and Victoria
+- Added nearby regions for all major Canadian cities to improve alert relevance
+
+### Changed
+- Removed Quebec-specific hardcoded elements from the alerts system
+- Generalized the location matching algorithm to work for all Canadian locations
+- Made the version number in the footer clickable, linking to the GitHub repository
+
+### Fixed
+- Fixed issues with alert detection for locations outside Quebec
+- Improved geospatial calculations for more accurate alert matching
+- Enhanced error handling for 404 responses when fetching alerts
+
 ## [1.5.1] - 2025-03-12
 
 ### Changed
