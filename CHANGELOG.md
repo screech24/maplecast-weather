@@ -5,6 +5,20 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2025-03-19
+
+### Added
+- Enhanced location search functionality with multi-stage search approach
+- Added support for Canadian postal code detection in search
+- Implemented provincial search suggestions when locations aren't found
+- Added intelligent location name extraction for better search results
+
+### Changed
+- Improved search algorithm to try multiple variations of search terms
+- Enhanced user interface with clickable alternative search suggestions
+- Improved error messages with specific suggestions for better searches
+- Optimized province detection with more flexible matching
+
 ## [1.7.0] - 2025-03-18
 
 ### Added

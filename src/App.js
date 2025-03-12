@@ -16,7 +16,7 @@ import axios from 'axios';
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.REACT_APP_VERSION || '1.6.0';
+const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.0';
 
 function App() {
   // eslint-disable-next-line no-unused-vars

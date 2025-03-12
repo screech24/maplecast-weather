@@ -19,6 +19,35 @@ const CANADIAN_PROVINCES = {
   'NU': 'Nunavut'
 };
 
+// Canadian postal code regex pattern (A1A 1A1 format)
+const POSTAL_CODE_REGEX = /\b[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d\b/;
+
+// Helper function to check if a string contains a Canadian postal code
+const containsCanadianPostalCode = (term) => {
+  return POSTAL_CODE_REGEX.test(term);
+};
+
+// Helper function to check if a string contains a province reference
+const containsProvinceReference = (term) => {
+  const termLower = term.toLowerCase();
+  
+  // Check for province abbreviations (case insensitive with word boundaries)
+  for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
+    if (new RegExp(`\\b${abbr}\\b`, 'i').test(term)) {
+      return true;
+    }
+  }
+  
+  // Check for province full names (partial matches allowed)
+  for (const province of Object.values(CANADIAN_PROVINCES)) {
+    if (termLower.includes(province.toLowerCase())) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
 // Helper function to enhance search terms for Canadian locations
 const enhanceCanadianSearch = (term) => {
   // If already contains Canada, return as is
@@ -26,36 +55,54 @@ const enhanceCanadianSearch = (term) => {
     return term;
   }
   
-  // Check if it contains a province name or abbreviation
-  const termUpper = term.toUpperCase();
-  let containsProvince = false;
-  
-  // Check for province abbreviations (exact match with word boundaries)
-  for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
-    // Check if the term contains the abbreviation as a whole word
-    if (new RegExp(`\\b${abbr}\\b`).test(termUpper)) {
-      containsProvince = true;
-      break;
-    }
-  }
-  
-  // Check for province full names
-  if (!containsProvince) {
-    for (const province of Object.values(CANADIAN_PROVINCES)) {
-      if (term.toLowerCase().includes(province.toLowerCase())) {
-        containsProvince = true;
-        break;
-      }
-    }
+  // If it contains a Canadian postal code, it's definitely Canadian
+  if (containsCanadianPostalCode(term)) {
+    return `${term}, Canada`;
   }
   
   // If it contains a province reference, it's likely Canadian
-  if (containsProvince) {
+  if (containsProvinceReference(term)) {
     return term;
   }
   
   // Otherwise, append Canada to improve search results
   return `${term}, Canada`;
+};
+
+// Helper function to extract the main location name from a search term
+const extractLocationName = (term) => {
+  // Remove postal codes
+  let cleanTerm = term.replace(POSTAL_CODE_REGEX, '').trim();
+  
+  // Remove province abbreviations
+  for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
+    cleanTerm = cleanTerm.replace(new RegExp(`\\b${abbr}\\b`, 'i'), '').trim();
+  }
+  
+  // Remove province names
+  for (const province of Object.values(CANADIAN_PROVINCES)) {
+    cleanTerm = cleanTerm.replace(new RegExp(province, 'i'), '').trim();
+  }
+  
+  // Remove "Canada" and common separators
+  cleanTerm = cleanTerm.replace(/\bcanada\b/i, '')
+                       .replace(/,|;|\|/g, '')
+                       .trim();
+  
+  return cleanTerm;
+};
+
+// Generate search terms with different province combinations
+const generateProvincialSearchTerms = (locationName) => {
+  const terms = [];
+  
+  // Add terms with each province
+  for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+    terms.push(`${locationName}, ${abbr}, Canada`);
+    terms.push(`${locationName}, ${province}, Canada`);
+  }
+  
+  return terms;
 };
 
 const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTermChange }) => {
@@ -65,6 +112,8 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [searchAttempts, setSearchAttempts] = useState(0);
+  const [searchStage, setSearchStage] = useState(0);
+  const [alternativeSearchTerms, setAlternativeSearchTerms] = useState([]);
 
   useEffect(() => {
     if (apiKey) {
@@ -86,6 +135,31 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     }
   };
 
+  // Function to perform a search with a specific term
+  const performSearch = async (term) => {
+    console.log(`Searching for location: ${term}`);
+    
+    try {
+      const response = await axios.get(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(term)}&limit=10&appid=${apiKey}`
+      );
+      
+      if (response.data.length > 0) {
+        console.log(`Found ${response.data.length} locations for search term:`, term);
+        // Sort results to prioritize Canadian locations
+        const sortedResults = prioritizeCanadianResults(response.data);
+        setSearchResults(sortedResults);
+        return true;
+      }
+      
+      console.log('No locations found for search term:', term);
+      return false;
+    } catch (err) {
+      console.error('Search error:', err);
+      throw err;
+    }
+  };
+
   const handleSearch = async (e) => {
     e.preventDefault();
     
@@ -100,45 +174,78 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     setIsSearching(true);
     setError(null);
     setSearchAttempts(0);
+    setSearchStage(0);
+    setAlternativeSearchTerms([]);
     
     try {
-      // Enhanced search for Canadian locations
+      // Stage 1: Try with enhanced Canadian search term
       const enhancedTerm = enhanceCanadianSearch(searchTerm);
-      console.log(`Searching for location: ${enhancedTerm} (original: ${searchTerm})`);
+      let searchSuccess = await performSearch(enhancedTerm);
       
-      // Increased limit from 5 to 10 for more comprehensive results
-      const response = await axios.get(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(enhancedTerm)}&limit=10&appid=${apiKey}`
-      );
+      // If first attempt failed and the enhanced term is different from original
+      if (!searchSuccess && enhancedTerm !== searchTerm) {
+        // Stage 2: Try with original search term
+        setSearchStage(1);
+        searchSuccess = await performSearch(searchTerm);
+      }
       
-      if (response.data.length === 0) {
-        console.log('No locations found for search term:', enhancedTerm);
-        
-        // Try a fallback search without the enhancement if this was the first attempt
-        if (searchAttempts === 0 && enhancedTerm !== searchTerm) {
-          setSearchAttempts(1);
-          console.log('Trying fallback search with original term:', searchTerm);
-          
-          const fallbackResponse = await axios.get(
-            `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(searchTerm)}&limit=10&appid=${apiKey}`
-          );
-          
-          if (fallbackResponse.data.length === 0) {
-            setError('No locations found. Try a different search term or add a province name.');
-          } else {
-            console.log(`Found ${fallbackResponse.data.length} locations in fallback search`);
-            // Sort results to prioritize Canadian locations
-            const sortedResults = prioritizeCanadianResults(fallbackResponse.data);
-            setSearchResults(sortedResults);
-          }
-        } else {
-          setError('No locations found. Try a different search term or add a province name.');
+      // If still no results, try with just the location name + Canada
+      if (!searchSuccess) {
+        // Stage 3: Try with just the location name + Canada
+        setSearchStage(2);
+        const locationName = extractLocationName(searchTerm);
+        if (locationName && locationName !== searchTerm) {
+          searchSuccess = await performSearch(`${locationName}, Canada`);
         }
-      } else {
-        console.log(`Found ${response.data.length} locations for search term:`, enhancedTerm);
-        // Sort results to prioritize Canadian locations
-        const sortedResults = prioritizeCanadianResults(response.data);
-        setSearchResults(sortedResults);
+      }
+      
+      // If still no results, try with provincial variations
+      if (!searchSuccess) {
+        // Stage 4: Try with provincial variations
+        setSearchStage(3);
+        const locationName = extractLocationName(searchTerm);
+        if (locationName) {
+          // Generate provincial search terms
+          const provincialTerms = generateProvincialSearchTerms(locationName);
+          setAlternativeSearchTerms(provincialTerms);
+          
+          // Try each provincial term until we find results or exhaust options
+          for (const term of provincialTerms.slice(0, 5)) { // Limit to first 5 to avoid too many requests
+            searchSuccess = await performSearch(term);
+            if (searchSuccess) break;
+          }
+        }
+      }
+      
+      // If all attempts failed, show helpful error message
+      if (!searchSuccess) {
+        const suggestions = [];
+        
+        // Add suggestions based on the search term
+        if (!searchTerm.toLowerCase().includes('canada')) {
+          suggestions.push('Add "Canada" to your search');
+        }
+        
+        if (!containsProvinceReference(searchTerm)) {
+          suggestions.push('Include a province name or abbreviation (e.g., ON, BC)');
+        }
+        
+        if (searchTerm.length < 3) {
+          suggestions.push('Use a more specific search term');
+        }
+        
+        // Format error message with suggestions
+        let errorMsg = 'No locations found.';
+        if (suggestions.length > 0) {
+          errorMsg += ' Try: ' + suggestions.join(', ') + '.';
+        }
+        
+        // If we have alternative terms, suggest them
+        if (alternativeSearchTerms.length > 0) {
+          errorMsg += ' You can also try searching for specific provinces.';
+        }
+        
+        setError(errorMsg);
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -199,6 +306,14 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     return display;
   };
 
+  // Handle alternative search term click
+  const handleAlternativeTermClick = (term) => {
+    setSearchTerm(term);
+    // Trigger search with the new term
+    const fakeEvent = { preventDefault: () => {} };
+    setTimeout(() => handleSearch(fakeEvent), 0);
+  };
+
   return (
     <div className="location-search">
       <form onSubmit={handleSearch} className="search-form">
@@ -230,6 +345,20 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       </form>
       
       {error && <div className="search-error">{error}</div>}
+      
+      {/* Show alternative search suggestions if available and no results found */}
+      {error && alternativeSearchTerms.length > 0 && (
+        <div className="alternative-terms">
+          <p>Try searching with a specific province:</p>
+          <ul>
+            {alternativeSearchTerms.slice(0, 5).map((term, index) => (
+              <li key={index} onClick={() => handleAlternativeTermClick(term)}>
+                {term}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       
       {searchResults.length > 0 && (
         <ul className="search-results">
