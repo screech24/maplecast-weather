@@ -5,6 +5,37 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import 'leaflet/dist/leaflet.css';
 
+// Function to show update notification
+const showUpdateNotification = () => {
+  // Check if we already have a notification showing
+  if (document.querySelector('.update-notification')) {
+    return;
+  }
+  
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = 'update-notification';
+  notification.innerHTML = `
+    <div class="update-notification-content">
+      <p>A new version of the app is available!</p>
+      <button id="update-refresh-button">Refresh to update</button>
+      <button id="update-dismiss-button">Dismiss</button>
+    </div>
+  `;
+  
+  // Add to body
+  document.body.appendChild(notification);
+  
+  // Add event listeners
+  document.getElementById('update-refresh-button').addEventListener('click', () => {
+    window.location.reload();
+  });
+  
+  document.getElementById('update-dismiss-button').addEventListener('click', () => {
+    notification.remove();
+  });
+};
+
 // Register service worker for PWA functionality
 const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
@@ -28,9 +59,27 @@ const registerServiceWorker = async () => {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               console.log('New Service Worker installed, ready to take over');
-              // Notify the user about the update if needed
+              // Notify the user about the update
+              showUpdateNotification();
             }
           });
+        });
+        
+        // Listen for messages from the service worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          console.log('Received message from service worker:', event.data);
+          
+          if (event.data && event.data.type === 'SW_UPDATED') {
+            console.log(`Service worker updated to version ${event.data.version}`);
+            showUpdateNotification();
+          }
+        });
+        
+        // Handle controller change (when a new service worker takes over)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('Service Worker controller changed');
+          // We don't reload here to avoid disrupting the user experience
+          // Instead, we show a notification that allows the user to refresh
         });
         
         return registration;

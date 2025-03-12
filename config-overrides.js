@@ -1,32 +1,37 @@
 const webpack = require('webpack');
 const path = require('path');
+const fs = require('fs');
+
+// Get package version from package.json
+const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+const packageVersion = packageJson.version;
 
 module.exports = function override(config, env) {
-  // Add fallbacks for Node.js core modules
+  // Add polyfills for Node.js core modules
   config.resolve.fallback = {
     ...config.resolve.fallback,
-    "buffer": require.resolve("buffer/"),
     "stream": require.resolve("stream-browserify"),
-    "timers": require.resolve("timers-browserify"),
-    "util": require.resolve("util/"),
-    "events": require.resolve("events/"),
-    "assert": require.resolve("assert/"),
-    "process": false  // Tell webpack to use a fake empty process module
+    "buffer": require.resolve("buffer"),
+    "util": require.resolve("util"),
+    "assert": require.resolve("assert"),
+    "process": require.resolve("process"),
+    "events": require.resolve("events"),
+    "timers": require.resolve("timers-browserify")
   };
-
-  // Add global variables
+  
+  // Add plugins to provide global variables
   config.plugins = [
-    ...(config.plugins || []),
+    ...config.plugins,
     new webpack.ProvidePlugin({
       Buffer: ['buffer', 'Buffer'],
+      process: 'process'
     }),
-    // This creates an empty process shim with a few necessary properties
     new webpack.DefinePlugin({
-      'process.browser': JSON.stringify(true),
+      'process.env.REACT_APP_VERSION': JSON.stringify(packageVersion),
       'process.version': JSON.stringify(process.version)
     })
   ];
-
+  
   // Ensure publicPath is set correctly
   if (env === 'production') {
     // Get the homepage from package.json

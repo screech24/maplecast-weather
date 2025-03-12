@@ -15,6 +15,9 @@ import axios from 'axios';
 // Import API key from utils/api.js to maintain consistency
 import { API_KEY } from './utils/api';
 
+// Get package version from environment variable
+const APP_VERSION = process.env.REACT_APP_VERSION || '1.6.0';
+
 function App() {
   // eslint-disable-next-line no-unused-vars
   const [coordinates, setCoordinates] = useState(null);
@@ -760,7 +763,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather" target="_blank" rel="noopener noreferrer" className="version">v1.6.0</a></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather" target="_blank" rel="noopener noreferrer" className="version">v{APP_VERSION}</a></p>
         </div>
       </footer>
 

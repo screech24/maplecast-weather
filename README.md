@@ -2,7 +2,7 @@
 
 A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://maplecast.netlify.app)
 
 ## Features
@@ -14,7 +14,7 @@ A React-based weather application that displays local weather data with enhanced
 - **Dynamic Weather Backgrounds**: Background images that change based on weather conditions and time of day
 - **Day/Night Visualization**: Different background images for day and night for all weather conditions
 - **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
-- **Weather Alerts**: Real-time alerts for severe weather conditions with push notifications
+- **Weather Alerts**: Real-time alerts from Environment Canada's CAP system with geospatial filtering
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)
 - **Progressive Web App**: Install on your device and use offline
@@ -87,7 +87,21 @@ This application is a Progressive Web App, which means you can:
 
 - **Weather Data**: [OpenWeatherMap API](https://openweathermap.org/api)
 - **Radar Data**: [Environment Canada GeoMet-Weather](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/)
-- **Weather Alerts**: [Environment Canada Weather Alerts](https://weather.gc.ca/warnings/index_e.html)
+- **Weather Alerts**: [Environment Canada CAP Alerts](http://dd.weather.gc.ca/alerts/cap/)
+
+## Weather Alert System
+
+The app features a comprehensive weather alert system that:
+
+- Fetches real-time CAP (Common Alerting Protocol) alerts from Environment Canada
+- Uses geospatial calculations to determine if alerts affect your location
+- Displays alerts with appropriate severity indicators (extreme, severe, moderate)
+- Provides detailed information about each alert including affected areas and expiry times
+- Implements smart caching to improve performance and reduce API calls
+- Handles multiple concurrent alerts with an intuitive navigation interface
+- Deduplicates alerts to show only the most relevant and recent information
+
+The alert system is designed to work across all Canadian regions and provides critical weather information to help users stay safe during severe weather events.
 
 ## Technologies Used
 

@@ -23,6 +23,15 @@
 .env.production
 .env.production.local
 
+# certificates and keys
+.cert/
+*.pem
+*.key
+*.crt
+*.cert
+*.pfx
+*.p12
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

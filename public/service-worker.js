@@ -1,6 +1,7 @@
 // Service Worker for Weather App with Alerts Notification Support
-const CACHE_NAME = 'weather-app-cache-v1';
-const ALERTS_CACHE_NAME = 'weather-alerts-cache-v1';
+const APP_VERSION = '1.6.0'; // Match this with package.json version
+const CACHE_NAME = `weather-app-cache-v${APP_VERSION}`;
+const ALERTS_CACHE_NAME = `weather-alerts-cache-v${APP_VERSION}`;
 const ALERTS_SYNC_KEY = 'weather-alerts-sync';
 
 // Files to cache for offline use
@@ -18,7 +19,8 @@ const urlsToCache = [
 
 // Install event - cache critical assets
 self.addEventListener('install', event => {
-  self.skipWaiting();
+  console.log(`[Service Worker] Installing new version ${APP_VERSION}`);
+  self.skipWaiting(); // Force activation
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -30,14 +32,18 @@ self.addEventListener('install', event => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', event => {
+  console.log(`[Service Worker] Activating new version ${APP_VERSION}`);
   event.waitUntil(
     Promise.all([
       // Clean up old caches
       caches.keys().then(cacheNames => {
         return Promise.all(
           cacheNames.filter(cacheName => {
-            return cacheName !== CACHE_NAME && cacheName !== ALERTS_CACHE_NAME;
+            // Delete any old caches that don't match the current version
+            return (cacheName.startsWith('weather-app-cache-') && cacheName !== CACHE_NAME) || 
+                   (cacheName.startsWith('weather-alerts-cache-') && cacheName !== ALERTS_CACHE_NAME);
           }).map(cacheName => {
+            console.log(`[Service Worker] Deleting old cache: ${cacheName}`);
             return caches.delete(cacheName);
           })
         );
@@ -59,10 +65,28 @@ self.addEventListener('activate', event => {
       })()
     ])
   );
+  
+  // Notify all clients that the service worker has been updated
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'SW_UPDATED',
+        version: APP_VERSION
+      });
+    });
+  });
 });
 
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', event => {
+  // Skip cross-origin requests
+  if (!event.request.url.startsWith(self.location.origin) && 
+      !event.request.url.includes('/api/') && 
+      !event.request.url.includes('corsproxy.io') && 
+      !event.request.url.includes('weather.gc.ca')) {
+    return;
+  }
+  
   // For API calls, go to network first, then cache
   if (event.request.url.includes('/api/') || 
       event.request.url.includes('corsproxy.io') || 
@@ -80,8 +104,43 @@ self.addEventListener('fetch', event => {
         return caches.match(event.request);
       })
     );
-  } else {
-    // For non-API requests, try cache first, then network
+  } 
+  // For HTML, JS, and CSS files, use stale-while-revalidate strategy
+  else if (event.request.url.endsWith('.html') || 
+           event.request.url.endsWith('.js') || 
+           event.request.url.endsWith('.css') ||
+           event.request.url.endsWith('/')) {
+    event.respondWith(
+      caches.match(event.request).then(cachedResponse => {
+        // Create a promise that resolves with the cached response
+        // or fetches from the network if not in cache
+        const fetchPromise = fetch(event.request)
+          .then(networkResponse => {
+            // Update the cache with the new response
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+            return networkResponse;
+          })
+          .catch(error => {
+            console.error('Fetch failed:', error);
+            // If fetch fails and we have a cached response, return it
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Otherwise, the error will be propagated
+            throw error;
+          });
+        
+        // Return the cached response immediately if available, 
+        // otherwise wait for the network response
+        return cachedResponse || fetchPromise;
+      })
+    );
+  }
+  // For other assets, use cache-first strategy
+  else {
     event.respondWith(
       caches.match(event.request).then(response => {
         if (response) {

@@ -125,3 +125,75 @@ button.refresh-button:disabled {
 .dark-mode button.refresh-button:disabled {
   background-color: #7f8c8d;
 }
+
+/* Add styles for the update notification */
+.update-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 300px;
+  overflow: hidden;
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.update-notification-content {
+  padding: 16px;
+}
+
+.update-notification p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.update-notification button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.update-notification button#update-refresh-button {
+  background-color: #4caf50;
+  color: white;
+}
+
+.update-notification button#update-dismiss-button {
+  background-color: transparent;
+  color: #666;
+}
+
+/* Dark mode styles for the notification */
+body.dark-mode .update-notification {
+  background-color: #333;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .update-notification p {
+  color: #fff;
+}
+
+body.dark-mode .update-notification button#update-refresh-button {
+  background-color: #5cb85c;
+}
+
+body.dark-mode .update-notification button#update-dismiss-button {
+  color: #bbb;
+}

@@ -5,6 +5,27 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-03-18
+
+### Added
+- Implemented a comprehensive weather alert system based on Environment Canada's CAP alerts
+- Added robust geospatial calculations to determine if a user's location is affected by alerts
+- Created a caching system for successful alert paths to improve performance
+- Added detailed error handling and logging for alert fetching
+- Enhanced alert deduplication to show only the most relevant and recent alerts
+
+### Changed
+- Improved alert fetching mechanism with fallback strategies for different date formats
+- Enhanced the alert display UI with severity indicators and navigation between multiple alerts
+- Optimized network requests with timeout handling and proper error suppression
+- Updated alert parsing to handle different alert formats more effectively
+
+### Fixed
+- Resolved issues with alert fetching in production environments
+- Fixed geospatial calculations for polygon and circle-based alerts
+- Improved error handling for malformed XML and network failures
+- Enhanced reliability of the alert system across all Canadian regions
+
 ## [1.6.0] - 2025-03-15
 
 ### Added
