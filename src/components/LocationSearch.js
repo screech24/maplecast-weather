@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './LocationSearch.css';
-import { isDevelopment, devLog, debugLog } from '../utils/devMode';
+import { devLog, debugLog } from '../utils/devMode';
 
 // Canadian provinces mapping for search enhancement
 const CANADIAN_PROVINCES = {
@@ -35,7 +35,7 @@ const containsProvinceReference = (term) => {
   // Check for province abbreviations (case insensitive with word boundaries)
   for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
     if (new RegExp(`\\b${abbr}\\b`, 'i').test(term)) {
-      console.log(`Found province abbreviation in term: ${abbr} in "${term}"`);
+      debugLog('LocationSearch', `Found province abbreviation in term: ${abbr} in "${term}"`);
       return true;
     }
   }
@@ -44,7 +44,7 @@ const containsProvinceReference = (term) => {
   for (const province of Object.values(CANADIAN_PROVINCES)) {
     const provinceLower = province.toLowerCase();
     if (termLower.includes(provinceLower)) {
-      console.log(`Found province name in term: ${province} in "${term}"`);
+      debugLog('LocationSearch', `Found province name in term: ${province} in "${term}"`);
       return true;
     }
     
@@ -53,7 +53,7 @@ const containsProvinceReference = (term) => {
       // Check for first 5+ characters of longer province names
       const provinceStart = provinceLower.substring(0, 5);
       if (termLower.includes(provinceStart)) {
-        console.log(`Found partial province match: ${provinceStart} in "${term}"`);
+        debugLog('LocationSearch', `Found partial province match: ${provinceStart} in "${term}"`);
         return true;
       }
     }
@@ -66,42 +66,42 @@ const containsProvinceReference = (term) => {
 const enhanceCanadianSearch = (term) => {
   // If already contains Canada, return as is
   if (term.toLowerCase().includes('canada')) {
-    console.log(`Term already contains 'Canada': ${term}`);
+    debugLog('LocationSearch', `Term already contains 'Canada': ${term}`);
     return term;
   }
   
   // If it contains a Canadian postal code, it's definitely Canadian
   if (containsCanadianPostalCode(term)) {
-    console.log(`Term contains Canadian postal code: ${term}`);
+    debugLog('LocationSearch', `Term contains Canadian postal code: ${term}`);
     return `${term}, Canada`;
   }
   
   // If it contains a province reference, it's likely Canadian
   if (containsProvinceReference(term)) {
-    console.log(`Term contains province reference: ${term}`);
+    debugLog('LocationSearch', `Term contains province reference: ${term}`);
     // Add Canada explicitly to improve search results
     return `${term}, Canada`;
   }
   
   // Otherwise, append Canada to improve search results
-  console.log(`Adding 'Canada' to term: ${term}`);
+  debugLog('LocationSearch', `Adding 'Canada' to term: ${term}`);
   return `${term}, Canada`;
 };
 
 // Helper function to extract the main location name from a search term
 const extractLocationName = (term) => {
-  console.log(`Extracting location name from: "${term}"`);
+  debugLog('LocationSearch', `Extracting location name from: "${term}"`);
   
   // Remove postal codes
   let cleanTerm = term.replace(POSTAL_CODE_REGEX, '').trim();
-  console.log(`After removing postal codes: "${cleanTerm}"`);
+  debugLog('LocationSearch', `After removing postal codes: "${cleanTerm}"`);
   
   // Remove province abbreviations
   for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
     const beforeClean = cleanTerm;
     cleanTerm = cleanTerm.replace(new RegExp(`\\b${abbr}\\b`, 'i'), '').trim();
     if (beforeClean !== cleanTerm) {
-      console.log(`Removed province abbreviation ${abbr}: "${cleanTerm}"`);
+      debugLog('LocationSearch', `Removed province abbreviation ${abbr}: "${cleanTerm}"`);
     }
   }
   
@@ -110,7 +110,7 @@ const extractLocationName = (term) => {
     const beforeClean = cleanTerm;
     cleanTerm = cleanTerm.replace(new RegExp(`\\b${province}\\b`, 'i'), '').trim();
     if (beforeClean !== cleanTerm) {
-      console.log(`Removed province name ${province}: "${cleanTerm}"`);
+      debugLog('LocationSearch', `Removed province name ${province}: "${cleanTerm}"`);
     }
   }
   
@@ -121,16 +121,16 @@ const extractLocationName = (term) => {
                        .trim();
   
   if (beforeFinalClean !== cleanTerm) {
-    console.log(`After removing Canada and separators: "${cleanTerm}"`);
+    debugLog('LocationSearch', `After removing Canada and separators: "${cleanTerm}"`);
   }
   
   // If we've removed too much, return original term
   if (!cleanTerm || cleanTerm.length < 2) {
-    console.log(`Extracted name too short, using original: "${term}"`);
+    debugLog('LocationSearch', `Extracted name too short, using original: "${term}"`);
     return term.replace(/,|;|\|/g, '').trim();
   }
   
-  console.log(`Final extracted location name: "${cleanTerm}"`);
+  debugLog('LocationSearch', `Final extracted location name: "${cleanTerm}"`);
   return cleanTerm;
 };
 
@@ -142,7 +142,7 @@ const generateProvincialSearchTerms = (locationName) => {
   const cleanName = locationName.trim().replace(/\s+/g, ' ');
   if (!cleanName) return terms;
   
-  console.log(`Generating provincial search terms for: "${cleanName}"`);
+  debugLog('LocationSearch', `Generating provincial search terms for: "${cleanName}"`);
   
   // Add terms with each province
   for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
@@ -178,7 +178,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
-  const [searchAttempts, setSearchAttempts] = useState(0);
+  // These states are used for tracking search progress and providing feedback
   const [searchStage, setSearchStage] = useState(0);
   const [alternativeSearchTerms, setAlternativeSearchTerms] = useState([]);
 
@@ -239,29 +239,28 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     
     if (!initialized || !apiKey) {
       setError('Search functionality is not available yet. Please wait or try again.');
-      console.error('Search attempted before initialization');
+      devLog('LocationSearch', 'Search attempted before initialization', { error: true });
       return;
     }
     
     setIsSearching(true);
     setError(null);
-    setSearchAttempts(0);
     setSearchStage(0);
     setAlternativeSearchTerms([]);
     
-    console.log('Starting search for:', searchTerm);
+    devLog('LocationSearch', `Starting search for: ${searchTerm}`);
     
     try {
       // Stage 1: Try with enhanced Canadian search term
       const enhancedTerm = enhanceCanadianSearch(searchTerm);
-      console.log(`Stage 1: Using enhanced term: "${enhancedTerm}"`);
+      devLog('LocationSearch', `Stage 1: Using enhanced term: "${enhancedTerm}"`);
       let searchSuccess = await performSearch(enhancedTerm);
       
       // If first attempt failed and the enhanced term is different from original
       if (!searchSuccess && enhancedTerm !== searchTerm) {
         // Stage 2: Try with original search term
         setSearchStage(1);
-        console.log(`Stage 2: Using original term: "${searchTerm}"`);
+        devLog('LocationSearch', `Stage 2: Using original term: "${searchTerm}"`);
         searchSuccess = await performSearch(searchTerm);
       }
       
@@ -270,11 +269,11 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         // Stage 3: Try with just the location name + Canada
         setSearchStage(2);
         const locationName = extractLocationName(searchTerm);
-        console.log(`Stage 3: Extracted location name: "${locationName}"`);
+        devLog('LocationSearch', `Stage 3: Extracted location name: "${locationName}"`);
         
         if (locationName && locationName !== searchTerm) {
           const cleanTerm = `${locationName}, Canada`;
-          console.log(`Stage 3: Using clean term: "${cleanTerm}"`);
+          devLog('LocationSearch', `Stage 3: Using clean term: "${cleanTerm}"`);
           searchSuccess = await performSearch(cleanTerm);
         }
       }
@@ -283,17 +282,17 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       if (!searchSuccess) {
         // Stage 4: Try direct geocoding with Canada filter
         setSearchStage(3);
-        console.log(`Stage 4: Trying direct geocoding with Canada filter`);
+        devLog('LocationSearch', `Stage 4: Trying direct geocoding with Canada filter`);
         
         try {
           // Try a more direct approach with the geocoding API
           const directTerm = searchTerm.toLowerCase().includes('canada') ?
             searchTerm : `${searchTerm}, Canada`;
             
-          console.log(`Stage 4: Using direct term: "${directTerm}"`);
+          devLog('LocationSearch', `Stage 4: Using direct term: "${directTerm}"`);
           searchSuccess = await performSearch(directTerm);
         } catch (directError) {
-          console.error('Direct geocoding error:', directError);
+          devLog('LocationSearch', `Direct geocoding error: ${directError.message}`, { error: true });
         }
       }
       
@@ -302,20 +301,20 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         // Stage 5: Try with provincial variations
         setSearchStage(4);
         const locationName = extractLocationName(searchTerm);
-        console.log(`Stage 5: Using provincial variations for: "${locationName}"`);
+        devLog('LocationSearch', `Stage 5: Using provincial variations for: "${locationName}"`);
         
         if (locationName) {
           // Generate provincial search terms
           const provincialTerms = generateProvincialSearchTerms(locationName);
           setAlternativeSearchTerms(provincialTerms);
-          console.log(`Generated ${provincialTerms.length} provincial terms:`, provincialTerms);
+          debugLog('LocationSearch', `Generated ${provincialTerms.length} provincial terms:`, provincialTerms);
           
           // Try each provincial term until we find results or exhaust options
           for (const term of provincialTerms) { // Try all provincial terms
-            console.log(`Stage 5: Trying provincial term: "${term}"`);
+            devLog('LocationSearch', `Stage 5: Trying provincial term: "${term}"`);
             searchSuccess = await performSearch(term);
             if (searchSuccess) {
-              console.log(`Found results with provincial term: "${term}"`);
+              devLog('LocationSearch', `Found results with provincial term: "${term}"`);
               break;
             }
           }
@@ -324,7 +323,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       
       // If all attempts failed, show helpful error message
       if (!searchSuccess) {
-        console.log('All search attempts failed');
+        devLog('LocationSearch', 'All search attempts failed');
         const suggestions = [];
         
         // Add suggestions based on the search term
@@ -354,7 +353,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         setError(errorMsg);
       }
     } catch (err) {
-      console.error('Search error:', err);
+      devLog('LocationSearch', `Search error: ${err.message}`, { error: true });
       setError(`Error searching for locations: ${err.message}. Please try again.`);
     } finally {
       setIsSearching(false);
@@ -363,13 +362,13 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
 
   // Function to prioritize Canadian results
   const prioritizeCanadianResults = (results) => {
-    console.log('Prioritizing results:', results);
+    debugLog('LocationSearch', 'Prioritizing results:', results);
     
     // Filter out any results without required properties
     const validResults = results.filter(result => {
       const hasRequiredProps = result && result.lat && result.lon && result.name;
       if (!hasRequiredProps) {
-        console.log('Filtering out invalid result:', result);
+        debugLog('LocationSearch', 'Filtering out invalid result:', result);
       }
       return hasRequiredProps;
     });
@@ -393,12 +392,12 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       return a.name.localeCompare(b.name);
     });
     
-    console.log('Sorted results:', sortedResults);
+    debugLog('LocationSearch', 'Sorted results:', sortedResults);
     return sortedResults;
   };
 
   const handleLocationSelect = (location) => {
-    console.log('Location selected:', location);
+    devLog('LocationSearch', 'Location selected:', location);
     
     // Ensure we have all required properties before calling the callback
     const locationData = {
@@ -413,7 +412,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     if (onLocationSelect && typeof onLocationSelect === 'function') {
       onLocationSelect(locationData);
     } else {
-      console.error('onLocationSelect is not a function or not provided');
+      devLog('LocationSearch', 'onLocationSelect is not a function or not provided', { error: true });
     }
     
     // Clear search results and search term

@@ -15,12 +15,9 @@ const DevTools = () => {
   const [networkRequests, setNetworkRequests] = useState([]);
   const [appState, setAppState] = useState({});
 
-  // Only render in development mode
-  if (!isDevelopment) return null;
-
   // Capture console logs
   useEffect(() => {
-    if (!isDebugMode) return;
+    if (!isDevelopment || !isDebugMode) return;
 
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
@@ -52,7 +49,7 @@ const DevTools = () => {
 
   // Monitor network requests
   useEffect(() => {
-    if (!isDebugMode) return;
+    if (!isDevelopment || !isDebugMode) return;
 
     const originalFetch = window.fetch;
     const originalXHROpen = XMLHttpRequest.prototype.open;
@@ -77,15 +74,15 @@ const DevTools = () => {
         const response = await originalFetch(...args);
         const endTime = performance.now();
         
-        setNetworkRequests(prev => prev.map(req => 
-          req.id === requestId 
-            ? { 
-                ...req, 
-                status: response.ok ? 'success' : 'error', 
+        setNetworkRequests(prev => prev.map(req =>
+          req.id === requestId
+            ? {
+                ...req,
+                status: response.ok ? 'success' : 'error',
                 statusCode: response.status,
                 duration: endTime - startTime,
                 endTime
-              } 
+              }
             : req
         ));
         
@@ -93,15 +90,15 @@ const DevTools = () => {
       } catch (error) {
         const endTime = performance.now();
         
-        setNetworkRequests(prev => prev.map(req => 
-          req.id === requestId 
-            ? { 
-                ...req, 
-                status: 'error', 
+        setNetworkRequests(prev => prev.map(req =>
+          req.id === requestId
+            ? {
+                ...req,
+                status: 'error',
                 error: error.message,
                 duration: endTime - startTime,
                 endTime
-              } 
+              }
             : req
         ));
         
@@ -131,15 +128,15 @@ const DevTools = () => {
       this.addEventListener('load', () => {
         const endTime = performance.now();
         
-        setNetworkRequests(prev => prev.map(req => 
-          req.id === this._requestId 
-            ? { 
-                ...req, 
-                status: this.status >= 200 && this.status < 300 ? 'success' : 'error', 
+        setNetworkRequests(prev => prev.map(req =>
+          req.id === this._requestId
+            ? {
+                ...req,
+                status: this.status >= 200 && this.status < 300 ? 'success' : 'error',
                 statusCode: this.status,
                 duration: endTime - this._startTime,
                 endTime
-              } 
+              }
             : req
         ));
       });
@@ -147,14 +144,14 @@ const DevTools = () => {
       this.addEventListener('error', () => {
         const endTime = performance.now();
         
-        setNetworkRequests(prev => prev.map(req => 
-          req.id === this._requestId 
-            ? { 
-                ...req, 
+        setNetworkRequests(prev => prev.map(req =>
+          req.id === this._requestId
+            ? {
+                ...req,
                 status: 'error',
                 duration: endTime - this._startTime,
                 endTime
-              } 
+              }
             : req
         ));
       });
@@ -172,6 +169,8 @@ const DevTools = () => {
 
   // Collect app state information
   useEffect(() => {
+    if (!isDevelopment) return;
+    
     const interval = setInterval(() => {
       setAppState({
         memory: performance.memory ? {
@@ -195,6 +194,9 @@ const DevTools = () => {
 
     return () => clearInterval(interval);
   }, []);
+  
+  // Only render in development mode
+  if (!isDevelopment) return null;
 
   const toggleDevTools = () => {
     setIsOpen(!isOpen);

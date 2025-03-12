@@ -228,9 +228,9 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
     : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-  // Get current frame for animation display
-  const currentFrame = frames[currentFrameIndex] || { timestamp: new Date().toISOString() };
-  // Use currentFrame in the timeline display and current time indicator
+  // Get current frame timestamp for display
+  const currentFrameTimestamp = frames[currentFrameIndex]?.timestamp || new Date().toISOString();
+  // This timestamp is used in the timeline display and current time indicator
 
   // Rain layer parameters
   // Note: Environment Canada WMS doesn't support time parameter for these radar layers
