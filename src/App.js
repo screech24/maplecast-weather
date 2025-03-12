@@ -583,13 +583,13 @@ function App() {
       getWeatherAlerts(locationInfo.city, locationInfo.region);
     }
     
-    // Set up periodic checking for new alerts (every 15 minutes)
+    // Set up periodic checking for new alerts (every 1 minute)
     const alertCheckInterval = setInterval(() => {
       if (locationInfo && locationInfo.city && locationInfo.region) {
         console.log('Performing periodic alert check');
         checkForNewAlerts();
       }
-    }, 15 * 60 * 1000); // 15 minutes
+    }, 1 * 60 * 1000); // 1 minute
     
     // When new alerts are found and the page is open, show a browser notification
     const handleMessage = (event) => {
@@ -769,7 +769,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.4.0</span></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.5.1</span></p>
         </div>
       </footer>
 

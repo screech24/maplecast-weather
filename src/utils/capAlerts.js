@@ -1,28 +1,6 @@
 import * as turf from '@turf/turf';
 import axios from 'axios';
 
-// List of CORS proxies to try in order
-const corsProxies = [
-  {
-    url: 'https://api.allorigins.win/raw?url=',
-    needsEncoding: true,
-    extraHeaders: {}
-  },
-  {
-    url: 'https://corsproxy.io/?',
-    needsEncoding: true,
-    extraHeaders: {}
-  },
-  {
-    url: 'https://cors-anywhere.herokuapp.com/',
-    needsEncoding: false,
-    extraHeaders: {
-      'X-Requested-With': 'XMLHttpRequest',
-      'Origin': 'https://weather.gc.ca'
-    }
-  }
-];
-
 // Enable or disable debug logging
 const DEBUG = process.env.NODE_ENV === 'development';
 
@@ -42,103 +20,30 @@ const debugLog = (message, data) => {
 };
 
 /**
- * Attempts to fetch a URL using multiple CORS proxies
- * @param {string} url - The URL to fetch
- * @returns {Promise<Object>} A promise that resolves to the response data
+ * Fetches data from the Netlify Function proxy
+ * @param {string} path - The path to fetch from Environment Canada
+ * @returns {Promise<string>} A promise that resolves to the response data
  */
-const fetchWithCorsProxy = async (url) => {
-  let lastError = null;
-  let attemptCount = 0;
-  
-  // Try direct fetch first with no-cors mode (might work in some browsers)
+const fetchFromProxy = async (path) => {
   try {
-    debugLog(`Trying direct fetch with no-cors mode: ${url}`);
-    const response = await fetch(url, {
-      mode: 'no-cors',
-      headers: {
-        'Accept': 'application/xml, text/xml, */*'
-      }
-    });
+    // Use the Netlify Function proxy
+    const proxyUrl = `/api/cap/${path}`;
     
-    // If we get here, the request didn't throw, but we can't read the response in no-cors mode
-    debugLog('Direct fetch succeeded, but response cannot be read in no-cors mode');
-  } catch (error) {
-    debugLog(`Direct fetch failed: ${error.message}`);
-  }
-  
-  // Try each proxy
-  for (const proxy of corsProxies) {
-    // Try each proxy up to 2 times with exponential backoff
-    for (let attempt = 0; attempt < 2; attempt++) {
-      attemptCount++;
-      
-      try {
-        // Add a small delay between attempts to avoid overwhelming the proxies
-        if (attemptCount > 1) {
-          await new Promise(resolve => setTimeout(resolve, 500 * attemptCount));
-        }
-        
-        // Construct the proxied URL
-        const proxyUrl = proxy.needsEncoding 
-          ? `${proxy.url}${encodeURIComponent(url)}`
-          : `${proxy.url}${url}`;
-        
-        debugLog(`Trying CORS proxy: ${proxy.url} with URL: ${url} (attempt ${attempt + 1})`);
-        
-        // Try both axios and fetch to maximize chances of success
-        try {
-          // Try with axios first
-          const response = await axios.get(proxyUrl, {
-            timeout: 15000, // Increased timeout
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'X-Requested-With': 'XMLHttpRequest',
-              ...proxy.extraHeaders
-            }
-          });
-          
-          if (response.data) {
-            debugLog(`Successfully fetched data using proxy: ${proxy.url} with axios`);
-            return response.data;
-          }
-        } catch (axiosError) {
-          // If axios fails, try with fetch
-          debugLog(`Axios failed, trying fetch: ${axiosError.message}`);
-          
-          const fetchResponse = await fetch(proxyUrl, {
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'X-Requested-With': 'XMLHttpRequest',
-              ...proxy.extraHeaders
-            }
-          });
-          
-          if (fetchResponse.ok) {
-            const data = await fetchResponse.text();
-            debugLog(`Successfully fetched data using proxy: ${proxy.url} with fetch`);
-            return data;
-          } else {
-            throw new Error(`Fetch failed with status: ${fetchResponse.status}`);
-          }
-        }
-      } catch (error) {
-        const errorMessage = error.response 
-          ? `Status: ${error.response.status} - ${error.message}`
-          : error.message;
-          
-        debugLog(`Proxy ${proxy.url} failed (attempt ${attempt + 1}): ${errorMessage}`);
-        lastError = error;
-        
-        // If it's not a network error or timeout, don't retry this proxy
-        if (error.response || error.code !== 'ECONNABORTED') {
-          break;
-        }
-      }
+    debugLog(`Fetching from proxy: ${proxyUrl}`);
+    
+    const response = await fetch(proxyUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Proxy returned status: ${response.status}`);
     }
+    
+    const data = await response.text();
+    debugLog('Successfully fetched data from proxy');
+    return data;
+  } catch (error) {
+    console.error(`Proxy fetch failed: ${error.message}`);
+    throw error;
   }
-  
-  console.error('All CORS proxies failed after multiple attempts');
-  throw lastError || new Error('All CORS proxies failed');
 };
 
 /**
@@ -178,32 +83,58 @@ export const getUserLocation = () => {
  */
 export const fetchLatestAlerts = async () => {
   try {
-    // Since we know the correct date is 20250312, use it directly
-    const knownDate = '20250312';
-    debugLog(`Using known date: ${knownDate}`);
+    // Generate date strings for today and the past few days
+    const dateStrings = generateDateStrings();
+    debugLog(`Generated date strings: ${dateStrings.join(', ')}`);
     
-    let latestFolder = knownDate + '/';
+    let latestFolder = null;
     let directoryHtml = null;
     
-    try {
-      // Try to access the directory directly with the known date
-      const url = `https://dd.weather.gc.ca/alerts/cap/${latestFolder}`;
-      debugLog(`Trying to access directory: ${url}`);
-      directoryHtml = await fetchWithCorsProxy(url);
-      debugLog(`Successfully accessed directory for date: ${knownDate}`);
-    } catch (error) {
-      debugLog(`Could not access directory for date: ${knownDate}, trying directory listing approach...`);
+    // Try each date string until we find a valid one
+    for (const dateString of dateStrings) {
+      try {
+        const folderToTry = dateString + '/';
+        debugLog(`Trying date folder: ${folderToTry}`);
+        
+        // Try to access the directory with this date
+        directoryHtml = await fetchFromProxy(folderToTry);
+        
+        // If we get here without an error, we found a valid date folder
+        latestFolder = folderToTry;
+        debugLog(`Successfully accessed directory for date: ${dateString}`);
+        break;
+      } catch (error) {
+        debugLog(`Could not access directory for date: ${dateString}, trying next date...`);
+      }
+    }
+    
+    // If we couldn't find a valid date folder, try directory listing approach
+    if (!latestFolder) {
+      debugLog('No valid date folders found, trying directory listing approach...');
       
       try {
-        directoryHtml = await fetchWithCorsProxy('https://dd.weather.gc.ca/alerts/cap/');
+        directoryHtml = await fetchFromProxy('');
         latestFolder = parseLatestFolder(directoryHtml);
         
         if (!latestFolder) {
           console.error('Could not find the latest alerts folder from directory listing');
-          latestFolder = knownDate + '/'; // Fall back to known date
+          // Fall back to today's date
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          latestFolder = `${year}${month}${day}/`;
+          debugLog(`Falling back to today's date: ${latestFolder}`);
         }
       } catch (listingError) {
         console.error('Error fetching directory listing:', listingError.message);
+        // Fall back to today's date
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        latestFolder = `${year}${month}${day}/`;
+        debugLog(`Falling back to today's date after error: ${latestFolder}`);
       }
     }
     
@@ -218,96 +149,87 @@ export const fetchLatestAlerts = async () => {
       debugLog('No XML files found using direct approach. Trying directory navigation...');
       
       // Fetch the list of responsible office subdirectories
-      const dateFolderUrl = `https://dd.weather.gc.ca/alerts/cap/${latestFolder}`;
-      const officeFoldersHtml = await fetchWithCorsProxy(dateFolderUrl);
+      const dateFolderUrl = `${latestFolder}`;
       
-      // Extract office subdirectories
-      const officeSubdirs = parseSubdirectories(officeFoldersHtml);
-      debugLog(`Found ${officeSubdirs.length} office subdirectories:`, officeSubdirs);
-      
-      // For each office subdirectory, fetch the hour subdirectories
-      allXmlFiles = [];
-      
-      // Limit the number of office subdirectories to process to avoid overwhelming the browser
-      // We'll process up to 5 office subdirectories
-      const officeSubdirsToProcess = officeSubdirs.slice(0, 5);
-      
-      for (const officeDir of officeSubdirsToProcess) {
-        try {
-          // Make sure we're using the correct path format
-          const officeDirClean = officeDir.endsWith('/') ? officeDir : `${officeDir}/`;
-          const officeFolderUrl = `${dateFolderUrl}/${officeDirClean}`;
-          debugLog(`Fetching hour subdirectories from: ${officeFolderUrl}`);
-          
-          const hourFoldersHtml = await fetchWithCorsProxy(officeFolderUrl);
-          const hourSubdirs = parseSubdirectories(hourFoldersHtml);
-          
-          debugLog(`Found ${hourSubdirs.length} hour subdirectories for office ${officeDirClean}:`, hourSubdirs);
-          
-          // For each hour subdirectory, fetch the XML files
-          // We'll process up to 3 hour subdirectories per office to avoid overwhelming the browser
-          const hourSubdirsToProcess = hourSubdirs.slice(0, 3);
-          
-          for (const hourDir of hourSubdirsToProcess) {
-            try {
-              // Make sure we're using the correct path format
-              const hourDirClean = hourDir.endsWith('/') ? hourDir : `${hourDir}/`;
-              const hourFolderUrl = `${officeFolderUrl}${hourDirClean}`;
-              debugLog(`Fetching XML files from: ${hourFolderUrl}`);
-              
-              const xmlFilesHtml = await fetchWithCorsProxy(hourFolderUrl);
-              const xmlFiles = parseXmlFilesList(xmlFilesHtml, `${latestFolder}${officeDirClean}${hourDirClean}`);
-              
-              debugLog(`Found ${xmlFiles.length} XML files in ${hourFolderUrl}`);
-              allXmlFiles = allXmlFiles.concat(xmlFiles);
-            } catch (error) {
-              console.error(`Error fetching hour subdirectory ${hourDir}:`, error.message);
+      try {
+        const officeFoldersHtml = await fetchFromProxy(dateFolderUrl);
+        
+        // Extract office subdirectories
+        const officeSubdirs = parseSubdirectories(officeFoldersHtml);
+        debugLog(`Found ${officeSubdirs.length} office subdirectories:`, officeSubdirs);
+        
+        // For each office subdirectory, fetch the hour subdirectories
+        allXmlFiles = [];
+        
+        // Limit the number of office subdirectories to process to avoid overwhelming the browser
+        // We'll process up to 3 office subdirectories
+        const officeSubdirsToProcess = officeSubdirs.slice(0, 3);
+        
+        for (const officeDir of officeSubdirsToProcess) {
+          try {
+            // Make sure we're using the correct path format
+            const officeDirClean = officeDir.endsWith('/') ? officeDir : `${officeDir}/`;
+            const officeFolderUrl = `${dateFolderUrl}${officeDirClean}`;
+            debugLog(`Fetching hour subdirectories from: ${officeFolderUrl}`);
+            
+            const hourFoldersHtml = await fetchFromProxy(officeFolderUrl);
+            const hourSubdirs = parseSubdirectories(hourFoldersHtml);
+            
+            debugLog(`Found ${hourSubdirs.length} hour subdirectories for office ${officeDirClean}:`, hourSubdirs);
+            
+            // For each hour subdirectory, fetch the XML files
+            // We'll process up to 2 hour subdirectories per office
+            const hourSubdirsToProcess = hourSubdirs.slice(0, 2);
+            
+            for (const hourDir of hourSubdirsToProcess) {
+              try {
+                // Make sure we're using the correct path format
+                const hourDirClean = hourDir.endsWith('/') ? hourDir : `${hourDir}/`;
+                const hourFolderUrl = `${officeFolderUrl}${hourDirClean}`;
+                debugLog(`Fetching XML files from: ${hourFolderUrl}`);
+                
+                const xmlFilesHtml = await fetchFromProxy(hourFolderUrl);
+                const xmlFiles = parseXmlFilesList(xmlFilesHtml, `${latestFolder}${officeDirClean}${hourDirClean}`);
+                
+                debugLog(`Found ${xmlFiles.length} XML files in ${hourFolderUrl}`);
+                allXmlFiles = allXmlFiles.concat(xmlFiles);
+              } catch (error) {
+                debugLog(`Error fetching hour subdirectory ${hourDir}: ${error.message}`);
+              }
             }
+          } catch (error) {
+            debugLog(`Error fetching office subdirectory ${officeDir}: ${error.message}`);
           }
-        } catch (error) {
-          console.error(`Error fetching office subdirectory ${officeDir}:`, error.message);
         }
+      } catch (error) {
+        debugLog(`Error navigating directory structure: ${error.message}`);
       }
     }
     
     debugLog(`Found a total of ${allXmlFiles.length} XML files`);
     
-    // If we didn't find any XML files, fall back to test alerts
+    // If we didn't find any XML files, return an empty array
     if (allXmlFiles.length === 0) {
-      debugLog('No XML files found. Falling back to test alerts.');
-      return generateTestAlerts();
+      debugLog('No XML files found. Returning empty array.');
+      return [];
     }
     
     // Fetch and parse a sample of the XML files (limit to avoid overwhelming the browser)
-    // Increase sample size to catch more alerts
-    const alertsData = await fetchSampleAlerts(allXmlFiles, 30);
+    const alertsData = await fetchSampleAlerts(allXmlFiles, 15);
     
-    // If we didn't get any valid alerts, fall back to test alerts
+    // If we didn't get any valid alerts, return an empty array
     if (alertsData.length === 0) {
-      debugLog('No valid alerts parsed. Falling back to test alerts.');
-      return generateTestAlerts();
+      debugLog('No valid alerts parsed. Returning empty array.');
+      return [];
     }
     
     // Deduplicate alerts to only keep the most recent version of each alert
     const deduplicatedAlerts = deduplicateAlerts(alertsData);
     debugLog(`Deduplicated alerts from ${alertsData.length} to ${deduplicatedAlerts.length}`);
     
-    // If we're in development mode and still have no alerts, add test alerts
-    if (isDevelopmentMode() && deduplicatedAlerts.length === 0) {
-      debugLog('No alerts found. Adding test alerts for development mode.');
-      return generateTestAlerts();
-    }
-    
     return deduplicatedAlerts;
   } catch (error) {
     console.error('Error fetching alerts:', error);
-    
-    // If we're in development mode, return test alerts
-    if (isDevelopmentMode()) {
-      debugLog('Error fetching alerts. Adding test alerts for development mode.');
-      return generateTestAlerts();
-    }
-    
     return [];
   }
 };
@@ -361,31 +283,31 @@ const tryDirectOfficeApproach = async (latestFolder) => {
   // Try each office code with a few hours
   for (const officeCode of officeCodes) {
     // For Quebec office (CWUL), try more hours since we're focusing on Quebec
-    const hoursToTry = officeCode === 'CWUL' ? hours.slice(0, 12) : hours.slice(0, 4);
+    const hoursToTry = officeCode === 'CWUL' ? hours.slice(0, 6) : hours.slice(0, 3);
     
     for (const hour of hoursToTry) {
       try {
-        const url = `https://dd.weather.gc.ca/alerts/cap/${latestFolder}${officeCode}/${hour}/`;
-        debugLog(`Trying direct URL: ${url}`);
+        const path = `${latestFolder}${officeCode}/${hour}/`;
+        debugLog(`Trying direct URL: ${path}`);
         
-        const xmlFilesHtml = await fetchWithCorsProxy(url);
+        const xmlFilesHtml = await fetchFromProxy(path);
         const xmlFiles = parseXmlFilesList(xmlFilesHtml, `${latestFolder}${officeCode}/${hour}/`);
         
-        debugLog(`Found ${xmlFiles.length} XML files in ${url}`);
+        debugLog(`Found ${xmlFiles.length} XML files in ${path}`);
         allXmlFiles = allXmlFiles.concat(xmlFiles);
         
         // If we found files for Quebec office, prioritize these
         if (xmlFiles.length > 0 && officeCode === 'CWUL') {
           debugLog('Found alerts from Quebec Storm Prediction Centre, prioritizing these');
           // Don't return immediately, collect more files from CWUL
-          if (allXmlFiles.length >= 30) {
+          if (allXmlFiles.length >= 15) {
             debugLog('Found enough alerts from CWUL, stopping search');
             return allXmlFiles;
           }
         }
         
         // If we found files for other offices, continue but check a few more
-        if (xmlFiles.length > 0 && allXmlFiles.length >= 40) {
+        if (xmlFiles.length > 0 && allXmlFiles.length >= 20) {
           debugLog('Found enough alerts, stopping search');
           return allXmlFiles;
         }
@@ -404,7 +326,6 @@ const tryDirectOfficeApproach = async (latestFolder) => {
       // CWUL (Quebec Storm Prediction Centre) patterns
       `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
       `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
-      `${latestFolder}CWUL/00/LAND-WXO-LAND_WX-FW-12.0.1.0.1.0.cap`,
       `${latestFolder}CWUL/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
       `${latestFolder}CWUL/06/LAND-WXO-LAND_WX-WW-12.0.1.0.1.0.cap`,
       `${latestFolder}CWUL/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
@@ -414,22 +335,20 @@ const tryDirectOfficeApproach = async (latestFolder) => {
       
       // CWAO (Montreal) patterns
       `${latestFolder}CWAO/00/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-      `${latestFolder}CWAO/06/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-      `${latestFolder}CWAO/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`,
-      `${latestFolder}CWAO/18/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`
+      `${latestFolder}CWAO/12/LAND-WXO-LAND_WX-WA-12.0.1.0.1.0.cap`
     ];
     
     for (const pattern of knownPatterns) {
       try {
-        const url = `https://dd.weather.gc.ca/alerts/cap/${pattern}`;
-        debugLog(`Trying direct file access: ${url}`);
+        const path = pattern;
+        debugLog(`Trying direct file access: ${path}`);
         
-        const xmlData = await fetchWithCorsProxy(url);
-        const alert = parseCAP(xmlData, url);
+        const xmlData = await fetchFromProxy(path);
+        const alert = parseCAP(xmlData, path);
         
         if (alert) {
           debugLog(`Successfully parsed alert from direct file access: ${alert.title}`);
-          allXmlFiles.push(url);
+          allXmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${path}`);
         }
       } catch (error) {
         // Silently continue, as many files might not exist
@@ -516,17 +435,19 @@ const fetchSampleAlerts = async (xmlFiles, sampleSize) => {
   // Use Promise.allSettled instead of Promise.all to handle individual failures
   const alertPromises = sampleFiles.map(async (fileUrl) => {
     try {
-      const xmlData = await fetchWithCorsProxy(fileUrl);
+      // Extract the path from the URL
+      const path = fileUrl.replace('https://dd.weather.gc.ca/alerts/cap/', '');
+      const xmlData = await fetchFromProxy(path);
       const alert = parseCAP(xmlData, fileUrl);
       
       if (!alert) {
-        console.error(`Failed to parse alert from ${fileUrl}`);
+        debugLog(`Failed to parse alert from ${fileUrl}`);
         return null;
       }
       
       return alert;
     } catch (error) {
-      console.error(`Error fetching alert file ${fileUrl}:`, error.message);
+      debugLog(`Error fetching alert file ${fileUrl}: ${error.message}`);
       return null;
     }
   });
@@ -740,6 +661,15 @@ export const isLocationAffected = (userLocation, alert) => {
           return true;
         }
       }
+      
+      // Be more lenient with common Quebec regions
+      const commonQuebecRegions = ['québec', 'quebec', 'lévis', 'levis', 'chaudière', 'chaudiere', 'appalaches'];
+      for (const region of commonQuebecRegions) {
+        if (areaLower.includes(region)) {
+          debugLog(`Area: ${area.description} matches common Quebec region: ${region}`);
+          return true;
+        }
+      }
     }
     
     debugLog(`Area: ${area.description} has no polygon or circle data and no name match`);
@@ -818,12 +748,6 @@ export const filterAlertsByLocation = (alerts, userLocation) => {
   const relevantAlerts = alerts.filter(alert => isLocationAffected(userLocation, alert));
   debugLog(`Found ${relevantAlerts.length} alerts relevant to user location`);
   
-  // If we're in development mode and no alerts were found, add test alerts
-  if (isDevelopmentMode() && relevantAlerts.length === 0) {
-    debugLog('No real alerts found. Adding test alerts for development mode.');
-    return generateTestAlerts();
-  }
-  
   return relevantAlerts;
 };
 
@@ -833,89 +757,6 @@ export const filterAlertsByLocation = (alerts, userLocation) => {
  */
 const isDevelopmentMode = () => {
   return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
-};
-
-/**
- * Generates test alerts for development mode
- * @returns {Array} An array of test alert objects
- */
-const generateTestAlerts = () => {
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  
-  // Create more realistic test alerts with current dates
-  return [
-    {
-      id: 'test-alert-1-' + Date.now(),
-      title: 'Avertissement de gel éclair en vigueur',
-      description: 'Un avertissement de gel éclair est en vigueur pour la région de Lévis et Québec. Les températures chuteront rapidement ce soir, créant des conditions de gel sur les routes.\n\nSoyez prudent lors de vos déplacements car les surfaces mouillées pourraient geler et devenir glissantes.',
-      severity: 'Moderate',
-      urgency: 'Expected',
-      certainty: 'Likely',
-      effective: now.toISOString(),
-      expires: tomorrow.toISOString(),
-      sent: now.toISOString(),
-      areas: [
-        {
-          description: 'Ville de Lévis',
-          polygon: [
-            [-71.3, 46.7],
-            [-71.1, 46.7],
-            [-71.1, 46.9],
-            [-71.3, 46.9],
-            [-71.3, 46.7]
-          ],
-          circle: null
-        }
-      ],
-      sourceUrl: 'http://dd.weather.gc.ca/alerts/cap/test_alert_1.cap'
-    },
-    {
-      id: 'test-alert-2-' + Date.now(),
-      title: 'Veille de tempête hivernale',
-      description: 'Une veille de tempête hivernale est en vigueur pour la région de Québec, incluant Lévis. Une accumulation de 15 à 25 cm de neige est prévue à partir de demain matin.\n\nPréparez-vous à des conditions de déplacement difficiles. Envisagez de reporter les déplacements non essentiels.',
-      severity: 'Severe',
-      urgency: 'Expected',
-      certainty: 'Possible',
-      effective: now.toISOString(),
-      expires: tomorrow.toISOString(),
-      sent: now.toISOString(),
-      areas: [
-        {
-          description: 'Région de Québec et Lévis',
-          polygon: null,
-          circle: {
-            center: [-71.2, 46.8],
-            radius: 30
-          }
-        }
-      ],
-      sourceUrl: 'http://dd.weather.gc.ca/alerts/cap/test_alert_2.cap'
-    },
-    {
-      id: 'test-alert-3-' + Date.now(),
-      title: 'Avertissement de pluie verglaçante',
-      description: 'Un avertissement de pluie verglaçante est en vigueur pour la région de Chaudière-Appalaches, incluant Lévis. On prévoit de 2 à 5 mm de pluie verglaçante ce soir.\n\nLes surfaces comme les routes, les rues, les trottoirs et les terrains de stationnement deviendront glacées, glissantes et extrêmement dangereuses.',
-      severity: 'Severe',
-      urgency: 'Immediate',
-      certainty: 'Observed',
-      effective: now.toISOString(),
-      expires: tomorrow.toISOString(),
-      sent: now.toISOString(),
-      areas: [
-        {
-          description: 'Chaudière-Appalaches',
-          polygon: null,
-          circle: {
-            center: [-71.0, 46.8],
-            radius: 50
-          }
-        }
-      ],
-      sourceUrl: 'http://dd.weather.gc.ca/alerts/cap/test_alert_3.cap'
-    }
-  ];
 };
 
 /**

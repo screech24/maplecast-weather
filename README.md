@@ -2,8 +2,8 @@
 
 A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
-[![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
+[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://maplecast.netlify.app)
 
 ## Features
 
@@ -95,10 +95,11 @@ This application is a Progressive Web App, which means you can:
 - Axios (for API requests)
 - OpenWeatherMap API (for weather data)
 - Environment Canada (for radar and weather alerts)
+- Netlify Functions (for server-side proxy to resolve CORS issues)
+- Netlify (for application hosting)
 - Leaflet & React-Leaflet (for interactive maps)
 - Service Workers (for PWA functionality)
 - Web Push API (for notifications)
-- GitHub Pages (for deployment)
 
 ## Versioning and Deployment
 
@@ -117,7 +118,7 @@ All notable changes to this project are documented in the [CHANGELOG.md](./CHANG
 
 ### Deployment
 
-The app is deployed to GitHub Pages. To deploy a new version:
+The app is deployed to Netlify. To deploy a new version:
 
 1. Make your changes and update the version number in `package.json`
 2. Update the `CHANGELOG.md` with your changes
@@ -125,38 +126,23 @@ The app is deployed to GitHub Pages. To deploy a new version:
 
 ```bash
 cd weather-app
-./deploy.sh
+npm run netlify:deploy
 ```
 
 Or from the project root:
 
 ```bash
-./weather-app/deploy.sh
+cd weather-app && npm run netlify:deploy
 ```
-The script will:
-- Automatically navigate to the correct directory
-- Check and update the git remote URL if needed
-- Commit your source code changes
-- Pull latest changes from the remote repository with rebase
-- Push your changes to the repository
-- Build the application
-- Deploy to GitHub Pages
-- Deploy to GitHub Pages
 
 Additional deployment options:
 
 ```bash
 # Install dependencies and deploy
-./deploy.sh --install
-
-# Deploy with a custom commit message
-./deploy.sh "Your custom commit message"
-
-# Install dependencies and deploy with a custom commit message
-./deploy.sh --install "Your custom commit message"
+npm install && npm run netlify:deploy
 ```
 
-This will build the app and deploy it to GitHub Pages at: https://screech24.github.io/maplecast-weather/
+This will build the app and deploy it to Netlify at: https://maplecast.netlify.app
 
 ## License
 

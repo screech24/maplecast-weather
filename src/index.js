@@ -12,7 +12,12 @@ const registerServiceWorker = async () => {
     // This prevents the MIME type error in development
     if (process.env.NODE_ENV === 'production') {
       try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
+        // Use the PUBLIC_URL environment variable to get the correct base path
+        const publicUrl = process.env.PUBLIC_URL || '';
+        const swUrl = `${publicUrl}/service-worker.js`;
+        
+        console.log('Registering service worker from:', swUrl);
+        const registration = await navigator.serviceWorker.register(swUrl);
         console.log('Service Worker registered with scope:', registration.scope);
         
         // Check for updates to the Service Worker
