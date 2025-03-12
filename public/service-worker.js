@@ -85,9 +85,56 @@ self.addEventListener('fetch', event => {
 // Background sync event
 self.addEventListener('sync', event => {
   console.log('[Service Worker] Background Sync event received', event.tag);
-  if (event.tag === ALERTS_SYNC_KEY) {
+  if (event.tag === 'weather-alerts-sync' || event.tag === ALERTS_SYNC_KEY) {
     console.log('[Service Worker] Syncing weather alerts');
-    event.waitUntil(syncWeatherAlerts());
+    event.waitUntil(syncWeatherAlerts().then(async (brandNewAlerts) => {
+      if (brandNewAlerts && brandNewAlerts.length > 0) {
+        console.log(`[Service Worker] Found ${brandNewAlerts.length} new alerts during background sync`);
+        
+        // Notify all clients about the new alerts
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'NEW_ALERTS',
+            alerts: brandNewAlerts
+          });
+        });
+        
+        // Send push notification for each new alert
+        for (const alert of brandNewAlerts) {
+          try {
+            await self.registration.showNotification('Weather Alert', {
+              body: `${alert.title}\n${alert.summary ? alert.summary.substring(0, 100) : alert.description ? alert.description.substring(0, 100) : alert.title}...`,
+              icon: '/android-chrome-192x192.png',
+              badge: '/favicon-32x32.png',
+              tag: `alert-${alert.id || Date.now()}`,
+              vibrate: [200, 100, 200],
+              renotify: true,
+              requireInteraction: true,
+              data: {
+                url: alert.link || '/',
+                alertId: alert.id,
+                timestamp: Date.now()
+              },
+              actions: [
+                {
+                  action: 'view',
+                  title: 'View Details'
+                },
+                {
+                  action: 'close',
+                  title: 'Dismiss'
+                }
+              ]
+            });
+          } catch (error) {
+            console.error('[Service Worker] Error showing notification for alert', error);
+          }
+        }
+      } else {
+        console.log('[Service Worker] No new alerts found during background sync');
+      }
+    }));
   }
 });
 
@@ -456,13 +503,104 @@ async function syncWeatherAlerts() {
       }
     }
     
-    // If all fetch attempts failed
+    // If all region codes fail, try the national alerts feed as a last resort
     if (!fetchSucceeded) {
-      console.log('[Service Worker] All fetch attempts failed, setting retry timer');
-      // Schedule a retry in 15 minutes
-      setTimeout(() => {
-        syncWeatherAlerts();
-      }, 15 * 60 * 1000);
+      console.log('[Service Worker] All region codes failed, trying national alerts feed');
+      const nationalAlertsUrl = 'https://weather.gc.ca/rss/warning/canada_e.xml';
+      
+      for (const proxy of corsProxies) {
+        try {
+          console.log(`[Service Worker] Trying national alerts feed with proxy: ${proxy}`);
+          const response = await fetch(`${proxy}${encodeURIComponent(nationalAlertsUrl)}`, {
+            cache: 'no-store',
+            headers: {
+              'Accept': 'application/xml, text/xml, */*',
+              'Cache-Control': 'no-cache'
+            }
+          });
+          
+          if (!response.ok) {
+            console.log(`[Service Worker] Failed to fetch national feed with status: ${response.status}`);
+            continue;
+          }
+          
+          const text = await response.text();
+          if (!text) {
+            console.log(`[Service Worker] Empty response from national feed`);
+            continue;
+          }
+          
+          // Parse XML
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(text, 'text/xml');
+          
+          // Check for parser errors
+          if (xmlDoc.querySelector('parsererror')) {
+            console.log('[Service Worker] XML parsing error for national feed');
+            continue;
+          }
+          
+          // Extract entries - check both ATOM and RSS formats
+          let entries = xmlDoc.querySelectorAll('entry');
+          if (!entries || entries.length === 0) {
+            // Try RSS format (item elements)
+            entries = xmlDoc.querySelectorAll('item');
+          }
+          
+          if (!entries || entries.length === 0) {
+            console.log('[Service Worker] No alerts found in national feed');
+            continue;
+          }
+          
+          // Process entries to get alerts
+          newAlerts = Array.from(entries)
+            .filter(entry => {
+              const titleElement = entry.querySelector('title');
+              const title = titleElement ? titleElement.textContent : '';
+              
+              // Include any entry that doesn't explicitly say "no watches or warnings"
+              return !(title && title.toLowerCase().includes('no watches or warnings in effect'));
+            })
+            .map(entry => {
+              const id = entry.querySelector('id')?.textContent || 
+                entry.querySelector('guid')?.textContent || 
+                `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                
+              const title = entry.querySelector('title')?.textContent || 'Weather Alert';
+              
+              const summary = entry.querySelector('summary')?.textContent || 
+                entry.querySelector('description')?.textContent || 
+                'No details available';
+              
+              const linkElement = entry.querySelector('link');
+              const link = linkElement ? 
+                (linkElement.getAttribute('href') || linkElement.textContent) : 
+                'https://weather.gc.ca/warnings/index_e.html';
+              
+              const published = entry.querySelector('published')?.textContent || 
+                entry.querySelector('pubDate')?.textContent || 
+                new Date().toISOString();
+                
+              const updated = entry.querySelector('updated')?.textContent || published;
+              
+              return {
+                id,
+                title,
+                summary,
+                published,
+                link,
+                updated,
+                source: nationalAlertsUrl
+              };
+            });
+          
+          console.log(`[Service Worker] Found ${newAlerts.length} alerts in national feed`);
+          fetchSucceeded = true;
+          break;
+        } catch (error) {
+          console.error(`[Service Worker] Error fetching national alerts with proxy ${proxy}:`, error);
+        }
+      }
     }
     
     // Update the cache with new alerts
@@ -500,7 +638,7 @@ function getRegionCodesForProvince(province) {
   const provinceUpper = province.toUpperCase();
   
   if (provinceUpper === 'ON' || provinceUpper === 'ONTARIO') {
-    return ['onrm96', 'onrm97', 'on31', 'on33', 'on39', 'on48'];
+    return ['onrm119', 'onrm96', 'onrm97', 'on31', 'on33', 'on39', 'on48'];
   } else if (provinceUpper === 'BC' || provinceUpper === 'BRITISH COLUMBIA') {
     return ['bcrm30', 'bcrm31', 'bcrm3', 'bcrm4'];
   } else if (provinceUpper === 'AB' || provinceUpper === 'ALBERTA') {
@@ -527,4 +665,59 @@ if ('periodicSync' in self.registration) {
   };
   
   tryRegisterPeriodicSync();
-} 
+}
+
+// Add an event listener for the 'periodicsync' event
+self.addEventListener('periodicsync', event => {
+  if (event.tag === ALERTS_SYNC_KEY) {
+    console.log('[Service Worker] Periodic sync for weather alerts triggered');
+    event.waitUntil(syncWeatherAlerts().then(async (brandNewAlerts) => {
+      if (brandNewAlerts && brandNewAlerts.length > 0) {
+        console.log(`[Service Worker] Found ${brandNewAlerts.length} new alerts during periodic sync`);
+        
+        // Notify all clients about the new alerts
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'NEW_ALERTS',
+            alerts: brandNewAlerts
+          });
+        });
+        
+        // Send push notification for each new alert
+        for (const alert of brandNewAlerts) {
+          try {
+            await self.registration.showNotification('Weather Alert', {
+              body: `${alert.title}\n${alert.summary ? alert.summary.substring(0, 100) : alert.description ? alert.description.substring(0, 100) : alert.title}...`,
+              icon: '/android-chrome-192x192.png',
+              badge: '/favicon-32x32.png',
+              tag: `alert-${alert.id || Date.now()}`,
+              vibrate: [200, 100, 200],
+              renotify: true,
+              requireInteraction: true,
+              data: {
+                url: alert.link || '/',
+                alertId: alert.id,
+                timestamp: Date.now()
+              },
+              actions: [
+                {
+                  action: 'view',
+                  title: 'View Details'
+                },
+                {
+                  action: 'close',
+                  title: 'Dismiss'
+                }
+              ]
+            });
+          } catch (error) {
+            console.error('[Service Worker] Error showing notification for alert', error);
+          }
+        }
+      } else {
+        console.log('[Service Worker] No new alerts found during periodic sync');
+      }
+    }));
+  }
+});

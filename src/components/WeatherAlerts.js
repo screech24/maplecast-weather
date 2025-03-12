@@ -44,6 +44,22 @@ const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheck
       return dateString;
     }
   };
+
+  // Get severity class based on alert severity
+  const getSeverityClass = (alert) => {
+    if (!alert || !alert.severity) return '';
+    
+    switch (alert.severity.toLowerCase()) {
+      case 'extreme':
+        return 'alert-extreme';
+      case 'severe':
+        return 'alert-severe';
+      case 'moderate':
+        return 'alert-moderate';
+      default:
+        return '';
+    }
+  };
   
   // If there's an error, show error message
   if (error) {
@@ -98,7 +114,7 @@ const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheck
       {alerts.length > 0 && (
         <div className="alerts-container">
           <div 
-            className={`alert-header ${expandedAlertIndex !== null ? 'expanded' : ''}`}
+            className={`alert-header ${expandedAlertIndex !== null ? 'expanded' : ''} ${getSeverityClass(alerts[currentAlertIndex])}`}
             onClick={() => toggleAlert(currentAlertIndex)}
           >
             <div className="alert-indicator">
@@ -153,6 +169,24 @@ const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheck
                     <i className="fa-regular fa-clock"></i> 
                     {formatAlertDate(alerts[currentAlertIndex].published)}
                   </p>
+                  {alerts[currentAlertIndex].expires && (
+                    <p>
+                      <i className="fa-regular fa-calendar-xmark"></i> 
+                      Expires: {formatAlertDate(alerts[currentAlertIndex].expires)}
+                    </p>
+                  )}
+                  {alerts[currentAlertIndex].severity && (
+                    <p>
+                      <i className="fa-solid fa-exclamation-circle"></i> 
+                      Severity: {alerts[currentAlertIndex].severity}
+                    </p>
+                  )}
+                  {alerts[currentAlertIndex].areas && (
+                    <p>
+                      <i className="fa-solid fa-map-marker-alt"></i> 
+                      Areas: {alerts[currentAlertIndex].areas}
+                    </p>
+                  )}
                   <a 
                     href={alerts[currentAlertIndex].link} 
                     target="_blank" 

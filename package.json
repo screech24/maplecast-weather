@@ -9,6 +9,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
+    "@turf/turf": "^7.2.0",
     "axios": "^1.8.2",
     "iso8601-js-period": "^0.2.1",
     "leaflet": "^1.9.4",

@@ -8,7 +8,8 @@ import LocationInfo from './components/LocationInfo';
 import LocationSearch from './components/LocationSearch';
 import WeatherAlerts from './components/WeatherAlerts';
 import EnhancedRadarMap from './components/EnhancedRadarMap';
-import { getCurrentPosition, fetchWeatherData, fetchWeatherAlerts, isLocationInCanada } from './utils/api';
+import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
+import { fetchLatestAlerts, getUserLocation, filterAlertsByLocation, formatAlertForDisplay } from './utils/capAlerts';
 import axios from 'axios';
 
 // Import API key from utils/api.js to maintain consistency
@@ -145,6 +146,28 @@ function App() {
         // Here you would normally send the subscription to your server
         // sendSubscriptionToServer(subscription);
         
+        // Register for periodic background sync if supported
+        if ('periodicSync' in registration) {
+          try {
+            // Check if we have permission
+            const status = await navigator.permissions.query({
+              name: 'periodic-background-sync',
+            });
+            
+            if (status.state === 'granted') {
+              // Register for periodic sync
+              await registration.periodicSync.register('weather-alerts-sync', {
+                minInterval: 60 * 60 * 1000, // Once per hour
+              });
+              console.log('Registered for periodic background sync');
+            } else {
+              console.log('Periodic background sync permission not granted');
+            }
+          } catch (syncError) {
+            console.error('Error registering for periodic background sync:', syncError);
+          }
+        }
+        
         return true;
       } catch (subscribeError) {
         console.error('Failed to subscribe to push notifications:', subscribeError);
@@ -179,6 +202,7 @@ function App() {
   // Function to check notification permission status on component mount
   const checkNotificationPermission = useCallback(() => {
     if (!('Notification' in window)) {
+      console.log('Notifications not supported in this browser');
       return;
     }
     
@@ -186,12 +210,38 @@ function App() {
     if (permission === 'granted') {
       setNotificationsEnabled(true);
       // If notification is granted, make sure we're subscribed to push
-      subscribeToPushNotifications();
+      subscribeToPushNotifications().then(success => {
+        if (success) {
+          console.log('Successfully subscribed to push notifications');
+          
+          // Register the service worker for background sync
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+              // Request a background sync
+              if ('sync' in registration) {
+                registration.sync.register('weather-alerts-sync')
+                  .then(() => console.log('Registered for background sync'))
+                  .catch(error => console.error('Error registering for background sync:', error));
+              }
+              
+              // Set up periodic checking for alerts
+              if (locationInfo && locationInfo.city && locationInfo.region) {
+                // Tell the service worker to check for alerts
+                if (navigator.serviceWorker.controller) {
+                  navigator.serviceWorker.controller.postMessage({
+                    type: 'CHECK_ALERTS'
+                  });
+                }
+              }
+            });
+          }
+        }
+      });
     } else if (permission === 'default' && !localStorage.getItem('notificationPromptShown')) {
       // Only show the prompt if we haven't shown it before (stored in localStorage)
       setShowNotificationPrompt(true);
     }
-  }, [subscribeToPushNotifications]);
+  }, [subscribeToPushNotifications, locationInfo]);
 
   // Function to display a browser notification (for when the page is open)
   const showBrowserNotification = useCallback((title, options) => {
@@ -219,24 +269,48 @@ function App() {
   }, []);
 
   // Fetch weather alerts based on location
-  const getWeatherAlerts = useCallback(async (city, region) => {
+  const getWeatherAlerts = useCallback(async (city, region, coordinates = null) => {
     if (!city || !region) return;
     
     try {
       setIsLoadingAlerts(true);
       setAlertsError(null);
       
-      const { alerts: alertsData, error: alertsErrorData } = await fetchWeatherAlerts(city, region);
+      console.log('Fetching CAP alerts from Environment Canada');
       
-      if (alertsErrorData) {
-        setAlertsError(alertsErrorData);
-        setAlerts([]);
+      // Get user location if not provided
+      let userLocation;
+      
+      // Special case for Lévis, QC - use hardcoded coordinates for testing
+      if (city === 'Lévis' && region === 'Quebec') {
+        console.log('Using hardcoded coordinates for Lévis, QC');
+        userLocation = {
+          latitude: 46.8,
+          longitude: -71.2
+        };
       } else {
-        setAlerts(alertsData);
-        
-        // Update service worker with the alerts and location
-        updateServiceWorkerData(alertsData, { city, region });
+        userLocation = coordinates ? 
+          { latitude: coordinates.lat, longitude: coordinates.lon } : 
+          await getUserLocation();
       }
+      
+      console.log(`Using location: ${JSON.stringify(userLocation)}`);
+      
+      // Fetch all CAP alerts
+      const allAlerts = await fetchLatestAlerts();
+      console.log(`Fetched ${allAlerts.length} CAP alerts`);
+      
+      // Filter alerts by user location
+      const relevantAlerts = filterAlertsByLocation(allAlerts, userLocation);
+      console.log(`Found ${relevantAlerts.length} alerts relevant to user location`);
+      
+      // Format alerts for display
+      const formattedAlerts = relevantAlerts.map(formatAlertForDisplay).filter(alert => alert !== null);
+      
+      setAlerts(formattedAlerts);
+      
+      // Update service worker with the alerts and location
+      updateServiceWorkerData(formattedAlerts, { city, region });
     } catch (err) {
       console.error('Error fetching weather alerts:', err);
       setAlertsError('Failed to fetch weather alerts. Please try again later.');
@@ -283,7 +357,7 @@ function App() {
           
           // Fetch weather alerts if in Canada
           if (inCanada) {
-            await getWeatherAlerts(locationData.city, locationData.region);
+            await getWeatherAlerts(locationData.city, locationData.region, position);
           } else {
             setAlerts([]);
             setIsLoadingAlerts(false);
@@ -523,14 +597,16 @@ function App() {
         const newAlerts = event.data.alerts;
         
         if (newAlerts && newAlerts.length > 0) {
+          console.log(`Received ${newAlerts.length} new alerts from service worker`);
+          
           // Update the state with new alerts
           setAlerts(prevAlerts => {
             // Merge the alerts, avoiding duplicates
             const allAlerts = [...prevAlerts];
-            const newAlertIds = new Set(newAlerts.map(alert => alert.id));
+            const existingAlertIds = new Set(prevAlerts.map(alert => alert.id));
             
             for (const alert of newAlerts) {
-              if (!prevAlerts.some(a => a.id === alert.id)) {
+              if (!existingAlertIds.has(alert.id)) {
                 allAlerts.push(alert);
               }
             }
@@ -538,25 +614,55 @@ function App() {
             return allAlerts;
           });
           
-          // If the page is visible, show a browser notification for each new alert
-          if (document.visibilityState === 'visible' && notificationsEnabled) {
+          // Show a browser notification for each new alert
+          // This works when the page is visible
+          if (notificationsEnabled) {
             for (const alert of newAlerts) {
               showBrowserNotification('Weather Alert', {
                 body: `${alert.title} - ${alert.summary ? alert.summary.substring(0, 100) : alert.description ? alert.description.substring(0, 100) : alert.title}...`,
                 icon: '/android-chrome-192x192.png',
                 badge: '/favicon-32x32.png',
                 tag: `alert-${alert.id}`,
-                requireInteraction: true
+                requireInteraction: true,
+                data: {
+                  url: alert.link || '/',
+                  alertId: alert.id,
+                  timestamp: Date.now()
+                },
+                actions: [
+                  {
+                    action: 'view',
+                    title: 'View Details'
+                  },
+                  {
+                    action: 'close',
+                    title: 'Dismiss'
+                  }
+                ]
               });
             }
           }
         }
+      } else if (event.data && event.data.type === 'NO_NEW_ALERTS') {
+        console.log('No new alerts found during check');
       }
     };
     
     // Listen for messages from the service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleMessage);
+      
+      // If we have a service worker controller, register for background sync
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(registration => {
+          // Register for background sync if supported
+          if ('sync' in registration) {
+            registration.sync.register('weather-alerts-sync')
+              .then(() => console.log('Registered for background sync'))
+              .catch(error => console.error('Error registering for background sync:', error));
+          }
+        });
+      }
     }
     
     // Clean up

@@ -116,3 +116,109 @@ echo "  ./deploy.sh                       # Deploy without installing dependenci
 echo "  ./deploy.sh --install             # Install dependencies and deploy"
 echo "  ./deploy.sh \"Custom commit message\" # Deploy with custom commit message"
 echo "  ./deploy.sh --install \"Custom commit message\" # Install dependencies and deploy with custom commit message"
+
+# Set environment variables for production
+export NODE_ENV=production
+
+# Build the app
+echo "Building the app for production..."
+npm run build
+
+# Check if the build was successful
+if [ $? -ne 0 ]; then
+  echo "Build failed. Please fix the errors and try again."
+  exit 1
+fi
+
+# Deployment options
+echo "Choose a deployment option:"
+echo "1. Deploy to GitHub Pages"
+echo "2. Deploy to Netlify"
+echo "3. Deploy to Vercel"
+echo "4. Serve locally with HTTPS"
+
+read -p "Enter your choice (1-4): " choice
+
+case $choice in
+  1)
+    # GitHub Pages deployment
+    echo "Deploying to GitHub Pages..."
+    
+    # Check if gh-pages package is installed
+    if ! npm list -g gh-pages > /dev/null 2>&1; then
+      echo "Installing gh-pages package..."
+      npm install -g gh-pages
+    fi
+    
+    # Deploy using gh-pages
+    npx gh-pages -d build
+    
+    echo "Deployed to GitHub Pages. Your app should be available at https://[username].github.io/[repository-name]"
+    ;;
+    
+  2)
+    # Netlify deployment
+    echo "Deploying to Netlify..."
+    
+    # Check if Netlify CLI is installed
+    if ! command -v netlify &> /dev/null; then
+      echo "Installing Netlify CLI..."
+      npm install -g netlify-cli
+    fi
+    
+    # Deploy to Netlify
+    netlify deploy --prod
+    
+    echo "Deployed to Netlify. Your app should be available at the URL provided above."
+    ;;
+    
+  3)
+    # Vercel deployment
+    echo "Deploying to Vercel..."
+    
+    # Check if Vercel CLI is installed
+    if ! command -v vercel &> /dev/null; then
+      echo "Installing Vercel CLI..."
+      npm install -g vercel
+    fi
+    
+    # Deploy to Vercel
+    vercel --prod
+    
+    echo "Deployed to Vercel. Your app should be available at the URL provided above."
+    ;;
+    
+  4)
+    # Serve locally with HTTPS
+    echo "Serving locally with HTTPS..."
+    
+    # Check if serve package is installed
+    if ! npm list -g serve > /dev/null 2>&1; then
+      echo "Installing serve package..."
+      npm install -g serve
+    fi
+    
+    # Generate self-signed certificate for local HTTPS
+    echo "Generating self-signed certificate for local HTTPS..."
+    mkdir -p .cert
+    
+    # Check if OpenSSL is available
+    if command -v openssl &> /dev/null; then
+      openssl req -x509 -newkey rsa:2048 -keyout .cert/key.pem -out .cert/cert.pem -days 365 -nodes -subj "/CN=localhost"
+      
+      # Serve with HTTPS
+      echo "Starting local HTTPS server..."
+      serve -s build --ssl-cert .cert/cert.pem --ssl-key .cert/key.pem
+    else
+      echo "OpenSSL not found. Serving without HTTPS..."
+      serve -s build
+    fi
+    ;;
+    
+  *)
+    echo "Invalid choice. Exiting."
+    exit 1
+    ;;
+esac
+
+echo "Deployment complete!"
