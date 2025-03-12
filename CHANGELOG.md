@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.8.3] - 2025-03-12
 
+### Added
+- Development mode for easier local testing and debugging
+- DevTools panel with application info, console logs, and network monitoring
+- Enhanced logging utilities for development and debugging
+- New npm scripts: `npm run dev` and `npm run debug`
+
 ### Fixed
 - Significantly improved location search functionality to work properly across all Canadian locations
 - Enhanced search algorithm with multi-stage approach for more reliable results

@@ -8,8 +8,10 @@ import LocationInfo from './components/LocationInfo';
 import LocationSearch from './components/LocationSearch';
 import WeatherAlerts from './components/WeatherAlerts';
 import EnhancedRadarMap from './components/EnhancedRadarMap';
+import DevTools from './components/DevTools';
 import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
 import { fetchLatestAlerts, getUserLocation, filterAlertsByLocation, formatAlertForDisplay } from './utils/capAlerts';
+import { isDevelopment, devLog } from './utils/devMode';
 import axios from 'axios';
 
 // Import API key from utils/api.js to maintain consistency
@@ -17,6 +19,12 @@ import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
 const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.3';
+
+// Log application startup in development mode
+if (isDevelopment) {
+  devLog('App', `MapleCast Weather v${APP_VERSION} starting in ${process.env.REACT_APP_ENV} mode`);
+  devLog('App', `API Key: ${API_KEY ? API_KEY.substring(0, 4) + '...' : 'missing'}`);
+}
 
 function App() {
   // eslint-disable-next-line no-unused-vars
@@ -736,11 +744,14 @@ function App() {
 
   return (
     <div className={`app ${isDarkMode ? 'dark-mode' : ''}`}>
-      <Header 
-        isDarkMode={isDarkMode} 
-        toggleDarkMode={toggleDarkMode} 
+      <Header
+        isDarkMode={isDarkMode}
+        toggleDarkMode={toggleDarkMode}
         notificationsEnabled={notificationsEnabled}
       />
+      
+      {/* Development Tools - only visible in development mode */}
+      <DevTools />
       
       <div className="app-container">
         <LocationSearch 

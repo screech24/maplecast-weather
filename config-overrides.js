@@ -6,7 +6,18 @@ const fs = require('fs');
 const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const packageVersion = packageJson.version;
 
+// Determine if we're in development or debug mode
+const isDevelopment = process.env.REACT_APP_ENV === 'development';
+const isDebugMode = process.env.REACT_APP_DEBUG === 'true';
+
 module.exports = function override(config, env) {
+  // Log environment information in development mode
+  if (isDevelopment) {
+    console.log('Running in DEVELOPMENT mode');
+    if (isDebugMode) {
+      console.log('DEBUG mode enabled - verbose logging will be active');
+    }
+  }
   // Add polyfills for Node.js core modules
   config.resolve.fallback = {
     ...config.resolve.fallback,
@@ -28,6 +39,8 @@ module.exports = function override(config, env) {
     }),
     new webpack.DefinePlugin({
       'process.env.REACT_APP_VERSION': JSON.stringify(packageVersion),
+      'process.env.REACT_APP_ENV': JSON.stringify(process.env.REACT_APP_ENV || 'production'),
+      'process.env.REACT_APP_DEBUG': JSON.stringify(process.env.REACT_APP_DEBUG || 'false'),
       'process.version': JSON.stringify(process.version)
     })
   ];

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './LocationSearch.css';
+import { isDevelopment, devLog, debugLog } from '../utils/devMode';
 
 // Canadian provinces mapping for search enhancement
 const CANADIAN_PROVINCES = {
@@ -183,13 +184,13 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
 
   useEffect(() => {
     if (apiKey) {
-      console.log('LocationSearch initialized with API key');
+      devLog('LocationSearch', 'Initialized with API key');
       setInitialized(true);
       setError(null);
     } else {
       setInitialized(false);
       setError('API key is not available. Search functionality is limited.');
-      console.error('LocationSearch missing API key');
+      devLog('LocationSearch', 'Missing API key', { error: true });
     }
   }, [apiKey]);
 
@@ -203,18 +204,18 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
 
   // Function to perform a search with a specific term
   const performSearch = async (term) => {
-    console.log(`Searching for location: ${term}`);
+    devLog('LocationSearch', `Searching for location: ${term}`);
     
     try {
       // Log the exact URL being called for debugging
       const searchUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(term)}&limit=10&appid=${apiKey}`;
-      console.log(`Search URL: ${searchUrl}`);
+      debugLog('LocationSearch', `Search URL: ${searchUrl}`);
       
       const response = await axios.get(searchUrl);
       
       if (response.data.length > 0) {
-        console.log(`Found ${response.data.length} locations for search term:`, term);
-        console.log('Raw search results:', JSON.stringify(response.data));
+        devLog('LocationSearch', `Found ${response.data.length} locations for search term: ${term}`);
+        debugLog('LocationSearch', 'Raw search results:', response.data);
         
         // Sort results to prioritize Canadian locations
         const sortedResults = prioritizeCanadianResults(response.data);
@@ -222,11 +223,11 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         return true;
       }
       
-      console.log('No locations found for search term:', term);
+      devLog('LocationSearch', `No locations found for search term: ${term}`);
       return false;
     } catch (err) {
-      console.error('Search error:', err);
-      console.error('Error details:', err.response ? err.response.data : 'No response data');
+      devLog('LocationSearch', `Search error: ${err.message}`, { error: true });
+      debugLog('LocationSearch', 'Error details:', err.response ? err.response.data : 'No response data');
       throw err;
     }
   };

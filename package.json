@@ -22,7 +22,10 @@
   },
   "scripts": {
     "start": "HOST=0.0.0.0 react-app-rewired start",
+    "dev": "REACT_APP_ENV=development react-app-rewired start",
+    "debug": "REACT_APP_ENV=development REACT_APP_DEBUG=true react-app-rewired start",
     "build": "react-app-rewired build",
+    "build:dev": "REACT_APP_ENV=development react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "netlify:deploy": "npm run build && netlify deploy --prod"

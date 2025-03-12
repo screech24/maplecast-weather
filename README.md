@@ -30,6 +30,23 @@ A React-based weather application that displays local weather data with enhanced
 - npm 6.0.0 or later
 - An OpenWeatherMap API key
 
+### Development Modes
+
+The app supports different development modes for easier testing and debugging:
+
+- **Standard Mode**: `npm start` - Runs the app in standard development mode
+- **Development Mode**: `npm run dev` - Runs with development environment variables for testing
+- **Debug Mode**: `npm run debug` - Runs with enhanced logging and debugging tools
+
+When running in development or debug mode, a DevTools panel will be available in the bottom right corner of the app, providing:
+
+- Application information
+- Console logs
+- Network request monitoring
+- Performance metrics
+
+This makes it easier to test changes locally without having to deploy to Netlify.
+
 ### Setting up the API Key
 
 1. Sign up for a free account at [OpenWeatherMap](https://home.openweathermap.org/users/sign_up)
