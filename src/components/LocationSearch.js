@@ -34,14 +34,27 @@ const containsProvinceReference = (term) => {
   // Check for province abbreviations (case insensitive with word boundaries)
   for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
     if (new RegExp(`\\b${abbr}\\b`, 'i').test(term)) {
+      console.log(`Found province abbreviation in term: ${abbr} in "${term}"`);
       return true;
     }
   }
   
   // Check for province full names (partial matches allowed)
   for (const province of Object.values(CANADIAN_PROVINCES)) {
-    if (termLower.includes(province.toLowerCase())) {
+    const provinceLower = province.toLowerCase();
+    if (termLower.includes(provinceLower)) {
+      console.log(`Found province name in term: ${province} in "${term}"`);
       return true;
+    }
+    
+    // Also check for partial matches of longer province names (at least 4 chars)
+    if (province.length > 5) {
+      // Check for first 5+ characters of longer province names
+      const provinceStart = provinceLower.substring(0, 5);
+      if (termLower.includes(provinceStart)) {
+        console.log(`Found partial province match: ${provinceStart} in "${term}"`);
+        return true;
+      }
     }
   }
   
@@ -52,43 +65,71 @@ const containsProvinceReference = (term) => {
 const enhanceCanadianSearch = (term) => {
   // If already contains Canada, return as is
   if (term.toLowerCase().includes('canada')) {
+    console.log(`Term already contains 'Canada': ${term}`);
     return term;
   }
   
   // If it contains a Canadian postal code, it's definitely Canadian
   if (containsCanadianPostalCode(term)) {
+    console.log(`Term contains Canadian postal code: ${term}`);
     return `${term}, Canada`;
   }
   
   // If it contains a province reference, it's likely Canadian
   if (containsProvinceReference(term)) {
-    return term;
+    console.log(`Term contains province reference: ${term}`);
+    // Add Canada explicitly to improve search results
+    return `${term}, Canada`;
   }
   
   // Otherwise, append Canada to improve search results
+  console.log(`Adding 'Canada' to term: ${term}`);
   return `${term}, Canada`;
 };
 
 // Helper function to extract the main location name from a search term
 const extractLocationName = (term) => {
+  console.log(`Extracting location name from: "${term}"`);
+  
   // Remove postal codes
   let cleanTerm = term.replace(POSTAL_CODE_REGEX, '').trim();
+  console.log(`After removing postal codes: "${cleanTerm}"`);
   
   // Remove province abbreviations
   for (const abbr of Object.keys(CANADIAN_PROVINCES)) {
+    const beforeClean = cleanTerm;
     cleanTerm = cleanTerm.replace(new RegExp(`\\b${abbr}\\b`, 'i'), '').trim();
+    if (beforeClean !== cleanTerm) {
+      console.log(`Removed province abbreviation ${abbr}: "${cleanTerm}"`);
+    }
   }
   
   // Remove province names
   for (const province of Object.values(CANADIAN_PROVINCES)) {
-    cleanTerm = cleanTerm.replace(new RegExp(province, 'i'), '').trim();
+    const beforeClean = cleanTerm;
+    cleanTerm = cleanTerm.replace(new RegExp(`\\b${province}\\b`, 'i'), '').trim();
+    if (beforeClean !== cleanTerm) {
+      console.log(`Removed province name ${province}: "${cleanTerm}"`);
+    }
   }
   
   // Remove "Canada" and common separators
+  const beforeFinalClean = cleanTerm;
   cleanTerm = cleanTerm.replace(/\bcanada\b/i, '')
                        .replace(/,|;|\|/g, '')
                        .trim();
   
+  if (beforeFinalClean !== cleanTerm) {
+    console.log(`After removing Canada and separators: "${cleanTerm}"`);
+  }
+  
+  // If we've removed too much, return original term
+  if (!cleanTerm || cleanTerm.length < 2) {
+    console.log(`Extracted name too short, using original: "${term}"`);
+    return term.replace(/,|;|\|/g, '').trim();
+  }
+  
+  console.log(`Final extracted location name: "${cleanTerm}"`);
   return cleanTerm;
 };
 
@@ -96,10 +137,35 @@ const extractLocationName = (term) => {
 const generateProvincialSearchTerms = (locationName) => {
   const terms = [];
   
+  // Clean the location name to ensure it's usable
+  const cleanName = locationName.trim().replace(/\s+/g, ' ');
+  if (!cleanName) return terms;
+  
+  console.log(`Generating provincial search terms for: "${cleanName}"`);
+  
   // Add terms with each province
   for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
-    terms.push(`${locationName}, ${abbr}, Canada`);
-    terms.push(`${locationName}, ${province}, Canada`);
+    // Add with abbreviation
+    terms.push(`${cleanName}, ${abbr}, Canada`);
+    
+    // Add with full province name
+    terms.push(`${cleanName}, ${province}, Canada`);
+    
+    // For major cities, try without comma
+    if (cleanName.length > 3) {
+      terms.push(`${cleanName} ${province} Canada`);
+    }
+  }
+  
+  // Add some variations for major cities
+  if (cleanName.length > 3) {
+    // Try with just Canada
+    terms.push(`${cleanName}, Canada`);
+    
+    // Try with "City" appended for common place names
+    if (!cleanName.toLowerCase().includes('city')) {
+      terms.push(`${cleanName} City, Canada`);
+    }
   }
   
   return terms;
@@ -140,12 +206,16 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     console.log(`Searching for location: ${term}`);
     
     try {
-      const response = await axios.get(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(term)}&limit=10&appid=${apiKey}`
-      );
+      // Log the exact URL being called for debugging
+      const searchUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(term)}&limit=10&appid=${apiKey}`;
+      console.log(`Search URL: ${searchUrl}`);
+      
+      const response = await axios.get(searchUrl);
       
       if (response.data.length > 0) {
         console.log(`Found ${response.data.length} locations for search term:`, term);
+        console.log('Raw search results:', JSON.stringify(response.data));
+        
         // Sort results to prioritize Canadian locations
         const sortedResults = prioritizeCanadianResults(response.data);
         setSearchResults(sortedResults);
@@ -156,6 +226,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       return false;
     } catch (err) {
       console.error('Search error:', err);
+      console.error('Error details:', err.response ? err.response.data : 'No response data');
       throw err;
     }
   };
@@ -177,15 +248,19 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     setSearchStage(0);
     setAlternativeSearchTerms([]);
     
+    console.log('Starting search for:', searchTerm);
+    
     try {
       // Stage 1: Try with enhanced Canadian search term
       const enhancedTerm = enhanceCanadianSearch(searchTerm);
+      console.log(`Stage 1: Using enhanced term: "${enhancedTerm}"`);
       let searchSuccess = await performSearch(enhancedTerm);
       
       // If first attempt failed and the enhanced term is different from original
       if (!searchSuccess && enhancedTerm !== searchTerm) {
         // Stage 2: Try with original search term
         setSearchStage(1);
+        console.log(`Stage 2: Using original term: "${searchTerm}"`);
         searchSuccess = await performSearch(searchTerm);
       }
       
@@ -194,31 +269,61 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         // Stage 3: Try with just the location name + Canada
         setSearchStage(2);
         const locationName = extractLocationName(searchTerm);
+        console.log(`Stage 3: Extracted location name: "${locationName}"`);
+        
         if (locationName && locationName !== searchTerm) {
-          searchSuccess = await performSearch(`${locationName}, Canada`);
+          const cleanTerm = `${locationName}, Canada`;
+          console.log(`Stage 3: Using clean term: "${cleanTerm}"`);
+          searchSuccess = await performSearch(cleanTerm);
+        }
+      }
+      
+      // If still no results, try with direct geocoding API
+      if (!searchSuccess) {
+        // Stage 4: Try direct geocoding with Canada filter
+        setSearchStage(3);
+        console.log(`Stage 4: Trying direct geocoding with Canada filter`);
+        
+        try {
+          // Try a more direct approach with the geocoding API
+          const directTerm = searchTerm.toLowerCase().includes('canada') ?
+            searchTerm : `${searchTerm}, Canada`;
+            
+          console.log(`Stage 4: Using direct term: "${directTerm}"`);
+          searchSuccess = await performSearch(directTerm);
+        } catch (directError) {
+          console.error('Direct geocoding error:', directError);
         }
       }
       
       // If still no results, try with provincial variations
       if (!searchSuccess) {
-        // Stage 4: Try with provincial variations
-        setSearchStage(3);
+        // Stage 5: Try with provincial variations
+        setSearchStage(4);
         const locationName = extractLocationName(searchTerm);
+        console.log(`Stage 5: Using provincial variations for: "${locationName}"`);
+        
         if (locationName) {
           // Generate provincial search terms
           const provincialTerms = generateProvincialSearchTerms(locationName);
           setAlternativeSearchTerms(provincialTerms);
+          console.log(`Generated ${provincialTerms.length} provincial terms:`, provincialTerms);
           
           // Try each provincial term until we find results or exhaust options
-          for (const term of provincialTerms.slice(0, 5)) { // Limit to first 5 to avoid too many requests
+          for (const term of provincialTerms) { // Try all provincial terms
+            console.log(`Stage 5: Trying provincial term: "${term}"`);
             searchSuccess = await performSearch(term);
-            if (searchSuccess) break;
+            if (searchSuccess) {
+              console.log(`Found results with provincial term: "${term}"`);
+              break;
+            }
           }
         }
       }
       
       // If all attempts failed, show helpful error message
       if (!searchSuccess) {
+        console.log('All search attempts failed');
         const suggestions = [];
         
         // Add suggestions based on the search term
@@ -257,7 +362,19 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
 
   // Function to prioritize Canadian results
   const prioritizeCanadianResults = (results) => {
-    return results.sort((a, b) => {
+    console.log('Prioritizing results:', results);
+    
+    // Filter out any results without required properties
+    const validResults = results.filter(result => {
+      const hasRequiredProps = result && result.lat && result.lon && result.name;
+      if (!hasRequiredProps) {
+        console.log('Filtering out invalid result:', result);
+      }
+      return hasRequiredProps;
+    });
+    
+    // Sort the results
+    const sortedResults = validResults.sort((a, b) => {
       // Prioritize Canadian locations
       if (a.country === 'CA' && b.country !== 'CA') return -1;
       if (a.country !== 'CA' && b.country === 'CA') return 1;
@@ -267,9 +384,16 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         return a.name.localeCompare(b.name);
       }
       
-      // For non-Canadian locations, keep original order
-      return 0;
+      // For non-Canadian locations, prioritize those with state/province info
+      if (a.state && !b.state) return -1;
+      if (!a.state && b.state) return 1;
+      
+      // For locations with same country and state status, sort by name
+      return a.name.localeCompare(b.name);
     });
+    
+    console.log('Sorted results:', sortedResults);
+    return sortedResults;
   };
 
   const handleLocationSelect = (location) => {
