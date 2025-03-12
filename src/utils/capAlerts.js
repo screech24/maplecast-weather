@@ -251,59 +251,115 @@ export const fetchLatestAlerts = async () => {
                       }
                     }
                   } catch (hourError) {
-                    debugLog(`Error accessing hour directory ${hourDir}: ${hourError.message}`);
+                    debugLog(`Error accessing hour directory ${hourDir}:`, hourError.message);
                   }
-                }
-                
-                // If we found enough files, stop searching
-                if (allXmlFiles.length >= 20) {
-                  break;
                 }
               }
             } catch (subdirError) {
-              debugLog(`Error accessing subdirectory ${subdir}: ${subdirError.message}`);
+              debugLog(`Error accessing subdirectory ${subdir}:`, subdirError.message);
             }
           }
-        } else {
-          debugLog('Could not access subdirectories in the latest folder');
         }
-      } catch (navigationError) {
-        debugLog('Error during directory navigation:', navigationError.message);
+      } catch (error) {
+        debugLog('Error navigating directories:', error.message);
       }
     }
     
-    // If we still couldn't find any files, return an empty array
+    // If we still don't have any XML files, try the fallback approach
     if (allXmlFiles.length === 0) {
-      debugLog('No CAP alert files found after all attempts');
-      return [];
-    }
-    
-    // Fetch a sample of alerts to avoid overwhelming the browser
-    const sampleSize = Math.min(allXmlFiles.length, 30);
-    const alerts = await fetchSampleAlerts(allXmlFiles, sampleSize);
-    
-    console.log(`Fetched ${alerts.length} CAP alerts`);
-    
-    // Cache successful paths from fetched alerts
-    alerts.forEach(alert => {
-      if (alert && alert.sourceUrl) {
-        const path = alert.sourceUrl.replace('https://dd.weather.gc.ca/alerts/cap/', '');
-        cacheSuccessfulPath(path);
+      debugLog('No XML files found through directory navigation. Trying fallback approach...');
+      
+      try {
+        // Try to fetch alerts from the battleboard RSS feed as a fallback
+        const regionCodes = ['on', 'bc', 'ab', 'sk', 'mb', 'qc', 'nb', 'ns', 'pe', 'nl', 'yt', 'nt', 'nu'];
+        
+        for (const regionCode of regionCodes) {
+          try {
+            const alertsUrl = `/api/cap/battleboard/${regionCode}_e.xml`;
+            const rssData = await fetch(alertsUrl).then(res => res.text());
+            
+            if (rssData) {
+              // Parse the RSS data to extract alert information
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(rssData, 'text/xml');
+              const items = xmlDoc.querySelectorAll('item');
+              
+              if (items.length > 0) {
+                debugLog(`Found ${items.length} alerts in RSS feed for region ${regionCode}`);
+                
+                // Convert RSS items to our alert format
+                const rssAlerts = Array.from(items).map(item => {
+                  const title = item.querySelector('title')?.textContent || '';
+                  const description = item.querySelector('description')?.textContent || '';
+                  const link = item.querySelector('link')?.textContent || '';
+                  const pubDate = item.querySelector('pubDate')?.textContent || '';
+                  
+                  return {
+                    id: `rss-${regionCode}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+                    title,
+                    description,
+                    link,
+                    sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+                    areas: [
+                      {
+                        description: regionCode.toUpperCase(),
+                        // Use a large polygon that covers the entire region
+                        polygon: getRegionPolygon(regionCode)
+                      }
+                    ],
+                    sourceUrl: link
+                  };
+                });
+                
+                allXmlFiles = allXmlFiles.concat(rssAlerts);
+              }
+            }
+          } catch (regionError) {
+            debugLog(`Error fetching RSS feed for region ${regionCode}:`, regionError.message);
+          }
+        }
+      } catch (fallbackError) {
+        debugLog('Error using fallback approach:', fallbackError.message);
       }
-    });
-    
-    // If we got alerts, deduplicate them
-    if (alerts.length > 0) {
-      const deduplicatedAlerts = deduplicateAlerts(alerts);
-      debugLog(`Deduplicating ${alerts.length} alerts`);
-      return deduplicatedAlerts;
     }
     
-    // If we didn't get any valid alerts, return an empty array
-    return [];
+    debugLog(`Total XML files found: ${allXmlFiles.length}`);
+    
+    // Process the XML files to get alert data
+    const alerts = [];
+    
+    for (const xmlFile of allXmlFiles) {
+      try {
+        // If this is already a parsed alert from the RSS feed, just add it
+        if (xmlFile.id && xmlFile.title) {
+          alerts.push(xmlFile);
+          continue;
+        }
+        
+        // Otherwise, fetch and parse the XML file
+        const path = xmlFile.replace('https://dd.weather.gc.ca/alerts/cap/', '');
+        const xmlData = await fetchFromProxy(path, true);
+        
+        if (xmlData) {
+          const alert = parseCAP(xmlData, path);
+          
+          if (alert) {
+            alerts.push(alert);
+            // Cache this path for future use
+            cacheSuccessfulPath(path);
+          }
+        }
+      } catch (error) {
+        debugLog(`Error processing XML file ${xmlFile}:`, error.message);
+      }
+    }
+    
+    debugLog(`Successfully parsed ${alerts.length} alerts`);
+    
+    // Return the alerts
+    return alerts;
   } catch (error) {
-    console.error('Error fetching CAP alerts:', error.message);
-    // Return an empty array in case of any error
+    console.error('Error fetching latest alerts:', error);
     return [];
   }
 };
@@ -670,78 +726,119 @@ const parseCircle = (circleString) => {
  * @returns {boolean} True if the user's location is affected by the alert
  */
 export const isLocationAffected = (userLocation, alert) => {
-  if (!userLocation || !alert || !alert.areas || alert.areas.length === 0) {
-    debugLog('Missing required data for location check:', { 
-      hasUserLocation: !!userLocation, 
-      hasAlert: !!alert, 
-      hasAreas: !!(alert && alert.areas), 
-      areasLength: alert && alert.areas ? alert.areas.length : 0 
-    });
+  if (!userLocation || !alert) {
+    debugLog('Missing user location or alert data');
+    return false;
+  }
+  
+  // If the alert doesn't have areas, we can't determine if the location is affected
+  if (!alert.areas || alert.areas.length === 0) {
+    // For development/testing, return true to show all alerts
+    if (isDevelopmentMode()) {
+      debugLog('No areas in alert, but returning true for development mode');
+      return true;
+    }
+    debugLog('Alert has no areas defined');
     return false;
   }
   
   debugLog(`Checking if location (${userLocation.latitude}, ${userLocation.longitude}) is affected by alert: ${alert.title}`);
   
-  const userPoint = turf.point([userLocation.longitude, userLocation.latitude]);
-  
-  // Check each area in the alert
-  return alert.areas.some(area => {
-    // Check polygon
-    if (area.polygon) {
-      try {
-        // Create a polygon from the coordinates
-        // Note: turf.polygon expects an array of linear rings, so we need to wrap our coordinates
-        const alertPolygon = turf.polygon([area.polygon]);
-        const isInPolygon = turf.booleanPointInPolygon(userPoint, alertPolygon);
-        debugLog(`Area: ${area.description}, Polygon check: ${isInPolygon}`);
-        return isInPolygon;
-      } catch (error) {
-        console.error('Error checking polygon:', error);
-        debugLog('Polygon data that caused the error:', area.polygon);
-        return false;
-      }
-    }
+  try {
+    const userPoint = turf.point([userLocation.longitude, userLocation.latitude]);
     
-    // Check circle
-    if (area.circle) {
-      try {
-        const centerPoint = turf.point(area.circle.center);
-        const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
-        const isInCircle = distance <= area.circle.radius;
-        debugLog(`Area: ${area.description}, Circle check: distance=${distance}km, radius=${area.circle.radius}km, isInCircle=${isInCircle}`);
-        return isInCircle;
-      } catch (error) {
-        console.error('Error checking circle:', error);
-        debugLog('Circle data that caused the error:', area.circle);
-        return false;
-      }
-    }
-    
-    // If we have the area description but no polygon or circle data,
-    // try to match by name for common areas
-    if (area.description) {
-      const areaLower = area.description.toLowerCase();
-      
-      // Check if the user's location is in an area mentioned in the alert
-      const userRegion = getRegionFromCoordinates(userLocation);
-      if (userRegion && areaLower.includes(userRegion.toLowerCase())) {
-        debugLog(`Area: ${area.description} matches user's region: ${userRegion}`);
-        return true;
-      }
-      
-      // Check for nearby regions that might affect the user
-      const nearbyRegions = getNearbyRegions(userLocation);
-      for (const region of nearbyRegions) {
-        if (areaLower.includes(region.toLowerCase())) {
-          debugLog(`Area: ${area.description} matches nearby region: ${region}`);
-          return true;
+    // Check each area in the alert
+    return alert.areas.some(area => {
+      // Check polygon
+      if (area.polygon && Array.isArray(area.polygon) && area.polygon.length >= 3) {
+        try {
+          // Create a polygon from the coordinates
+          // Note: turf.polygon expects an array of linear rings, so we need to wrap our coordinates
+          const alertPolygon = turf.polygon([area.polygon]);
+          const isInPolygon = turf.booleanPointInPolygon(userPoint, alertPolygon);
+          debugLog(`Area: ${area.description}, Polygon check: ${isInPolygon}`);
+          return isInPolygon;
+        } catch (error) {
+          console.error('Error checking polygon:', error);
+          debugLog('Polygon data that caused the error:', area.polygon);
+          
+          // If there's an error with the polygon, try a more lenient approach
+          try {
+            // Try to create a bounding box from the polygon points
+            const coords = area.polygon.map(coord => ({ lng: coord[0], lat: coord[1] }));
+            const bounds = getBoundingBox(coords);
+            
+            // Check if the user is within the bounding box
+            const isInBounds = userLocation.latitude >= bounds.south && 
+                              userLocation.latitude <= bounds.north && 
+                              userLocation.longitude >= bounds.west && 
+                              userLocation.longitude <= bounds.east;
+            
+            debugLog(`Fallback bounding box check: ${isInBounds}`);
+            return isInBounds;
+          } catch (fallbackError) {
+            console.error('Error in fallback bounding box check:', fallbackError);
+            return false;
+          }
         }
       }
-    }
-    
-    debugLog(`Area: ${area.description} has no polygon or circle data and no name match`);
+      
+      // Check circle
+      if (area.circle && area.circle.center && area.circle.radius) {
+        try {
+          const centerPoint = turf.point(area.circle.center);
+          const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
+          const isInCircle = distance <= area.circle.radius;
+          debugLog(`Area: ${area.description}, Circle check: distance=${distance}km, radius=${area.circle.radius}km, isInCircle=${isInCircle}`);
+          return isInCircle;
+        } catch (error) {
+          console.error('Error checking circle:', error);
+          debugLog('Circle data that caused the error:', area.circle);
+          return false;
+        }
+      }
+      
+      // If we have the area description but no polygon or circle data,
+      // try to match based on the description (e.g., city or region name)
+      if (area.description) {
+        // This is a very basic check - in a real app, you might want to use a more sophisticated
+        // approach, such as geocoding the area description and checking if the user is within that area
+        const userLocationString = JSON.stringify(userLocation).toLowerCase();
+        const areaDescription = area.description.toLowerCase();
+        
+        // Check if the area description contains any part of the user's location
+        const isMatch = userLocationString.includes(areaDescription) || 
+                        (area.description.length > 3 && areaDescription.includes(userLocationString));
+        
+        debugLog(`Area description match check: ${isMatch} for "${area.description}"`);
+        return isMatch;
+      }
+      
+      return false;
+    });
+  } catch (error) {
+    console.error('Error in isLocationAffected:', error);
     return false;
-  });
+  }
+};
+
+// Helper function to get a bounding box from a set of coordinates
+const getBoundingBox = (coords) => {
+  let bounds = {
+    north: -90,
+    south: 90,
+    east: -180,
+    west: 180
+  };
+  
+  for (const coord of coords) {
+    bounds.north = Math.max(bounds.north, coord.lat);
+    bounds.south = Math.min(bounds.south, coord.lat);
+    bounds.east = Math.max(bounds.east, coord.lng);
+    bounds.west = Math.min(bounds.west, coord.lng);
+  }
+  
+  return bounds;
 };
 
 /**
@@ -1037,4 +1134,26 @@ export const formatAlertForDisplay = (alert) => {
     link: alert.sourceUrl,
     areas: alert.areas.map(area => area.description).join(', ')
   };
+};
+
+// Helper function to get a polygon that covers a region
+const getRegionPolygon = (regionCode) => {
+  // These are very rough approximations of region boundaries
+  const regionBounds = {
+    'on': [[-95, 56], [-95, 42], [-74, 42], [-74, 56], [-95, 56]], // Ontario
+    'bc': [[-139, 60], [-139, 48], [-114, 48], [-114, 60], [-139, 60]], // British Columbia
+    'ab': [[-120, 60], [-120, 49], [-110, 49], [-110, 60], [-120, 60]], // Alberta
+    'sk': [[-110, 60], [-110, 49], [-101, 49], [-101, 60], [-110, 60]], // Saskatchewan
+    'mb': [[-102, 60], [-102, 49], [-89, 49], [-89, 60], [-102, 60]], // Manitoba
+    'qc': [[-79, 62], [-79, 45], [-57, 45], [-57, 62], [-79, 62]], // Quebec
+    'nb': [[-69, 48], [-69, 45], [-64, 45], [-64, 48], [-69, 48]], // New Brunswick
+    'ns': [[-66, 47], [-66, 43], [-60, 43], [-60, 47], [-66, 47]], // Nova Scotia
+    'pe': [[-64, 47], [-64, 46], [-62, 46], [-62, 47], [-64, 47]], // Prince Edward Island
+    'nl': [[-67, 60], [-67, 46], [-52, 46], [-52, 60], [-67, 60]], // Newfoundland and Labrador
+    'yt': [[-141, 70], [-141, 60], [-124, 60], [-124, 70], [-141, 70]], // Yukon
+    'nt': [[-136, 70], [-136, 60], [-102, 60], [-102, 70], [-136, 70]], // Northwest Territories
+    'nu': [[-120, 83], [-120, 60], [-60, 60], [-60, 83], [-120, 83]]  // Nunavut
+  };
+  
+  return regionBounds[regionCode] || null;
 }; 

@@ -16,7 +16,7 @@ import axios from 'axios';
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.1';
+const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.2';
 
 function App() {
   // eslint-disable-next-line no-unused-vars
@@ -455,13 +455,42 @@ function App() {
     }
   }, [getLocationAndWeatherData, initialLoadComplete]);
 
+  // Function to fetch alerts for a specific location
+  const fetchAlertsForLocation = useCallback(async (coords, city, region) => {
+    if (!coords || !city) return;
+    
+    console.log(`Fetching alerts for location: ${city}, ${region || 'Unknown Region'}`);
+    try {
+      setIsLoadingAlerts(true);
+      setAlertsError(null);
+      
+      // Use the existing getWeatherAlerts function with the provided coordinates
+      await getWeatherAlerts(city, region, coords);
+      
+      console.log('Successfully fetched alerts for location');
+    } catch (error) {
+      console.error('Error fetching alerts for location:', error);
+      setAlertsError('Failed to fetch weather alerts for this location.');
+      setAlerts([]);
+    } finally {
+      setIsLoadingAlerts(false);
+    }
+  }, [getWeatherAlerts]);
+
   const handleLocationSelect = async (location) => {
     console.log('Location selected in App component:', location);
     
     // Validate location data
-    if (!location || typeof location !== 'object' || !location.lat || !location.lon) {
+    if (!location || typeof location !== 'object') {
       console.error('Invalid location data received:', location);
       setError('Invalid location data. Please try selecting a different location.');
+      return;
+    }
+    
+    // Ensure we have latitude and longitude
+    if (!location.lat || !location.lon) {
+      console.error('Missing coordinates in location data:', location);
+      setError('Location data is missing coordinates. Please try selecting a different location.');
       return;
     }
     
@@ -486,7 +515,7 @@ function App() {
       if (success) {
         const locationData = {
           city: location.name || '',
-          region: location.state || ''
+          region: location.state || location.country || ''
         };
         
         console.log('Setting location info after successful data fetch:', locationData);
@@ -494,6 +523,11 @@ function App() {
         
         // Save location info to localStorage
         localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
+        
+        // Fetch alerts for the new location
+        if (coordinates) {
+          fetchAlertsForLocation(coordinates, locationData.city, locationData.region);
+        }
       } else {
         console.warn('Failed to get weather data for location');
         setError('Unable to fetch weather data for the selected location. Please try again or select a different location.');

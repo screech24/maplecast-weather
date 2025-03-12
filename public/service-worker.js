@@ -1,5 +1,5 @@
 // Service Worker for Weather App with Alerts Notification Support
-const APP_VERSION = '1.6.0'; // Match this with package.json version
+const APP_VERSION = '1.8.2'; // Match this with package.json version
 const CACHE_NAME = `weather-app-cache-v${APP_VERSION}`;
 const ALERTS_CACHE_NAME = `weather-alerts-cache-v${APP_VERSION}`;
 const ALERTS_SYNC_KEY = 'weather-alerts-sync';
@@ -473,18 +473,19 @@ async function syncWeatherAlerts() {
     const { alerts: cachedAlerts, locationInfo } = await getCachedAlertsAndLocation();
     
     // If we don't have location info, we can't fetch relevant alerts
-    if (!locationInfo || !locationInfo.region) {
+    if (!locationInfo || !locationInfo.city) {
       console.log('[Service Worker] No location info available, skipping alerts sync');
-      return false;
+      return [];
     }
     
-    console.log(`[Service Worker] Syncing alerts for ${locationInfo.city}, ${locationInfo.region}`);
+    console.log(`[Service Worker] Syncing alerts for ${locationInfo.city}, ${locationInfo.region || 'Unknown Region'}`);
     
     // Determine which region codes to try based on the location
     const regionCodes = getRegionCodes(locationInfo.region);
     
     // Define CORS proxies to try
     const corsProxies = [
+      '', // Try direct access first
       'https://corsproxy.io/?',
       'https://api.allorigins.win/raw?url=',
       'https://cors-anywhere.herokuapp.com/'
@@ -502,7 +503,10 @@ async function syncWeatherAlerts() {
       
       for (const proxy of corsProxies) {
         try {
-          const response = await fetch(`${proxy}${encodeURIComponent(alertsUrl)}`, {
+          const proxyUrl = proxy ? `${proxy}${encodeURIComponent(alertsUrl)}` : alertsUrl;
+          console.log(`[Service Worker] Trying proxy: ${proxy ? proxy : 'direct access'}`);
+          
+          const response = await fetch(proxyUrl, {
             cache: 'no-store', // Ensure we're getting fresh data
             headers: {
               'Accept': 'application/xml, text/xml, */*',
@@ -520,210 +524,180 @@ async function syncWeatherAlerts() {
             continue;
           }
           
-          const text = await response.text();
-          if (!text) {
+          const xmlText = await response.text();
+          
+          if (!xmlText || xmlText.trim() === '') {
             console.log(`[Service Worker] Empty response from ${proxy}`);
             continue;
           }
           
-          // Parse XML
+          // Parse the XML
           const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(text, 'text/xml');
+          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
           
-          // Check for parser errors
-          if (xmlDoc.querySelector('parsererror')) continue;
+          // Check if it's a valid XML document
+          if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+            console.log(`[Service Worker] XML parsing error from ${proxy}`);
+            continue;
+          }
           
-          // Extract entries
-          const entries = xmlDoc.querySelectorAll('entry');
-          if (!entries || entries.length === 0) continue;
+          // Extract alerts from the XML
+          const items = xmlDoc.getElementsByTagName('item');
           
-          // Process entries to get alerts
-          newAlerts = Array.from(entries)
-            .filter(entry => {
-              const categoryElement = entry.querySelector('category');
-              const category = categoryElement ? categoryElement.getAttribute('term') : '';
-              
-              const titleElement = entry.querySelector('title');
-              const title = titleElement ? titleElement.textContent : '';
-              
-              return (
-                category && category.toLowerCase().includes('warnings and watches') &&
-                !(title && title.toLowerCase().includes('no watches or warnings in effect'))
-              );
-            })
-            .map(entry => {
-              const id = entry.querySelector('id')?.textContent || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-              const title = entry.querySelector('title')?.textContent || 'Weather Alert';
-              const summary = entry.querySelector('summary')?.textContent || 'No details available';
-              
-              const linkElement = entry.querySelector('link');
-              const link = linkElement ? linkElement.getAttribute('href') : 'https://weather.gc.ca/warnings/index_e.html';
-              
-              const published = entry.querySelector('published')?.textContent || new Date().toISOString();
-              const updated = entry.querySelector('updated')?.textContent || new Date().toISOString();
-              
-              return {
-                id,
-                title,
-                summary,
-                published,
-                link,
-                updated
-              };
-            });
+          if (items.length === 0) {
+            console.log(`[Service Worker] No alert items found in XML from ${proxy}`);
+            continue;
+          }
           
-          fetchSucceeded = true;
-          break;
+          console.log(`[Service Worker] Found ${items.length} alert items from ${proxy}`);
+          
+          // Process each alert item
+          const alerts = [];
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            
+            const title = item.getElementsByTagName('title')[0]?.textContent || '';
+            const description = item.getElementsByTagName('description')[0]?.textContent || '';
+            const link = item.getElementsByTagName('link')[0]?.textContent || '';
+            const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+            const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
+            
+            // Skip if no title or description
+            if (!title || !description) {
+              continue;
+            }
+            
+            // Create an alert object
+            const alert = {
+              id: guid || `${regionCode}-${Date.now()}-${i}`,
+              title,
+              description,
+              summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
+              link,
+              sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+              expires: null, // Not available in RSS
+              severity: getSeverityFromTitle(title),
+              urgency: getUrgencyFromTitle(title),
+              certainty: 'Observed', // Default value
+              sourceUrl: link
+            };
+            
+            alerts.push(alert);
+          }
+          
+          if (alerts.length > 0) {
+            newAlerts = alerts;
+            fetchSucceeded = true;
+            console.log(`[Service Worker] Successfully fetched ${alerts.length} alerts from ${proxy}`);
+            break;
+          }
         } catch (error) {
-          // Use conditional logging for errors
-          logErrorConditionally(`[Service Worker] Error fetching alerts with proxy ${proxy}:`, error);
+          console.log(`[Service Worker] Error fetching from ${proxy}:`, error.message);
         }
       }
     }
     
-    // If all region codes fail, try the national alerts feed as a last resort
+    // If we couldn't fetch any alerts, try the Netlify function
     if (!fetchSucceeded) {
-      console.log('[Service Worker] All region codes failed, trying national alerts feed');
-      const nationalAlertsUrl = 'https://weather.gc.ca/rss/warning/canada_e.xml';
-      
-      for (const proxy of corsProxies) {
-        try {
-          console.log(`[Service Worker] Trying national alerts feed with proxy: ${proxy}`);
-          const response = await fetch(`${proxy}${encodeURIComponent(nationalAlertsUrl)}`, {
-            cache: 'no-store',
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'Cache-Control': 'no-cache'
-            }
-          });
-          
-          if (!response.ok) {
-            // Log 404s at a lower level
-            if (response.status === 404) {
-              console.log(`[Service Worker] No national alerts found with status: ${response.status}`);
-            } else {
-              console.log(`[Service Worker] Failed to fetch national feed with status: ${response.status}`);
-            }
-            continue;
+      try {
+        console.log('[Service Worker] Trying Netlify function for alerts');
+        
+        const response = await fetch('/api/cap/battleboard/latest', {
+          cache: 'no-store',
+          headers: {
+            'Accept': 'application/json, */*',
+            'Cache-Control': 'no-cache'
           }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
           
-          const text = await response.text();
-          if (!text) {
-            console.log(`[Service Worker] Empty response from national feed`);
-            continue;
+          if (data && Array.isArray(data.alerts) && data.alerts.length > 0) {
+            newAlerts = data.alerts;
+            fetchSucceeded = true;
+            console.log(`[Service Worker] Successfully fetched ${newAlerts.length} alerts from Netlify function`);
           }
-          
-          // Parse XML
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(text, 'text/xml');
-          
-          // Check for parser errors
-          if (xmlDoc.querySelector('parsererror')) {
-            console.log('[Service Worker] XML parsing error for national feed');
-            continue;
-          }
-          
-          // Extract entries - check both ATOM and RSS formats
-          let entries = xmlDoc.querySelectorAll('entry');
-          if (!entries || entries.length === 0) {
-            // Try RSS format (item elements)
-            entries = xmlDoc.querySelectorAll('item');
-          }
-          
-          if (!entries || entries.length === 0) {
-            console.log('[Service Worker] No alerts found in national feed');
-            continue;
-          }
-          
-          // Process entries to get alerts (similar to above)
-          newAlerts = Array.from(entries)
-            .filter(entry => {
-              // For RSS format
-              if (entry.tagName === 'item') {
-                const category = entry.querySelector('category')?.textContent || '';
-                const title = entry.querySelector('title')?.textContent || '';
-                
-                return (
-                  category.toLowerCase().includes('warning') &&
-                  !(title.toLowerCase().includes('no watches or warnings in effect'))
-                );
-              }
-              
-              // For ATOM format
-              const categoryElement = entry.querySelector('category');
-              const category = categoryElement ? categoryElement.getAttribute('term') : '';
-              
-              const titleElement = entry.querySelector('title');
-              const title = titleElement ? titleElement.textContent : '';
-              
-              return (
-                category && category.toLowerCase().includes('warnings and watches') &&
-                !(title && title.toLowerCase().includes('no watches or warnings in effect'))
-              );
-            })
-            .map(entry => {
-              // For RSS format
-              if (entry.tagName === 'item') {
-                const id = entry.querySelector('guid')?.textContent || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                const title = entry.querySelector('title')?.textContent || 'Weather Alert';
-                const summary = entry.querySelector('description')?.textContent || 'No details available';
-                const link = entry.querySelector('link')?.textContent || 'https://weather.gc.ca/warnings/index_e.html';
-                const pubDate = entry.querySelector('pubDate')?.textContent || new Date().toISOString();
-                
-                return {
-                  id,
-                  title,
-                  summary,
-                  published: pubDate,
-                  link,
-                  updated: pubDate
-                };
-              }
-              
-              // For ATOM format
-              const id = entry.querySelector('id')?.textContent || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-              const title = entry.querySelector('title')?.textContent || 'Weather Alert';
-              const summary = entry.querySelector('summary')?.textContent || 'No details available';
-              
-              const linkElement = entry.querySelector('link');
-              const link = linkElement ? linkElement.getAttribute('href') : 'https://weather.gc.ca/warnings/index_e.html';
-              
-              const published = entry.querySelector('published')?.textContent || new Date().toISOString();
-              const updated = entry.querySelector('updated')?.textContent || new Date().toISOString();
-              
-              return {
-                id,
-                title,
-                summary,
-                published,
-                link,
-                updated
-              };
-            });
-          
-          fetchSucceeded = true;
-          break;
-        } catch (error) {
-          // Use conditional logging for errors
-          logErrorConditionally(`[Service Worker] Error fetching national alerts with proxy ${proxy}:`, error);
         }
+      } catch (error) {
+        console.log('[Service Worker] Error fetching from Netlify function:', error.message);
       }
     }
     
-    // Update the cache with new alerts
-    await cacheAlerts(newAlerts, locationInfo);
+    // If we have new alerts, filter them by location and compare with cached alerts
+    if (newAlerts.length > 0) {
+      console.log(`[Service Worker] Processing ${newAlerts.length} new alerts`);
+      
+      // Filter alerts by location
+      const relevantAlerts = filterAlertsByLocation(newAlerts, locationInfo);
+      console.log(`[Service Worker] ${relevantAlerts.length} alerts are relevant to the user's location`);
+      
+      // Compare with cached alerts to find brand new ones
+      const brandNewAlerts = findNewAlerts(relevantAlerts, cachedAlerts);
+      console.log(`[Service Worker] Found ${brandNewAlerts.length} brand new alerts`);
+      
+      // Cache the new alerts
+      await cacheAlerts(relevantAlerts);
+      
+      return brandNewAlerts;
+    }
     
-    // Check for new alerts that weren't in the cached alerts
-    const newAlertIds = new Set(newAlerts.map(alert => alert.id));
-    const cachedAlertIds = new Set(cachedAlerts.map(alert => alert.id));
-    
-    const brandNewAlerts = newAlerts.filter(alert => !cachedAlertIds.has(alert.id));
-    
-    return brandNewAlerts;
+    console.log('[Service Worker] No new alerts found');
+    return [];
   } catch (error) {
     console.error('[Service Worker] Error in syncWeatherAlerts:', error);
-    return false;
+    return [];
   }
+}
+
+// Helper function to get severity from alert title
+function getSeverityFromTitle(title) {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('warning')) {
+    return 'Severe';
+  } else if (lowerTitle.includes('watch')) {
+    return 'Moderate';
+  } else if (lowerTitle.includes('statement')) {
+    return 'Minor';
+  } else {
+    return 'Unknown';
+  }
+}
+
+// Helper function to get urgency from alert title
+function getUrgencyFromTitle(title) {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('warning')) {
+    return 'Immediate';
+  } else if (lowerTitle.includes('watch')) {
+    return 'Expected';
+  } else {
+    return 'Future';
+  }
+}
+
+// Helper function to filter alerts by location
+function filterAlertsByLocation(alerts, locationInfo) {
+  if (!alerts || !locationInfo) {
+    return [];
+  }
+  
+  // For now, just return all alerts since we don't have precise location filtering in the service worker
+  // In a real implementation, you would use geospatial calculations to filter alerts
+  return alerts;
+}
+
+// Helper function to find new alerts that aren't in the cached alerts
+function findNewAlerts(newAlerts, cachedAlerts) {
+  if (!cachedAlerts || cachedAlerts.length === 0) {
+    return newAlerts;
+  }
+  
+  const cachedAlertIds = new Set(cachedAlerts.map(alert => alert.id));
+  
+  return newAlerts.filter(alert => !cachedAlertIds.has(alert.id));
 }
 
 // Function to cache alerts and location info
