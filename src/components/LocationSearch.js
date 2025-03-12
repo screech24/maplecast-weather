@@ -178,8 +178,8 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
-  // These states are used for tracking search progress and providing feedback
-  const [searchStage, setSearchStage] = useState(0);
+  // This state is used for tracking search progress and providing feedback
+  const [searchStage, setSearchStage] = useState(0); // Used to track the current search stage for debugging
   const [alternativeSearchTerms, setAlternativeSearchTerms] = useState([]);
 
   useEffect(() => {
@@ -479,7 +479,8 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         </button>
       </form>
       
-      {error && <div className="search-error">{error}</div>}
+      {/* Display error message with search stage info for debugging */}
+      {error && <div className="search-error" data-search-stage={searchStage}>{error}</div>}
       
       {/* Show alternative search suggestions if available and no results found */}
       {error && alternativeSearchTerms.length > 0 && (
