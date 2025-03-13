@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed critical issue with alert system using wrong coordinates for saved locations
+- Ensured alert system consistently uses the last used location coordinates instead of browser geolocation
+- Improved logging to better track coordinate usage in alert system
+- Reduced unnecessary API calls by limiting date range for alert checks
+
 ## [1.9.1] - 2025-03-13
 
 ### Fixed

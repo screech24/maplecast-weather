@@ -93,6 +93,8 @@ const fetchFromProxy = async (path, suppressErrors = false) => {
  * @returns {Promise<{latitude: number, longitude: number}>} A promise that resolves to the user's coordinates
  */
 export const getUserLocation = () => {
+  console.warn('getUserLocation called - this should only happen when no saved location is available');
+  
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported by your browser'));
@@ -365,15 +367,15 @@ export const fetchLatestAlerts = async () => {
 };
 
 /**
- * Generates date strings for the past few days to try finding alert data
+ * Generates date strings for the current and previous day to try finding alert data
  * @returns {Array<string>} Array of date strings in YYYYMMDD format
  */
 const generateDateStrings = () => {
   const dates = [];
   const now = new Date();
   
-  // Add today and the past 5 days (increased from 3 to 5 for more options)
-  for (let i = 0; i < 6; i++) {
+  // Add today and yesterday only (reduced from 6 days to 2 for efficiency)
+  for (let i = 0; i < 2; i++) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     
@@ -384,13 +386,7 @@ const generateDateStrings = () => {
     dates.push(`${year}${month}${day}`);
   }
   
-  // Also try tomorrow's date in case of timezone differences
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tYear = tomorrow.getFullYear();
-  const tMonth = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  const tDay = String(tomorrow.getDate()).padStart(2, '0');
-  dates.unshift(`${tYear}${tMonth}${tDay}`); // Add to the beginning of the array
+  // Removed the code that tries tomorrow's date to avoid unnecessary API calls
   
   debugLog('Generated date strings:', dates);
   return dates;
@@ -731,9 +727,9 @@ export const isLocationAffected = (userLocation, alert) => {
     return false;
   }
   
-  // For development/testing, return true to show all alerts
-  if (isDevelopmentMode()) {
-    debugLog('Development mode: showing all alerts');
+  // Only show all alerts if specifically enabled via localStorage
+  if (isDevelopmentMode() && localStorage.getItem('showAllAlerts') === 'true') {
+    debugLog('Development mode with showAllAlerts enabled: showing all alerts');
     return true;
   }
   

@@ -293,11 +293,19 @@ function App() {
       // Get user location if not provided
       let userLocation;
       
-      userLocation = coordinates ? 
-        { latitude: coordinates.lat, longitude: coordinates.lon } : 
-        await getUserLocation();
+      // Use provided coordinates, then lastUsedLocation, then getUserLocation as fallback
+      if (coordinates) {
+        userLocation = { latitude: coordinates.lat, longitude: coordinates.lon };
+        console.log('Using provided coordinates for alerts');
+      } else if (lastUsedLocation) {
+        userLocation = { latitude: lastUsedLocation.lat, longitude: lastUsedLocation.lon };
+        console.log('Using lastUsedLocation for alerts:', lastUsedLocation);
+      } else {
+        console.warn('No coordinates provided and no lastUsedLocation available, falling back to getUserLocation');
+        userLocation = await getUserLocation();
+      }
       
-      console.log(`Using location: ${JSON.stringify(userLocation)}`);
+      console.log(`Using location for alerts: ${JSON.stringify(userLocation)}`);
       
       // Fetch all CAP alerts
       const allAlerts = await fetchLatestAlerts();
@@ -321,7 +329,7 @@ function App() {
     } finally {
       setIsLoadingAlerts(false);
     }
-  }, [updateServiceWorkerData]);
+  }, [updateServiceWorkerData, lastUsedLocation]);
 
   // Function to get location and weather data
   const getLocationAndWeatherData = useCallback(async (position) => {
@@ -402,11 +410,11 @@ function App() {
     } else {
       console.log('Service worker not available for alert check');
       // If service worker is not controlling the page, we'll check directly
-      if (locationInfo && locationInfo.city && locationInfo.region) {
-        getWeatherAlerts(locationInfo.city, locationInfo.region);
+      if (locationInfo && locationInfo.city && locationInfo.region && lastUsedLocation) {
+        getWeatherAlerts(locationInfo.city, locationInfo.region, lastUsedLocation);
       }
     }
-  }, [locationInfo, getWeatherAlerts]);
+  }, [locationInfo, getWeatherAlerts, lastUsedLocation]);
 
   // Function to fetch alerts for a specific location
   const fetchAlertsForLocation = useCallback(async (coords, city, region) => {
@@ -462,8 +470,8 @@ function App() {
       await getLocationAndWeatherData(position);
       
       // Fetch alerts for the new location
-      if (position) {
-        fetchAlertsForLocation(position);
+      if (position && locationDetails) {
+        fetchAlertsForLocation(position, locationDetails.name || '', locationDetails.province || '');
       }
     } catch (error) {
       console.error('Error getting current location:', error);
@@ -533,8 +541,8 @@ function App() {
         localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
         
         // Fetch alerts for the new location
-        if (coordinates) {
-          fetchAlertsForLocation(coordinates, locationData.city, locationData.region);
+        if (position) {
+          fetchAlertsForLocation(position, locationData.city, locationData.region);
         }
       } else {
         console.warn('Failed to get weather data for location');
@@ -629,8 +637,8 @@ function App() {
     checkNotificationPermission();
     
     // Set up the initial fetch of weather alerts if we have location
-    if (locationInfo && locationInfo.city && locationInfo.region) {
-      getWeatherAlerts(locationInfo.city, locationInfo.region);
+    if (locationInfo && locationInfo.city && locationInfo.region && lastUsedLocation) {
+      getWeatherAlerts(locationInfo.city, locationInfo.region, lastUsedLocation);
     }
     
     // Set up periodic checking for new alerts (every 1 minute)
@@ -722,7 +730,7 @@ function App() {
         navigator.serviceWorker.removeEventListener('message', handleMessage);
       }
     };
-  }, [checkNotificationPermission, getWeatherAlerts, checkForNewAlerts, locationInfo, notificationsEnabled, showBrowserNotification]);
+  }, [checkNotificationPermission, getWeatherAlerts, checkForNewAlerts, locationInfo, notificationsEnabled, showBrowserNotification, lastUsedLocation]);
 
   if (error && !usingFallbackLocation) {
     return (
