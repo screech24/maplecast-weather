@@ -1,6 +1,6 @@
 {
   "name": "maplecast",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "private": true,
   "homepage": "https://maplecast.netlify.app",
   "dependencies": {

@@ -187,7 +187,7 @@ const DevTools = () => {
         env: {
           isDevelopment,
           isDebugMode,
-          version: process.env.REACT_APP_VERSION
+          version: process.env.APP_VERSION
         }
       });
     }, 1000);
@@ -251,7 +251,7 @@ const DevTools = () => {
                 <h4>Application Info</h4>
                 <div className="info-grid">
                   <div>
-                    <strong>Version:</strong> {process.env.REACT_APP_VERSION}
+                    <strong>Version:</strong> {process.env.APP_VERSION}
                   </div>
                   <div>
                     <strong>Environment:</strong> {process.env.REACT_APP_ENV || 'production'}

@@ -5,6 +5,16 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2025-03-12
+
+### Fixed
+- Fixed ESLint warnings related to conflicting environment variable definitions
+- Resolved webpack configuration issues with process.env.REACT_APP_VERSION
+- Improved location search functionality for Canadian locations
+- Enhanced search box clearing behavior when starting a new search
+- Fixed search input to properly clear previous search terms when clicked
+- Improved province detection in search terms for better Canadian location results
+
 ## [1.8.3] - 2025-03-12
 
 ### Added

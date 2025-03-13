@@ -18,7 +18,7 @@ import axios from 'axios';
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.REACT_APP_VERSION || '1.8.3';
+const APP_VERSION = process.env.APP_VERSION || '1.8.3';
 
 // Log application startup in development mode
 if (isDevelopment) {

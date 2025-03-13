@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 
 // Get package version from package.json
-const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
-const packageVersion = packageJson.version;
+const packageData = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+const packageVersion = packageData.version;
 
 // Determine if we're in development or debug mode
 const isDevelopment = process.env.REACT_APP_ENV === 'development';
@@ -38,7 +38,8 @@ module.exports = function override(config, env) {
       process: 'process'
     }),
     new webpack.DefinePlugin({
-      'process.env.REACT_APP_VERSION': JSON.stringify(packageVersion),
+      // Use a unique name to avoid conflicts with CRA's built-in DefinePlugin
+      'process.env.APP_VERSION': JSON.stringify(packageVersion),
       'process.env.REACT_APP_ENV': JSON.stringify(process.env.REACT_APP_ENV || 'production'),
       'process.env.REACT_APP_DEBUG': JSON.stringify(process.env.REACT_APP_DEBUG || 'false'),
       'process.version': JSON.stringify(process.version)
@@ -48,8 +49,8 @@ module.exports = function override(config, env) {
   // Ensure publicPath is set correctly
   if (env === 'production') {
     // Get the homepage from package.json
-    const packageJson = require(path.resolve('./package.json'));
-    const homepage = packageJson.homepage;
+    const pkgJson = require(path.resolve('./package.json'));
+    const homepage = pkgJson.homepage;
     
     if (homepage) {
       // Handle relative paths like "/"
