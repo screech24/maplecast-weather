@@ -19,7 +19,7 @@ import axios from 'axios';
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.APP_VERSION || '1.8.7';
+const APP_VERSION = process.env.APP_VERSION || '1.8.8';
 
 // Log application startup in development mode
 if (isDevelopment) {
@@ -408,6 +408,28 @@ function App() {
     }
   }, [locationInfo, getWeatherAlerts]);
 
+  // Function to fetch alerts for a specific location
+  const fetchAlertsForLocation = useCallback(async (coords, city, region) => {
+    if (!coords || !city) return;
+    
+    console.log(`Fetching alerts for location: ${city}, ${region || 'Unknown Region'}`);
+    try {
+      setIsLoadingAlerts(true);
+      setAlertsError(null);
+      
+      // Use the existing getWeatherAlerts function with the provided coordinates
+      await getWeatherAlerts(city, region, coords);
+      
+      console.log('Successfully fetched alerts for location');
+    } catch (error) {
+      console.error('Error fetching alerts for location:', error);
+      setAlertsError('Failed to fetch weather alerts for this location.');
+      setAlerts([]);
+    } finally {
+      setIsLoadingAlerts(false);
+    }
+  }, [getWeatherAlerts]);
+
   // Function to handle "Use My Location" button click
   const handleUseMyLocation = useCallback(async () => {
     try {
@@ -462,28 +484,6 @@ function App() {
       setIsLoading(false);
     }
   }, [getLocationAndWeatherData, fetchAlertsForLocation]);
-
-  // Function to fetch alerts for a specific location
-  const fetchAlertsForLocation = useCallback(async (coords, city, region) => {
-    if (!coords || !city) return;
-    
-    console.log(`Fetching alerts for location: ${city}, ${region || 'Unknown Region'}`);
-    try {
-      setIsLoadingAlerts(true);
-      setAlertsError(null);
-      
-      // Use the existing getWeatherAlerts function with the provided coordinates
-      await getWeatherAlerts(city, region, coords);
-      
-      console.log('Successfully fetched alerts for location');
-    } catch (error) {
-      console.error('Error fetching alerts for location:', error);
-      setAlertsError('Failed to fetch weather alerts for this location.');
-      setAlerts([]);
-    } finally {
-      setIsLoadingAlerts(false);
-    }
-  }, [getWeatherAlerts]);
 
   const handleLocationSelect = async (location) => {
     console.log('Location selected in App component:', location);
