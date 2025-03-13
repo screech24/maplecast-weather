@@ -1,8 +1,8 @@
 # MapleCast Weather App
 
-A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
+A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data and location search. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.8.6-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://maplecast.netlify.app)
 
 ## Features
@@ -15,6 +15,7 @@ A React-based weather application that displays local weather data with enhanced
 - **Day/Night Visualization**: Different background images for day and night for all weather conditions
 - **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
 - **Weather Alerts**: Real-time alerts from Environment Canada's CAP system with geospatial filtering
+- **Canadian Location Database**: Direct integration with Environment Canada's MSC GeoMet service for accurate Canadian location search
 - **Advanced Location Search**: Intelligent search for Canadian locations with postal code support and provincial suggestions
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)

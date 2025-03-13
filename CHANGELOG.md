@@ -5,6 +5,24 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.6] - 2025-03-13
+
+### Added
+- Integrated Environment Canada's MSC GeoMet service for improved Canadian location search
+- Added direct access to Canadian cities and weather stations data
+- Implemented location caching to improve performance and reduce API calls
+- Enhanced reverse geocoding using Environment Canada data
+
+### Changed
+- Switched from OpenWeatherMap geocoding API to Environment Canada data for Canadian locations
+- Improved location search UI with clearer results display
+- Enhanced "Use My Location" functionality to use Environment Canada data for location identification
+
+### Fixed
+- Fixed issues with location search for Canadian locations that weren't properly recognized
+- Improved search accuracy for smaller Canadian communities and remote locations
+- Reduced dependency on OpenWeatherMap API for geocoding (now used only as fallback)
+
 ## [1.8.5] - 2025-03-12
 
 ### Added

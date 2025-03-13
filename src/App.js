@@ -12,13 +12,14 @@ import DevTools from './components/DevTools';
 import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
 import { fetchLatestAlerts, getUserLocation, filterAlertsByLocation, formatAlertForDisplay } from './utils/capAlerts';
 import { isDevelopment, devLog } from './utils/devMode';
+import { getLocationByCoordinates } from './utils/canadaLocations';
 import axios from 'axios';
 
 // Import API key from utils/api.js to maintain consistency
 import { API_KEY } from './utils/api';
 
 // Get package version from environment variable
-const APP_VERSION = process.env.APP_VERSION || '1.8.3';
+const APP_VERSION = process.env.APP_VERSION || '1.8.4';
 
 // Log application startup in development mode
 if (isDevelopment) {
@@ -322,96 +323,74 @@ function App() {
     }
   }, [updateServiceWorkerData]);
 
-  // Function to get location and weather data based on coordinates
+  // Function to get location and weather data
   const getLocationAndWeatherData = useCallback(async (position) => {
-    console.log('Getting weather data for position:', position);
     try {
-      setIsLoading(true);
-      setError(null);
+      if (!position || !position.lat || !position.lon) {
+        console.error('Invalid position data:', position);
+        setError('Invalid location data. Please try again or select a different location.');
+        setIsLoading(false);
+        return false;
+      }
+      
       setCoordinates(position);
       
-      // Save the position to lastUsedLocation state and localStorage
-      setLastUsedLocation(position);
-      localStorage.setItem('lastUsedLocation', JSON.stringify(position));
-      
-      // Check if location is in Canada
-      const inCanada = await isLocationInCanada(position.lat, position.lon);
-      console.log('Is location in Canada:', inCanada);
-      setIsInCanada(inCanada);
-      
-      // Get location name
-      console.log('Getting location name...');
+      // Check if location is in Canada using Environment Canada data first
+      let isCanada = true;
       try {
-        const response = await axios.get(
-          `https://api.openweathermap.org/geo/1.0/reverse?lat=${position.lat}&lon=${position.lon}&limit=1&appid=${API_KEY}`
-        );
+        // Try to get location details from Environment Canada
+        const locationDetails = await getLocationByCoordinates(position.lat, position.lon);
         
-        if (response.data && response.data.length > 0) {
-          const locationData = {
-            city: response.data[0].name,
-            region: response.data[0].state || ''
-          };
-          console.log('Location data retrieved:', locationData);
-          setLocationInfo(locationData);
+        if (locationDetails) {
+          // If we found a location in Environment Canada data, it's definitely in Canada
+          isCanada = true;
           
-          // Save location info to localStorage
-          localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
-          
-          // Fetch weather alerts if in Canada
-          if (inCanada) {
-            await getWeatherAlerts(locationData.city, locationData.region, position);
-          } else {
-            setAlerts([]);
-            setIsLoadingAlerts(false);
-          }
-        } else {
-          console.warn('No location data found in reverse geocoding response');
+          // Update location info with the details from Environment Canada
           setLocationInfo({
-            city: 'Unknown Location',
-            region: ''
+            city: locationDetails.name || '',
+            region: locationDetails.province || ''
           });
+          
+          devLog('App', `Location identified as Canadian: ${locationDetails.name}, ${locationDetails.province}`);
+        } else {
+          // If not found in Environment Canada data, fall back to OpenWeatherMap
+          isCanada = await isLocationInCanada(position.lat, position.lon);
+          
+          if (isCanada) {
+            devLog('App', 'Location confirmed as Canadian via OpenWeatherMap');
+          } else {
+            devLog('App', 'Location is not in Canada');
+          }
         }
-      } catch (locationError) {
-        console.error('Error getting location name:', locationError);
-        setLocationInfo({
-          city: 'Unknown Location',
-          region: ''
-        });
+      } catch (error) {
+        console.error('Error checking if location is in Canada:', error);
+        // Default to true if there's an error checking
+        isCanada = true;
       }
       
-      // Get weather data
-      console.log('Fetching weather data...');
-      const data = await fetchWeatherData(position.lat, position.lon);
-      console.log('Weather data received successfully');
-      setWeatherData(data);
+      setIsInCanada(isCanada);
       
-      // Set initialLoadComplete to true since we've loaded weather data
-      console.log('Setting initialLoadComplete to true');
+      // Fetch weather data
+      const data = await fetchWeatherData(position.lat, position.lon);
+      setWeatherData(data);
+      setIsLoading(false);
       setInitialLoadComplete(true);
       
-      // Finally, set loading to false
-      setIsLoading(false);
-      return true; // Success
-    } catch (err) {
-      // Check if there's an issue with the API key
-      const isApiKeyIssue = err.message && 
-        (err.message.includes('401') || 
-         err.message.includes('unauthorized') || 
-         err.message.includes('Unauthorized'));
-      
-      if (isApiKeyIssue) {
-        console.error('API Key issue detected:', err.message);
-        setError('Weather data unavailable. Please check the API key configuration or try again later.');
+      // If we're using a fallback location, set the flag
+      if (position.isFallback) {
+        setUsingFallbackLocation(true);
       } else {
-        console.error('Error fetching weather data:', err.message);
-        setError('Failed to fetch weather data. Please try again later.');
+        setUsingFallbackLocation(false);
       }
       
-      // Ensure loading state is set to false even on error
+      return true;
+    } catch (error) {
+      console.error('Error getting location and weather data:', error);
+      setError(`Failed to load weather data: ${error.message}`);
       setIsLoading(false);
-      return false; // Failed
+      return false;
     }
-  }, [getWeatherAlerts]);
+  }, []);
 
   // Function to manually check for new alerts
   const checkForNewAlerts = useCallback(() => {
@@ -429,39 +408,60 @@ function App() {
     }
   }, [locationInfo, getWeatherAlerts]);
 
+  // Function to handle "Use My Location" button click
   const handleUseMyLocation = useCallback(async () => {
     try {
-      setError(null);
-      setUsingFallbackLocation(false);
       setIsLoading(true);
-      setAlerts([]);
+      setError(null);
       
-      // Get user's location with fallback mechanisms
-      console.log('Getting current position...');
       const position = await getCurrentPosition();
-      console.log('Current position retrieved:', position);
       
-      const success = await getLocationAndWeatherData(position);
+      // Get location details from Environment Canada
+      const locationDetails = await getLocationByCoordinates(position.lat, position.lon);
       
-      // Only explicitly set initialLoadComplete if not already set in getLocationAndWeatherData
-      if (success && !initialLoadComplete) {
-        console.log('Setting initialLoadComplete to true in handleUseMyLocation');
-        setInitialLoadComplete(true);
+      if (locationDetails) {
+        // If we found a location in Environment Canada data, use its details
+        setLocationInfo({
+          city: locationDetails.name || '',
+          region: locationDetails.province || ''
+        });
+        
+        // Save location info to localStorage
+        localStorage.setItem('lastUsedLocationInfo', JSON.stringify({
+          city: locationDetails.name || '',
+          region: locationDetails.province || ''
+        }));
       }
-    } catch (locationError) {
-      console.error('Location error:', locationError);
       
-      // Special handling for secure origin errors
-      if (locationError.code === 'INSECURE_ORIGIN') {
-        setError(locationError.message);
+      // Save the position to state and localStorage
+      setLastUsedLocation(position);
+      localStorage.setItem('lastUsedLocation', JSON.stringify(position));
+      
+      await getLocationAndWeatherData(position);
+      
+      // Fetch alerts for the new location
+      if (position) {
+        fetchAlertsForLocation(position);
+      }
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      
+      // Handle specific geolocation errors
+      if (error.code === 1) {
+        setError('Location access denied. Please enable location services in your browser settings or use the search function.');
+      } else if (error.code === 2) {
+        setError('Unable to determine your location. Please use the search function instead.');
+      } else if (error.code === 3) {
+        setError('Location request timed out. Please try again or use the search function.');
+      } else if (error.code === 'INSECURE_ORIGIN') {
+        setError('Geolocation requires HTTPS. Please use the search function or run the app via HTTPS.');
       } else {
-        setError('Unable to determine your location. Please try searching for a location instead.');
+        setError(`Failed to get your location: ${error.message}. Please use the search function instead.`);
       }
       
-      setUsingFallbackLocation(true);
       setIsLoading(false);
     }
-  }, [getLocationAndWeatherData, initialLoadComplete]);
+  }, [getLocationAndWeatherData, fetchAlertsForLocation]);
 
   // Function to fetch alerts for a specific location
   const fetchAlertsForLocation = useCallback(async (coords, city, region) => {

@@ -2,25 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './LocationSearch.css';
 import { devLog, debugLog } from '../utils/devMode';
+import { searchCanadianLocations, CANADIAN_PROVINCES } from '../utils/canadaLocations';
 
 // Canadian provinces mapping for search enhancement
-const CANADIAN_PROVINCES = {
-  'ON': 'Ontario',
-  'QC': 'Quebec',
-  'BC': 'British Columbia',
-  'AB': 'Alberta',
-  'MB': 'Manitoba',
-  'SK': 'Saskatchewan',
-  'NS': 'Nova Scotia',
-  'NB': 'New Brunswick',
-  'NL': 'Newfoundland and Labrador',
-  'PE': 'Prince Edward Island',
-  'YT': 'Yukon',
-  'NT': 'Northwest Territories',
-  'NU': 'Nunavut'
-};
+// Now imported from canadaLocations.js
 
 // Special location types for enhanced search
+// eslint-disable-next-line no-unused-vars
 const SPECIAL_LOCATION_TYPES = [
   'national park',
   'provincial park',
@@ -234,6 +222,76 @@ const extractLocationName = (term) => {
   return cleanTerm;
 };
 
+// Known parks and their provinces - this helps with disambiguation
+const KNOWN_PARKS = {
+  'banff': 'AB',
+  'jasper': 'AB',
+  'yoho': 'BC',
+  'kootenay': 'BC',
+  'waterton lakes': 'AB',
+  'glacier': 'BC',
+  'mount revelstoke': 'BC',
+  'pacific rim': 'BC',
+  'gwaii haanas': 'BC',
+  'wood buffalo': 'AB',
+  'elk island': 'AB',
+  'riding mountain': 'MB',
+  'prince albert': 'SK',
+  'grasslands': 'SK',
+  'bruce peninsula': 'ON',
+  'point pelee': 'ON',
+  'thousand islands': 'ON',
+  'georgian bay islands': 'ON',
+  'pukaskwa': 'ON',
+  'la mauricie': 'QC',
+  'forillon': 'QC',
+  'fundy': 'NB',
+  'kouchibouguac': 'NB',
+  'cape breton highlands': 'NS',
+  'kejimkujik': 'NS',
+  'prince edward island': 'PE',
+  'terra nova': 'NL',
+  'gros morne': 'NL',
+  'auyuittuq': 'NU',
+  'quttinirpaaq': 'NU',
+  'sirmilik': 'NU',
+  'ukkusiksalik': 'NU',
+  'tuktut nogait': 'NT',
+  'nahanni': 'NT',
+  'aulavik': 'NT',
+  'ivvavik': 'YT',
+  'kluane': 'YT',
+  'vuntut': 'YT',
+  'monkman': 'BC',  // Monkman Park is in BC
+  'wells gray': 'BC',
+  'garibaldi': 'BC',
+  'strathcona': 'BC',
+  'algonquin': 'ON',
+  'killarney': 'ON',
+  'quetico': 'ON',
+  'la verendrye': 'QC',
+  'gaspesie': 'QC'
+};
+
+// Helper function to find the province for a known park
+const findKnownParkProvince = (parkName) => {
+  // Try exact match first
+  if (KNOWN_PARKS[parkName]) {
+    debugLog('LocationSearch', `Found exact match for known park: ${parkName} in province ${KNOWN_PARKS[parkName]}`);
+    return KNOWN_PARKS[parkName];
+  }
+  
+  // Try partial matches
+  for (const [knownPark, province] of Object.entries(KNOWN_PARKS)) {
+    if (parkName.includes(knownPark) || knownPark.includes(parkName)) {
+      debugLog('LocationSearch', `Found partial match for known park: ${parkName} matches ${knownPark} in province ${province}`);
+      return province;
+    }
+  }
+  
+  return null;
+};
+
 // Generate search terms for special location types like national parks
 const generateSpecialLocationSearchTerms = (locationName) => {
   const terms = [];
@@ -252,12 +310,35 @@ const generateSpecialLocationSearchTerms = (locationName) => {
       // Try different variations of the name
       const baseName = cleanName.replace(/\bnational park\b/i, '').trim();
       
-      // Add with explicit "National Park" designation
-      terms.push(`${baseName} National Park, Canada`);
+      // Check if this is a known park with a specific province
+      const lowerBaseName = baseName.toLowerCase();
+      const knownProvince = findKnownParkProvince(lowerBaseName);
       
-      // Try with each province
-      for (const province of Object.values(CANADIAN_PROVINCES)) {
-        terms.push(`${baseName} National Park, ${province}, Canada`);
+      if (knownProvince) {
+        // If it's a known park, prioritize the correct province
+        const provinceName = CANADIAN_PROVINCES[knownProvince];
+        terms.push(`${baseName} National Park, ${provinceName}, Canada`);
+        terms.push(`${baseName}, ${provinceName}, Canada`);
+        terms.push(`${baseName} National Park, Canada`);
+      } else {
+        // Add with explicit "National Park" designation
+        terms.push(`${baseName} National Park, Canada`);
+        
+        // Try with each province, prioritizing western provinces for parks
+        const priorityProvinces = ['BC', 'AB', 'YT', 'NT'];
+        
+        // First try priority provinces
+        for (const abbr of priorityProvinces) {
+          const province = CANADIAN_PROVINCES[abbr];
+          terms.push(`${baseName} National Park, ${province}, Canada`);
+        }
+        
+        // Then try other provinces
+        for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+          if (!priorityProvinces.includes(abbr)) {
+            terms.push(`${baseName} National Park, ${province}, Canada`);
+          }
+        }
       }
       
       // Try without "National Park" designation
@@ -267,12 +348,24 @@ const generateSpecialLocationSearchTerms = (locationName) => {
     else if (specialLocationType === 'provincial park') {
       const baseName = cleanName.replace(/\bprovincial park\b/i, '').trim();
       
-      // Add with explicit "Provincial Park" designation
-      terms.push(`${baseName} Provincial Park, Canada`);
+      // Check if this is a known park with a specific province
+      const lowerBaseName = baseName.toLowerCase();
+      const knownProvince = findKnownParkProvince(lowerBaseName);
       
-      // Try with each province
-      for (const province of Object.values(CANADIAN_PROVINCES)) {
-        terms.push(`${baseName} Provincial Park, ${province}, Canada`);
+      if (knownProvince) {
+        // If it's a known park, prioritize the correct province
+        const provinceName = CANADIAN_PROVINCES[knownProvince];
+        terms.push(`${baseName} Provincial Park, ${provinceName}, Canada`);
+        terms.push(`${baseName}, ${provinceName}, Canada`);
+        terms.push(`${baseName} Provincial Park, Canada`);
+      } else {
+        // Add with explicit "Provincial Park" designation
+        terms.push(`${baseName} Provincial Park, Canada`);
+        
+        // Try with each province
+        for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+          terms.push(`${baseName} Provincial Park, ${province}, Canada`);
+        }
       }
       
       // Try without "Provincial Park" designation
@@ -282,12 +375,24 @@ const generateSpecialLocationSearchTerms = (locationName) => {
     else if (specialLocationType === 'park') {
       const baseName = cleanName.replace(/\bpark\b/i, '').trim();
       
-      // Add with explicit "Park" designation
-      terms.push(`${baseName} Park, Canada`);
+      // Check if this is a known park with a specific province
+      const lowerBaseName = baseName.toLowerCase();
+      const knownProvince = findKnownParkProvince(lowerBaseName);
       
-      // Try with each province
-      for (const province of Object.values(CANADIAN_PROVINCES)) {
-        terms.push(`${baseName} Park, ${province}, Canada`);
+      if (knownProvince) {
+        // If it's a known park, prioritize the correct province
+        const provinceName = CANADIAN_PROVINCES[knownProvince];
+        terms.push(`${baseName} Park, ${provinceName}, Canada`);
+        terms.push(`${baseName}, ${provinceName}, Canada`);
+        terms.push(`${baseName} Park, Canada`);
+      } else {
+        // Add with explicit "Park" designation
+        terms.push(`${baseName} Park, Canada`);
+        
+        // Try with each province
+        for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+          terms.push(`${baseName} Park, ${province}, Canada`);
+        }
       }
       
       // Try without "Park" designation
@@ -298,9 +403,19 @@ const generateSpecialLocationSearchTerms = (locationName) => {
       // Try with the special location type
       terms.push(`${cleanName}, Canada`);
       
-      // Try with each province
-      for (const province of Object.values(CANADIAN_PROVINCES)) {
-        terms.push(`${cleanName}, ${province}, Canada`);
+      // Check if this is a known location with a specific province
+      const lowerName = cleanName.toLowerCase();
+      const knownProvince = findKnownParkProvince(lowerName);
+      
+      if (knownProvince) {
+        // If it's a known location, prioritize the correct province
+        const provinceName = CANADIAN_PROVINCES[knownProvince];
+        terms.push(`${cleanName}, ${provinceName}, Canada`);
+      } else {
+        // Try with each province
+        for (const province of Object.values(CANADIAN_PROVINCES)) {
+          terms.push(`${cleanName}, ${province}, Canada`);
+        }
       }
       
       // Try without the special location type
@@ -371,15 +486,10 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   const [alternativeSearchTerms, setAlternativeSearchTerms] = useState([]);
 
   useEffect(() => {
-    if (apiKey) {
-      devLog('LocationSearch', 'Initialized with API key');
-      setInitialized(true);
-      setError(null);
-    } else {
-      setInitialized(false);
-      setError('API key is not available. Search functionality is limited.');
-      devLog('LocationSearch', 'Missing API key', { error: true });
-    }
+    // We don't strictly need the API key for Environment Canada search, but keep it for OpenWeatherMap fallback
+    setInitialized(true);
+    setError(null);
+    devLog('LocationSearch', 'Initialized with Environment Canada location search');
   }, [apiKey]);
 
   const handleSearchTermChange = (e) => {
@@ -409,301 +519,115 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     devLog('LocationSearch', `Searching for location: ${term}`);
     
     try {
-      // Log the exact URL being called for debugging
-      const searchUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(term)}&limit=10&appid=${apiKey}`;
-      debugLog('LocationSearch', `Search URL: ${searchUrl}`);
+      setIsSearching(true);
+      setSearchStage(1);
       
-      const response = await axios.get(searchUrl);
+      // First, try to search using Environment Canada's data
+      const canadianResults = await searchCanadianLocations(term);
       
-      if (response.data.length > 0) {
-        devLog('LocationSearch', `Found ${response.data.length} locations for search term: ${term}`);
-        debugLog('LocationSearch', 'Raw search results:', response.data);
-        
-        // Sort results to prioritize Canadian locations
-        const sortedResults = prioritizeCanadianResults(response.data);
-        setSearchResults(sortedResults);
-        return true;
-      }
-      
-      devLog('LocationSearch', `No locations found for search term: ${term}`);
-      return false;
-    } catch (err) {
-      devLog('LocationSearch', `Search error: ${err.message}`, { error: true });
-      debugLog('LocationSearch', 'Error details:', err.response ? err.response.data : 'No response data');
-      throw err;
-    }
-  };
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    
-    const trimmedSearchTerm = searchTerm.trim();
-    if (!trimmedSearchTerm) return;
-    
-    if (!initialized || !apiKey) {
-      setError('Search functionality is not available yet. Please wait or try again.');
-      devLog('LocationSearch', 'Search attempted before initialization', { error: true });
-      return;
-    }
-    
-    setIsSearching(true);
-    setError(null);
-    setSearchStage(0);
-    setAlternativeSearchTerms([]);
-    
-    devLog('LocationSearch', `Starting search for: ${trimmedSearchTerm}`);
-    
-    try {
-      // Stage 1: Try with enhanced Canadian search term
-      const enhancedTerm = enhanceCanadianSearch(trimmedSearchTerm);
-      devLog('LocationSearch', `Stage 1: Using enhanced term: "${enhancedTerm}"`);
-      let searchSuccess = await performSearch(enhancedTerm);
-      
-      // If first attempt failed and the enhanced term is different from original
-      if (!searchSuccess && enhancedTerm !== trimmedSearchTerm) {
-        // Stage 2: Try with original search term
-        setSearchStage(1);
-        devLog('LocationSearch', `Stage 2: Using original term: "${trimmedSearchTerm}"`);
-        searchSuccess = await performSearch(trimmedSearchTerm);
-      }
-      
-      // If still no results, try with just the location name + Canada
-      if (!searchSuccess) {
-        // Stage 3: Try with just the location name + Canada
+      if (canadianResults.length > 0) {
+        devLog('LocationSearch', `Found ${canadianResults.length} Canadian locations for search term: ${term}`);
+        setSearchResults(canadianResults);
         setSearchStage(2);
-        const locationName = extractLocationName(trimmedSearchTerm);
-        devLog('LocationSearch', `Stage 3: Extracted location name: "${locationName}"`);
-        
-        if (locationName && locationName !== trimmedSearchTerm) {
-          const cleanTerm = `${locationName}, Canada`;
-          devLog('LocationSearch', `Stage 3: Using clean term: "${cleanTerm}"`);
-          searchSuccess = await performSearch(cleanTerm);
-        }
+        return;
       }
       
-      // If still no results, try with direct geocoding API
-      if (!searchSuccess) {
-        // Stage 4: Try direct geocoding with Canada filter
+      // If no results from Environment Canada, try enhancing the search term
+      const enhancedTerm = enhanceCanadianSearch(term);
+      if (enhancedTerm !== term) {
+        devLog('LocationSearch', `Trying enhanced search term: ${enhancedTerm}`);
         setSearchStage(3);
-        devLog('LocationSearch', `Stage 4: Trying direct geocoding with Canada filter`);
         
-        try {
-          // Try a more direct approach with the geocoding API
-          const directTerm = trimmedSearchTerm.toLowerCase().includes('canada') ?
-            trimmedSearchTerm : `${trimmedSearchTerm}, Canada`;
-            
-          devLog('LocationSearch', `Stage 4: Using direct term: "${directTerm}"`);
-          searchSuccess = await performSearch(directTerm);
-        } catch (directError) {
-          devLog('LocationSearch', `Direct geocoding error: ${directError.message}`, { error: true });
+        const enhancedResults = await searchCanadianLocations(enhancedTerm);
+        
+        if (enhancedResults.length > 0) {
+          devLog('LocationSearch', `Found ${enhancedResults.length} locations with enhanced term: ${enhancedTerm}`);
+          setSearchResults(enhancedResults);
+          setSearchStage(4);
+          return;
         }
       }
       
-      // If still no results, check for special location types like parks
-      if (!searchSuccess) {
-        // Stage 4.5: Try with special location type variations
-        setSearchStage(3.5);
-        const specialLocationType = containsSpecialLocationType(trimmedSearchTerm);
+      // If still no results, fall back to OpenWeatherMap API as a last resort
+      if (apiKey) {
+        devLog('LocationSearch', `Falling back to OpenWeatherMap API for: ${enhancedTerm}`);
+        setSearchStage(5);
         
-        if (specialLocationType) {
-          devLog('LocationSearch', `Stage 4.5: Detected special location type: ${specialLocationType}`);
+        // Log the exact URL being called for debugging
+        const searchUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(enhancedTerm)}&limit=10&appid=${apiKey}`;
+        debugLog('LocationSearch', `Fallback search URL: ${searchUrl}`);
+        
+        const response = await axios.get(searchUrl);
+        
+        if (response.data.length > 0) {
+          devLog('LocationSearch', `Found ${response.data.length} locations from OpenWeatherMap for: ${enhancedTerm}`);
           
-          // Extract the base name without the location type
-          let baseName = trimmedSearchTerm;
-          if (specialLocationType === 'national park') {
-            baseName = trimmedSearchTerm.replace(/\bnational park\b/i, '').trim();
-            devLog('LocationSearch', `Extracted base name from national park: "${baseName}"`);
-            
-            // Try specific formats for national parks
-            const parkTerms = [
-              `${baseName} National Park, Canada`,
-              `${baseName}, Canada`
-            ];
-            
-            // Try with each province
-            for (const province of Object.values(CANADIAN_PROVINCES)) {
-              parkTerms.push(`${baseName} National Park, ${province}, Canada`);
-            }
-            
-            // Try each term
-            for (const term of parkTerms) {
-              devLog('LocationSearch', `Stage 4.5: Trying national park term: "${term}"`);
-              searchSuccess = await performSearch(term);
-              if (searchSuccess) {
-                devLog('LocationSearch', `Found results with national park term: "${term}"`);
-                break;
-              }
-            }
-          } else if (specialLocationType === 'provincial park') {
-            baseName = trimmedSearchTerm.replace(/\bprovincial park\b/i, '').trim();
-            devLog('LocationSearch', `Extracted base name from provincial park: "${baseName}"`);
-            
-            // Try specific formats for provincial parks
-            const parkTerms = [
-              `${baseName} Provincial Park, Canada`,
-              `${baseName}, Canada`
-            ];
-            
-            // Try with each province
-            for (const province of Object.values(CANADIAN_PROVINCES)) {
-              parkTerms.push(`${baseName} Provincial Park, ${province}, Canada`);
-            }
-            
-            // Try each term
-            for (const term of parkTerms) {
-              devLog('LocationSearch', `Stage 4.5: Trying provincial park term: "${term}"`);
-              searchSuccess = await performSearch(term);
-              if (searchSuccess) {
-                devLog('LocationSearch', `Found results with provincial park term: "${term}"`);
-                break;
-              }
-            }
+          // Format OpenWeatherMap results to match our structure
+          const formattedResults = response.data.map(result => ({
+            name: result.name,
+            province: result.state || '',
+            provinceCode: result.state || '',
+            country: result.country,
+            countryCode: result.country,
+            lat: result.lat,
+            lon: result.lon,
+            type: 'city',
+            source: 'openweathermap'
+          }));
+          
+          // Filter to only Canadian results if possible
+          const canadianResults = formattedResults.filter(result => result.country === 'CA');
+          
+          if (canadianResults.length > 0) {
+            setSearchResults(canadianResults);
           } else {
-            // For other special location types
-            const specialTerms = generateSpecialLocationSearchTerms(trimmedSearchTerm);
-            
-            // Try each special term
-            for (const term of specialTerms) {
-              devLog('LocationSearch', `Stage 4.5: Trying special location term: "${term}"`);
-              searchSuccess = await performSearch(term);
-              if (searchSuccess) {
-                devLog('LocationSearch', `Found results with special location term: "${term}"`);
-                break;
-              }
-            }
+            // If no Canadian results, use all results
+            setSearchResults(formattedResults);
           }
+          
+          setSearchStage(6);
+          return;
         }
       }
       
-      // If still no results, try with provincial variations
-      if (!searchSuccess) {
-        // Stage 5: Try with provincial variations
-        setSearchStage(4);
-        const locationName = extractLocationName(trimmedSearchTerm);
-        devLog('LocationSearch', `Stage 5: Using provincial variations for: "${locationName}"`);
-        
-        if (locationName) {
-          // Generate provincial search terms
-          const provincialTerms = generateProvincialSearchTerms(locationName);
-          setAlternativeSearchTerms(provincialTerms);
-          debugLog('LocationSearch', `Generated ${provincialTerms.length} provincial terms:`, provincialTerms);
-          
-          // Try each provincial term until we find results or exhaust options
-          let foundResults = false;
-          
-          // First try with the most common provinces (ON, BC, AB, QC)
-          const priorityProvinces = ['ON', 'BC', 'AB', 'QC'];
-          const priorityTerms = provincialTerms.filter(term =>
-            priorityProvinces.some(province =>
-              term.includes(`, ${province},`) || term.includes(` ${CANADIAN_PROVINCES[province]},`)
-            )
-          );
-          
-          // Try priority provinces first
-          for (const term of priorityTerms) {
-            devLog('LocationSearch', `Stage 5: Trying priority provincial term: "${term}"`);
-            searchSuccess = await performSearch(term);
-            if (searchSuccess) {
-              devLog('LocationSearch', `Found results with priority provincial term: "${term}"`);
-              foundResults = true;
-              break;
-            }
-          }
-          
-          // If still no results, try the remaining provinces
-          if (!foundResults) {
-            const remainingTerms = provincialTerms.filter(term => !priorityTerms.includes(term));
-            for (const term of remainingTerms) {
-              devLog('LocationSearch', `Stage 5: Trying provincial term: "${term}"`);
-              searchSuccess = await performSearch(term);
-              if (searchSuccess) {
-                devLog('LocationSearch', `Found results with provincial term: "${term}"`);
-                break;
-              }
-            }
-          }
-        }
-      }
+      // If we get here, no results were found
+      devLog('LocationSearch', `No results found for: ${term}`);
+      setSearchResults([]);
+      setError(`No locations found for "${term}". Try a different search term.`);
+      setSearchStage(7);
       
-      // If all attempts failed, show helpful error message
-      if (!searchSuccess) {
-        devLog('LocationSearch', 'All search attempts failed');
-        const suggestions = [];
-        
-        // Add suggestions based on the search term
-        if (!trimmedSearchTerm.toLowerCase().includes('canada')) {
-          suggestions.push('Add "Canada" to your search');
-        }
-        
-        if (!containsProvinceReference(trimmedSearchTerm)) {
-          suggestions.push('Include a province name or abbreviation (e.g., ON, BC)');
-        }
-        
-        // Check if it's a special location but missing province
-        const specialLocationType = containsSpecialLocationType(trimmedSearchTerm);
-        if (specialLocationType && !containsProvinceReference(trimmedSearchTerm)) {
-          suggestions.push(`Try adding a province to your ${specialLocationType} search`);
-        }
-        
-        if (trimmedSearchTerm.length < 3) {
-          suggestions.push('Use a more specific search term');
-        }
-        
-        // Format error message with suggestions
-        let errorMsg = 'No locations found.';
-        if (suggestions.length > 0) {
-          errorMsg += ' Try: ' + suggestions.join(', ') + '.';
-        }
-        
-        // If we have alternative terms, suggest them
-        if (alternativeSearchTerms.length > 0) {
-          errorMsg += ' You can also try searching for specific provinces.';
-        }
-        
-        setError(errorMsg);
-      }
-    } catch (err) {
-      devLog('LocationSearch', `Search error: ${err.message}`, { error: true });
-      setError(`Error searching for locations: ${err.message}. Please try again.`);
+      // Generate alternative search terms
+      const alternatives = generateAlternativeSearchTerms(term);
+      setAlternativeSearchTerms(alternatives);
+      
+    } catch (error) {
+      console.error('Error searching for location:', error);
+      setError(`Error searching for location: ${error.message}`);
+      setSearchResults([]);
+      setSearchStage(-1);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Function to prioritize Canadian results
-  const prioritizeCanadianResults = (results) => {
-    debugLog('LocationSearch', 'Prioritizing results:', results);
+  // Function to generate alternative search terms
+  const generateAlternativeSearchTerms = (term) => {
+    const alternatives = [];
+    const cleanTerm = extractLocationName(term);
     
-    // Filter out any results without required properties
-    const validResults = results.filter(result => {
-      const hasRequiredProps = result && result.lat && result.lon && result.name;
-      if (!hasRequiredProps) {
-        debugLog('LocationSearch', 'Filtering out invalid result:', result);
-      }
-      return hasRequiredProps;
-    });
+    // Add with province codes
+    for (const [code, name] of Object.entries(CANADIAN_PROVINCES)) {
+      alternatives.push(`${cleanTerm}, ${code}`);
+      alternatives.push(`${cleanTerm}, ${name}`);
+    }
     
-    // Sort the results
-    const sortedResults = validResults.sort((a, b) => {
-      // Prioritize Canadian locations
-      if (a.country === 'CA' && b.country !== 'CA') return -1;
-      if (a.country !== 'CA' && b.country === 'CA') return 1;
-      
-      // For Canadian locations, sort by name
-      if (a.country === 'CA' && b.country === 'CA') {
-        return a.name.localeCompare(b.name);
-      }
-      
-      // For non-Canadian locations, prioritize those with state/province info
-      if (a.state && !b.state) return -1;
-      if (!a.state && b.state) return 1;
-      
-      // For locations with same country and state status, sort by name
-      return a.name.localeCompare(b.name);
-    });
+    // Add with "Canada" explicitly
+    alternatives.push(`${cleanTerm}, Canada`);
     
-    debugLog('LocationSearch', 'Sorted results:', sortedResults);
-    return sortedResults;
+    // Return unique alternatives that are different from the original term
+    return [...new Set(alternatives)]
+      .filter(alt => alt.toLowerCase() !== term.toLowerCase())
+      .slice(0, 5); // Limit to 5 alternatives
   };
 
   const handleLocationSelect = (location) => {
@@ -714,8 +638,9 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       lat: location.lat,
       lon: location.lon,
       name: location.name || '',
-      state: location.state || '',
-      country: location.country || ''
+      state: location.province || location.state || '',
+      country: location.country || 'Canada',
+      source: location.source || 'environment-canada'
     };
     
     // Call the parent component's callback with the location data
@@ -724,121 +649,150 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     } else {
       devLog('LocationSearch', 'onLocationSelect is not a function or not provided', { error: true });
     }
-    
-    // Clear search results and search term
-    setSearchResults([]);
-    setSearchTerm('');
-    if (onSearchTermChange) {
-      onSearchTermChange('');
-    }
   };
 
-  // Helper function to format location display
+  // Format location display for the search results
   const formatLocationDisplay = (result) => {
-    let display = result.name;
+    if (!result) return '';
+    
+    let display = result.name || '';
     
     // Add province/state if available
-    if (result.state) {
+    if (result.province) {
+      display += `, ${result.province}`;
+    } else if (result.state) {
       display += `, ${result.state}`;
     }
     
-    // Add country with special formatting for Canada
-    if (result.country) {
-      const countryDisplay = result.country === 'CA' ? 'Canada' : result.country;
-      display += ` (${countryDisplay})`;
+    // Add country if available and not Canada (since we're focusing on Canadian locations)
+    if (result.country && result.country !== 'CA' && result.country !== 'Canada') {
+      display += `, ${result.country}`;
+    }
+    
+    // Add source indicator for debugging
+    if (isDevelopment && result.source) {
+      display += ` (${result.source})`;
     }
     
     return display;
   };
 
-  // Handle alternative search term click
+  // Handle clicking on an alternative search term
   const handleAlternativeTermClick = (term) => {
     setSearchTerm(term);
-    // Trigger search with the new term
-    const fakeEvent = { preventDefault: () => {} };
-    setTimeout(() => handleSearch(fakeEvent), 0);
+    performSearch(term);
+  };
+
+  // Handle search form submission
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    
+    const trimmedSearchTerm = searchTerm.trim();
+    if (!trimmedSearchTerm) return;
+    
+    setIsSearching(true);
+    setError(null);
+    setSearchResults([]);
+    setAlternativeSearchTerms([]);
+    
+    devLog('LocationSearch', `Starting search for: ${trimmedSearchTerm}`);
+    
+    try {
+      await performSearch(trimmedSearchTerm);
+    } catch (error) {
+      console.error('Error in handleSearch:', error);
+      setError(`Search failed: ${error.message}`);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
     <div className="location-search">
       <form onSubmit={handleSearch} className="search-form">
-        <div className="search-container">
+        <div className="search-input-container">
           <input
             type="text"
             value={searchTerm}
             onChange={handleSearchTermChange}
-            onClick={() => {
-              // Clear the search box when clicking on it if it already has content
-              if (searchTerm) {
-                clearSearchBox();
-              }
-            }}
-            placeholder={initialized ? "Search for a Canadian location..." : "Initializing search..."}
-            className={`search-input ${!initialized ? 'disabled' : ''}`}
-            disabled={!initialized || isSearching}
+            placeholder="Search for a Canadian location..."
+            className="search-input"
+            aria-label="Search for a location"
           />
-          <button 
-            type="submit" 
-            className="search-button" 
-            disabled={!initialized || isSearching || !searchTerm.trim()}
+          {searchTerm && (
+            <button
+              type="button"
+              className="clear-search-button"
+              onClick={() => clearSearchBox()}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div className="search-buttons">
+          <button type="submit" className="search-button" disabled={isSearching}>
+            {isSearching ? 'Searching...' : 'Search'}
+          </button>
+          <button
+            type="button"
+            className="use-location-button"
+            onClick={onUseMyLocation}
           >
-            {isSearching ? <span className="loading-dot"></span> : <span className="search-icon"></span>}
+            Use My Location
           </button>
         </div>
-        
-        <button 
-          type="button" 
-          className="location-button"
-          onClick={onUseMyLocation}
-        >
-          <span className="location-dot"></span> Use my location
-        </button>
       </form>
-      
-      {/* Display error message with search stage info for debugging */}
-      {error && <div className="search-error" data-search-stage={searchStage}>{error}</div>}
-      
-      {/* Show alternative search suggestions if available and no results found */}
-      {error && alternativeSearchTerms.length > 0 && (
-        <div className="alternative-terms">
-          <p>
-            {containsSpecialLocationType(searchTerm)
-              ? `Try searching for this ${containsSpecialLocationType(searchTerm)} with a specific province:`
-              : 'Try searching with a specific province:'}
-          </p>
-          <ul>
-            {alternativeSearchTerms.slice(0, 5).map((term, index) => (
-              <li key={index} onClick={() => handleAlternativeTermClick(term)}>
-                {term}
+
+      {error && <div className="search-error">{error}</div>}
+
+      {isSearching && (
+        <div className="search-loading">
+          <div className="loading-spinner"></div>
+          <p>Searching for locations in Canada...</p>
+          {isDevelopment && <p className="search-stage">Stage: {searchStage}</p>}
+        </div>
+      )}
+
+      {!isSearching && searchResults.length > 0 && (
+        <div className="search-results">
+          <h3>Search Results</h3>
+          <ul className="location-list">
+            {searchResults.map((result, index) => (
+              <li key={`${result.lat}-${result.lon}-${index}`}>
+                <button
+                  type="button"
+                  className="location-item"
+                  onClick={() => handleLocationSelect(result)}
+                >
+                  {formatLocationDisplay(result)}
+                </button>
               </li>
             ))}
           </ul>
         </div>
       )}
-      
-      {searchResults.length > 0 && (
-        <ul className="search-results">
-          {searchResults.map((result, index) => (
-            <li 
-              key={index} 
-              onClick={() => handleLocationSelect(result)}
-              className={`search-result-item ${result.country === 'CA' ? 'canadian-location' : ''}`}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  handleLocationSelect(result);
-                }
-              }}
-            >
-              <span className="location-name">{formatLocationDisplay(result)}</span>
-              <span className="select-indicator">Select</span>
-            </li>
-          ))}
-        </ul>
+
+      {!isSearching && searchResults.length === 0 && alternativeSearchTerms.length > 0 && (
+        <div className="alternative-terms">
+          <h3>Try searching for:</h3>
+          <ul className="alternative-terms-list">
+            {alternativeSearchTerms.map((term, index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  className="alternative-term-button"
+                  onClick={() => handleAlternativeTermClick(term)}
+                >
+                  {term}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
 };
 
-export default LocationSearch; 
+export default LocationSearch;
