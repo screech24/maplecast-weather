@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './LocationSearch.css';
-import { devLog, debugLog } from '../utils/devMode';
+import { devLog, debugLog, isDevelopment } from '../utils/devMode';
 import { searchCanadianLocations, CANADIAN_PROVINCES } from '../utils/canadaLocations';
 
 // Canadian provinces mapping for search enhancement
