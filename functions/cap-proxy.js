@@ -49,7 +49,11 @@ exports.handler = async function(event, context) {
       console.log(`Fetching battleboard RSS feed: ${battleboardUrl}`);
       
       try {
-        const response = await axios.get(battleboardUrl, {
+        // Use a CORS proxy for development
+        const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(battleboardUrl)}`;
+        console.log(`Using CORS proxy: ${corsProxyUrl}`);
+        
+        const response = await axios.get(corsProxyUrl, {
           headers: {
             'Accept': 'application/xml, text/xml, */*',
             'User-Agent': 'MapleCast-Weather-App/1.0',
@@ -81,8 +85,12 @@ exports.handler = async function(event, context) {
     
     console.log(`Proxying request to: ${url}`);
     
-    // Fetch the data from Environment Canada
-    const response = await axios.get(url, {
+    // Use a CORS proxy for development
+    const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    console.log(`Using CORS proxy: ${corsProxyUrl}`);
+    
+    // Fetch the data from Environment Canada via CORS proxy
+    const response = await axios.get(corsProxyUrl, {
       headers: {
         'Accept': 'application/xml, text/xml, */*',
         'User-Agent': 'MapleCast-Weather-App/1.0',

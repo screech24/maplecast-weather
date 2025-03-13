@@ -32,6 +32,7 @@ const fetchFromProxy = async (path, suppressErrors = false, cacheParam = '') => 
     // Use the Netlify Function proxy
     const proxyUrl = `/api/cap/${path}${cacheParam}`;
     
+    console.log(`[DEBUG] Fetching from proxy: ${proxyUrl}`);
     debugLog(`Fetching from proxy: ${proxyUrl}`);
     
     // Use AbortController to cancel the request after a timeout for 404s
@@ -39,6 +40,7 @@ const fetchFromProxy = async (path, suppressErrors = false, cacheParam = '') => 
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
     try {
+      console.log(`[DEBUG] Starting fetch request to: ${proxyUrl}`);
       const response = await fetch(proxyUrl, {
         method: 'GET',
         headers: {
@@ -49,14 +51,17 @@ const fetchFromProxy = async (path, suppressErrors = false, cacheParam = '') => 
       });
       
       clearTimeout(timeoutId);
+      console.log(`[DEBUG] Fetch response status: ${response.status}`);
       
       if (!response.ok) {
         // For 404 errors, just return null without logging when suppressErrors is true
         if (response.status === 404 && suppressErrors) {
+          console.log(`[DEBUG] 404 response for ${proxyUrl} (suppressed)`);
           return null;
         }
         
         const errorText = await response.text().catch(() => 'No error text available');
+        console.log(`[DEBUG] Error response text: ${errorText.substring(0, 200)}`);
         
         // Only log errors if not suppressed
         if (!suppressErrors) {
@@ -67,21 +72,50 @@ const fetchFromProxy = async (path, suppressErrors = false, cacheParam = '') => 
       }
       
       const data = await response.text();
+      console.log(`[DEBUG] Successfully fetched data from proxy (${data.length} bytes)`);
       debugLog('Successfully fetched data from proxy');
       return data;
     } catch (fetchError) {
       clearTimeout(timeoutId);
+      console.log(`[DEBUG] Fetch error: ${fetchError.message}`);
       
       // If it's an abort error or 404 and suppressErrors is true, just return null silently
       if ((fetchError.name === 'AbortError' || 
           (fetchError.message && fetchError.message.includes('404'))) && 
           suppressErrors) {
+        console.log(`[DEBUG] Suppressed error: ${fetchError.message}`);
         return null;
       }
       
-      throw fetchError;
+      // Try using a direct CORS proxy as a fallback
+      try {
+        console.log(`[DEBUG] Trying direct CORS proxy as fallback for: ${path}`);
+        const directUrl = `https://dd.weather.gc.ca/alerts/cap/${path}`;
+        const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+        
+        const directResponse = await fetch(corsProxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/xml, text/xml, */*',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!directResponse.ok) {
+          console.log(`[DEBUG] Direct CORS proxy fallback failed with status: ${directResponse.status}`);
+          throw new Error(`Direct CORS proxy returned status: ${directResponse.status}`);
+        }
+        
+        const directData = await directResponse.text();
+        console.log(`[DEBUG] Successfully fetched data from direct CORS proxy (${directData.length} bytes)`);
+        return directData;
+      } catch (directError) {
+        console.log(`[DEBUG] Direct CORS proxy fallback failed: ${directError.message}`);
+        throw fetchError; // Throw the original error
+      }
     }
   } catch (error) {
+    console.log(`[DEBUG] Error in fetchFromProxy: ${error.message}`);
     // Only log errors if not suppressed and not a 404
     if (!suppressErrors && !(error.message && error.message.includes('404'))) {
       console.error(`Proxy fetch failed: ${error.message}`);
@@ -270,9 +304,9 @@ export const fetchLatestAlerts = async (cacheParam = '') => {
       }
     }
     
-    // If we still don't have any XML files, try the fallback approach
+    // If we still don't have any XML files, try the fallback approach with direct CORS proxy
     if (allXmlFiles.length === 0) {
-      debugLog('No XML files found through directory navigation. Trying fallback approach...');
+      debugLog('No XML files found through directory navigation. Trying fallback approach with direct CORS proxy...');
       
       try {
         // Try to fetch alerts from the battleboard RSS feed as a fallback
@@ -280,11 +314,23 @@ export const fetchLatestAlerts = async (cacheParam = '') => {
         
         for (const regionCode of regionCodes) {
           try {
-            const alertsUrl = `/api/cap/battleboard/${regionCode}_e.xml${cacheParam}`;
-            const rssData = await fetch(alertsUrl).then(res => res.text());
+            // Use a direct CORS proxy for the battleboard RSS feed
+            const battleboardUrl = `https://weather.gc.ca/warnings/rss/${regionCode}_e.xml`;
+            const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(battleboardUrl)}`;
+            
+            console.log(`[DEBUG] Trying direct CORS proxy for battleboard RSS feed: ${corsProxyUrl}`);
+            
+            const rssResponse = await fetch(corsProxyUrl);
+            
+            if (!rssResponse.ok) {
+              console.log(`[DEBUG] Direct CORS proxy for battleboard RSS feed failed with status: ${rssResponse.status}`);
+              continue;
+            }
+            
+            const rssData = await rssResponse.text();
             
             if (rssData && rssData.includes('<entry>')) {
-              debugLog(`Successfully fetched RSS feed for ${regionCode}`);
+              debugLog(`Successfully fetched RSS feed for ${regionCode} using direct CORS proxy`);
               
               // Parse the RSS feed to get alerts
               const parser = new DOMParser();
@@ -334,11 +380,11 @@ export const fetchLatestAlerts = async (cacheParam = '') => {
               }
             }
           } catch (rssError) {
-            debugLog(`Error fetching RSS feed for ${regionCode}:`, rssError.message);
+            debugLog(`Error fetching RSS feed for ${regionCode} using direct CORS proxy:`, rssError.message);
           }
         }
       } catch (fallbackError) {
-        debugLog('Error in fallback approach:', fallbackError.message);
+        debugLog('Error in fallback approach with direct CORS proxy:', fallbackError.message);
       }
     }
     
@@ -1459,75 +1505,11 @@ const deduplicateAlerts = (alerts) => {
 };
 
 /**
- * Extracts the base title from an alert title by removing status indicators
+ * Gets a base title from an alert title by removing status indicators
  * @param {string} title - The alert title
- * @returns {string} The base title
+ * @returns {string} The base title without status indicators
  */
 const getBaseTitle = (title) => {
-  if (!title) return '';
-  
-  // Convert to lowercase for consistent matching
-  const lowerTitle = title.toLowerCase();
-  
-  // Remove status indicators
-  return lowerTitle
-    .replace(/en vigueur|annulé|terminé|émis|mis à jour|ended|in effect|issued|updated/g, '')
-    .replace(/avertissement de |veille de |bulletin de |alerte de |warning|watch|statement|advisory/g, '')
-    .trim();
+  // Remove status indicators from the title
+  return title.replace(/[\s-]+/g, ' ').trim();
 };
-
-/**
- * Formats an alert for display in the UI
- * @param {Object} alert - The raw alert object
- * @returns {Object} A formatted alert object ready for display
- */
-export const formatAlertForDisplay = (alert) => {
-  if (!alert) return null;
-  
-  // Determine alert type based on severity
-  let alertType = 'info';
-  if (alert.severity === 'Extreme') alertType = 'extreme';
-  else if (alert.severity === 'Severe') alertType = 'severe';
-  else if (alert.severity === 'Moderate') alertType = 'moderate';
-  
-  // Format the description for HTML display
-  const formattedDescription = alert.description
-    .replace(/\n/g, '<br>')
-    .replace(/\s{2,}/g, ' ');
-  
-  return {
-    id: alert.id,
-    title: alert.title,
-    summary: formattedDescription,
-    published: alert.effective || new Date().toISOString(),
-    expires: alert.expires,
-    severity: alert.severity,
-    urgency: alert.urgency,
-    certainty: alert.certainty,
-    type: alertType,
-    link: alert.sourceUrl,
-    areas: alert.areas.map(area => area.description).join(', ')
-  };
-};
-
-// Helper function to get a polygon that covers a region
-const getRegionPolygon = (regionCode) => {
-  // These are very rough approximations of region boundaries
-  const regionBounds = {
-    'on': [[-95, 56], [-95, 42], [-74, 42], [-74, 56], [-95, 56]], // Ontario
-    'bc': [[-139, 60], [-139, 48], [-114, 48], [-114, 60], [-139, 60]], // British Columbia
-    'ab': [[-120, 60], [-120, 49], [-110, 49], [-110, 60], [-120, 60]], // Alberta
-    'sk': [[-110, 60], [-110, 49], [-101, 49], [-101, 60], [-110, 60]], // Saskatchewan
-    'mb': [[-102, 60], [-102, 49], [-89, 49], [-89, 60], [-102, 60]], // Manitoba
-    'qc': [[-79, 62], [-79, 45], [-57, 45], [-57, 62], [-79, 62]], // Quebec
-    'nb': [[-69, 48], [-69, 45], [-64, 45], [-64, 48], [-69, 48]], // New Brunswick
-    'ns': [[-66, 47], [-66, 43], [-60, 43], [-60, 47], [-66, 47]], // Nova Scotia
-    'pe': [[-64, 47], [-64, 46], [-62, 46], [-62, 47], [-64, 47]], // Prince Edward Island
-    'nl': [[-67, 60], [-67, 46], [-52, 46], [-52, 60], [-67, 60]], // Newfoundland and Labrador
-    'yt': [[-141, 70], [-141, 60], [-124, 60], [-124, 70], [-141, 70]], // Yukon
-    'nt': [[-136, 70], [-136, 60], [-102, 60], [-102, 70], [-136, 70]], // Northwest Territories
-    'nu': [[-120, 83], [-120, 60], [-60, 60], [-60, 83], [-120, 83]]  // Nunavut
-  };
-  
-  return regionBounds[regionCode] || null;
-}; 
