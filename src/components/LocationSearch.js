@@ -710,86 +710,74 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
   return (
     <div className="location-search">
       <form onSubmit={handleSearch} className="search-form">
-        <div className="search-input-container">
+        <div className="search-container">
           <input
             type="text"
             value={searchTerm}
             onChange={handleSearchTermChange}
-            placeholder="Search for a Canadian location..."
-            className="search-input"
-            aria-label="Search for a location"
+            placeholder={initialized ? "Search for a Canadian location..." : "Initializing search..."}
+            className={`search-input ${!initialized ? 'disabled' : ''}`}
+            disabled={!initialized || isSearching}
           />
-          {searchTerm && (
-            <button
-              type="button"
-              className="clear-search-button"
-              onClick={() => clearSearchBox()}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
-        </div>
-        <div className="search-buttons">
-          <button type="submit" className="search-button" disabled={isSearching}>
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
-          <button
-            type="button"
-            className="use-location-button"
-            onClick={onUseMyLocation}
+          <button 
+            type="submit" 
+            className="search-button" 
+            disabled={!initialized || isSearching || !searchTerm.trim()}
           >
-            Use My Location
+            {isSearching ? <span className="loading-dot"></span> : <span className="search-icon"></span>}
           </button>
         </div>
+        
+        <button
+          type="button"
+          className="location-button"
+          onClick={onUseMyLocation}
+        >
+          <span className="location-dot"></span> Use my location
+        </button>
       </form>
 
-      {error && <div className="search-error">{error}</div>}
+      {/* Display error message with search stage info for debugging */}
+      {error && <div className="search-error" data-search-stage={searchStage}>{error}</div>}
 
-      {isSearching && (
-        <div className="search-loading">
-          <div className="loading-spinner"></div>
-          <p>Searching for locations in Canada...</p>
-          {isDevelopment && <p className="search-stage">Stage: {searchStage}</p>}
-        </div>
-      )}
-
-      {!isSearching && searchResults.length > 0 && (
-        <div className="search-results">
-          <h3>Search Results</h3>
-          <ul className="location-list">
-            {searchResults.map((result, index) => (
-              <li key={`${result.lat}-${result.lon}-${index}`}>
-                <button
-                  type="button"
-                  className="location-item"
-                  onClick={() => handleLocationSelect(result)}
-                >
-                  {formatLocationDisplay(result)}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {!isSearching && searchResults.length === 0 && alternativeSearchTerms.length > 0 && (
+      {/* Show alternative search suggestions if available and no results found */}
+      {error && alternativeSearchTerms.length > 0 && (
         <div className="alternative-terms">
-          <h3>Try searching for:</h3>
-          <ul className="alternative-terms-list">
-            {alternativeSearchTerms.map((term, index) => (
-              <li key={index}>
-                <button
-                  type="button"
-                  className="alternative-term-button"
-                  onClick={() => handleAlternativeTermClick(term)}
-                >
-                  {term}
-                </button>
+          <p>
+            {containsSpecialLocationType(searchTerm)
+              ? `Try searching for this ${containsSpecialLocationType(searchTerm)} with a specific province:`
+              : 'Try searching with a specific province:'}
+          </p>
+          <ul>
+            {alternativeSearchTerms.slice(0, 5).map((term, index) => (
+              <li key={index} onClick={() => handleAlternativeTermClick(term)}>
+                {term}
               </li>
             ))}
           </ul>
         </div>
+      )}
+
+      {searchResults.length > 0 && (
+        <ul className="search-results">
+          {searchResults.map((result, index) => (
+            <li 
+              key={index} 
+              onClick={() => handleLocationSelect(result)}
+              className={`search-result-item ${result.country === 'CA' ? 'canadian-location' : ''}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  handleLocationSelect(result);
+                }
+              }}
+            >
+              <span className="location-name">{formatLocationDisplay(result)}</span>
+              <span className="select-indicator">Select</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

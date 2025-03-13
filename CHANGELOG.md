@@ -5,6 +5,17 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.8.9] - 2023-11-15
+
+### Fixed
+- Fixed CSS issues in the LocationSearch component by correcting class names
+- Implemented fallback mechanism for Environment Canada API failures
+- Added hardcoded Canadian cities and weather stations data as fallback when API is unavailable
+- Added timeout to API requests to prevent long loading times
+- Improved error handling in location search functionality
+
 ## [1.8.8] - 2025-03-13
 
 ### Fixed
