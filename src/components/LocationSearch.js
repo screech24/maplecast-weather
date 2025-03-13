@@ -20,12 +20,51 @@ const CANADIAN_PROVINCES = {
   'NU': 'Nunavut'
 };
 
+// Special location types for enhanced search
+const SPECIAL_LOCATION_TYPES = [
+  'national park',
+  'provincial park',
+  'park',
+  'reserve',
+  'conservation area',
+  'wilderness',
+  'mountain',
+  'lake',
+  'river',
+  'falls',
+  'bay',
+  'island',
+  'peninsula',
+  'glacier',
+  'forest',
+  'beach',
+  'valley',
+  'canyon',
+  'trail',
+  'historic site',
+  'monument'
+];
+
 // Canadian postal code regex pattern (A1A 1A1 format)
 const POSTAL_CODE_REGEX = /\b[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d\b/;
 
 // Helper function to check if a string contains a Canadian postal code
 const containsCanadianPostalCode = (term) => {
   return POSTAL_CODE_REGEX.test(term);
+};
+
+// Helper function to check if a string contains a special location type
+const containsSpecialLocationType = (term) => {
+  const termLower = term.toLowerCase();
+  
+  for (const locationType of SPECIAL_LOCATION_TYPES) {
+    if (termLower.includes(locationType)) {
+      debugLog('LocationSearch', `Found special location type in term: ${locationType} in "${term}"`);
+      return locationType;
+    }
+  }
+  
+  return null;
 };
 
 // Helper function to check if a string contains a province reference
@@ -93,6 +132,20 @@ const enhanceCanadianSearch = (term) => {
   // If it contains a Canadian postal code, it's definitely Canadian
   if (containsCanadianPostalCode(term)) {
     debugLog('LocationSearch', `Term contains Canadian postal code: ${term}`);
+    return `${term}, Canada`;
+  }
+  
+  // Check for special location types like parks, mountains, etc.
+  const specialLocationType = containsSpecialLocationType(term);
+  if (specialLocationType) {
+    debugLog('LocationSearch', `Term contains special location type: ${specialLocationType} in "${term}"`);
+    
+    // For national parks and other special locations, try different formats
+    if (specialLocationType === 'national park') {
+      return `${term}, Canada`;
+    }
+    
+    // For other special location types, ensure proper formatting
     return `${term}, Canada`;
   }
   
@@ -181,6 +234,90 @@ const extractLocationName = (term) => {
   return cleanTerm;
 };
 
+// Generate search terms for special location types like national parks
+const generateSpecialLocationSearchTerms = (locationName) => {
+  const terms = [];
+  
+  // Clean the location name to ensure it's usable
+  const cleanName = locationName.trim().replace(/\s+/g, ' ');
+  if (!cleanName) return terms;
+  
+  debugLog('LocationSearch', `Generating special location search terms for: "${cleanName}"`);
+  
+  // Check if it's a special location type
+  const specialLocationType = containsSpecialLocationType(cleanName);
+  if (specialLocationType) {
+    // For national parks
+    if (specialLocationType === 'national park') {
+      // Try different variations of the name
+      const baseName = cleanName.replace(/\bnational park\b/i, '').trim();
+      
+      // Add with explicit "National Park" designation
+      terms.push(`${baseName} National Park, Canada`);
+      
+      // Try with each province
+      for (const province of Object.values(CANADIAN_PROVINCES)) {
+        terms.push(`${baseName} National Park, ${province}, Canada`);
+      }
+      
+      // Try without "National Park" designation
+      terms.push(`${baseName}, Canada`);
+    }
+    // For provincial parks
+    else if (specialLocationType === 'provincial park') {
+      const baseName = cleanName.replace(/\bprovincial park\b/i, '').trim();
+      
+      // Add with explicit "Provincial Park" designation
+      terms.push(`${baseName} Provincial Park, Canada`);
+      
+      // Try with each province
+      for (const province of Object.values(CANADIAN_PROVINCES)) {
+        terms.push(`${baseName} Provincial Park, ${province}, Canada`);
+      }
+      
+      // Try without "Provincial Park" designation
+      terms.push(`${baseName}, Canada`);
+    }
+    // For other parks
+    else if (specialLocationType === 'park') {
+      const baseName = cleanName.replace(/\bpark\b/i, '').trim();
+      
+      // Add with explicit "Park" designation
+      terms.push(`${baseName} Park, Canada`);
+      
+      // Try with each province
+      for (const province of Object.values(CANADIAN_PROVINCES)) {
+        terms.push(`${baseName} Park, ${province}, Canada`);
+      }
+      
+      // Try without "Park" designation
+      terms.push(`${baseName}, Canada`);
+    }
+    // For other special location types
+    else {
+      // Try with the special location type
+      terms.push(`${cleanName}, Canada`);
+      
+      // Try with each province
+      for (const province of Object.values(CANADIAN_PROVINCES)) {
+        terms.push(`${cleanName}, ${province}, Canada`);
+      }
+      
+      // Try without the special location type
+      const baseNameParts = cleanName.split(' ');
+      if (baseNameParts.length > 1) {
+        const baseName = baseNameParts.slice(0, -1).join(' ');
+        terms.push(`${baseName}, Canada`);
+      }
+    }
+  } else {
+    // If not a special location type, just add the basic term
+    terms.push(`${cleanName}, Canada`);
+  }
+  
+  return terms;
+};
+
 // Generate search terms with different province combinations
 const generateProvincialSearchTerms = (locationName) => {
   const terms = [];
@@ -190,6 +327,10 @@ const generateProvincialSearchTerms = (locationName) => {
   if (!cleanName) return terms;
   
   debugLog('LocationSearch', `Generating provincial search terms for: "${cleanName}"`);
+  
+  // First, check if it's a special location type and add those terms
+  const specialTerms = generateSpecialLocationSearchTerms(cleanName);
+  terms.push(...specialTerms);
   
   // Add terms with each province
   for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
@@ -358,6 +499,82 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         }
       }
       
+      // If still no results, check for special location types like parks
+      if (!searchSuccess) {
+        // Stage 4.5: Try with special location type variations
+        setSearchStage(3.5);
+        const specialLocationType = containsSpecialLocationType(trimmedSearchTerm);
+        
+        if (specialLocationType) {
+          devLog('LocationSearch', `Stage 4.5: Detected special location type: ${specialLocationType}`);
+          
+          // Extract the base name without the location type
+          let baseName = trimmedSearchTerm;
+          if (specialLocationType === 'national park') {
+            baseName = trimmedSearchTerm.replace(/\bnational park\b/i, '').trim();
+            devLog('LocationSearch', `Extracted base name from national park: "${baseName}"`);
+            
+            // Try specific formats for national parks
+            const parkTerms = [
+              `${baseName} National Park, Canada`,
+              `${baseName}, Canada`
+            ];
+            
+            // Try with each province
+            for (const province of Object.values(CANADIAN_PROVINCES)) {
+              parkTerms.push(`${baseName} National Park, ${province}, Canada`);
+            }
+            
+            // Try each term
+            for (const term of parkTerms) {
+              devLog('LocationSearch', `Stage 4.5: Trying national park term: "${term}"`);
+              searchSuccess = await performSearch(term);
+              if (searchSuccess) {
+                devLog('LocationSearch', `Found results with national park term: "${term}"`);
+                break;
+              }
+            }
+          } else if (specialLocationType === 'provincial park') {
+            baseName = trimmedSearchTerm.replace(/\bprovincial park\b/i, '').trim();
+            devLog('LocationSearch', `Extracted base name from provincial park: "${baseName}"`);
+            
+            // Try specific formats for provincial parks
+            const parkTerms = [
+              `${baseName} Provincial Park, Canada`,
+              `${baseName}, Canada`
+            ];
+            
+            // Try with each province
+            for (const province of Object.values(CANADIAN_PROVINCES)) {
+              parkTerms.push(`${baseName} Provincial Park, ${province}, Canada`);
+            }
+            
+            // Try each term
+            for (const term of parkTerms) {
+              devLog('LocationSearch', `Stage 4.5: Trying provincial park term: "${term}"`);
+              searchSuccess = await performSearch(term);
+              if (searchSuccess) {
+                devLog('LocationSearch', `Found results with provincial park term: "${term}"`);
+                break;
+              }
+            }
+          } else {
+            // For other special location types
+            const specialTerms = generateSpecialLocationSearchTerms(trimmedSearchTerm);
+            
+            // Try each special term
+            for (const term of specialTerms) {
+              devLog('LocationSearch', `Stage 4.5: Trying special location term: "${term}"`);
+              searchSuccess = await performSearch(term);
+              if (searchSuccess) {
+                devLog('LocationSearch', `Found results with special location term: "${term}"`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
       // If still no results, try with provincial variations
       if (!searchSuccess) {
         // Stage 5: Try with provincial variations
@@ -420,6 +637,12 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         
         if (!containsProvinceReference(trimmedSearchTerm)) {
           suggestions.push('Include a province name or abbreviation (e.g., ON, BC)');
+        }
+        
+        // Check if it's a special location but missing province
+        const specialLocationType = containsSpecialLocationType(trimmedSearchTerm);
+        if (specialLocationType && !containsProvinceReference(trimmedSearchTerm)) {
+          suggestions.push(`Try adding a province to your ${specialLocationType} search`);
         }
         
         if (trimmedSearchTerm.length < 3) {
@@ -578,7 +801,11 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       {/* Show alternative search suggestions if available and no results found */}
       {error && alternativeSearchTerms.length > 0 && (
         <div className="alternative-terms">
-          <p>Try searching with a specific province:</p>
+          <p>
+            {containsSpecialLocationType(searchTerm)
+              ? `Try searching for this ${containsSpecialLocationType(searchTerm)} with a specific province:`
+              : 'Try searching with a specific province:'}
+          </p>
           <ul>
             {alternativeSearchTerms.slice(0, 5).map((term, index) => (
               <li key={index} onClick={() => handleAlternativeTermClick(term)}>

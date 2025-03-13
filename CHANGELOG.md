@@ -5,6 +5,20 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.5] - 2025-03-12
+
+### Added
+- Enhanced support for searching national parks and other geographical features
+- Added special location type detection for parks, mountains, lakes, and other landmarks
+- Improved search algorithm with dedicated handling for special location types
+- Added more specific error messages and suggestions for special location searches
+
+### Fixed
+- Fixed search functionality for smaller locations like national parks and provincial parks
+- Improved search results for locations without explicit province references
+- Enhanced alternative search suggestions with more relevant options
+- Added special handling for different types of parks and geographical features
+
 ## [1.8.4] - 2025-03-12
 
 ### Fixed
