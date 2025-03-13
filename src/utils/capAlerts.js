@@ -747,71 +747,117 @@ export const isLocationAffected = (userLocation, alert) => {
   try {
     const userPoint = turf.point([userLocation.longitude, userLocation.latitude]);
     
+    // Get the user's region based on coordinates
+    const userRegion = getRegionFromCoordinates(userLocation);
+    debugLog(`User region: ${userRegion || 'unknown'}`);
+    
+    // Get nearby regions
+    const nearbyRegions = getNearbyRegions(userLocation);
+    debugLog(`Nearby regions: ${nearbyRegions.join(', ')}`);
+    
     // Check each area in the alert
     return alert.areas.some(area => {
-      // Check polygon
-      if (area.polygon && Array.isArray(area.polygon) && area.polygon.length >= 3) {
-        try {
-          // Create a polygon from the coordinates
-          // Note: turf.polygon expects an array of linear rings, so we need to wrap our coordinates
-          const alertPolygon = turf.polygon([area.polygon]);
-          const isInPolygon = turf.booleanPointInPolygon(userPoint, alertPolygon);
-          debugLog(`Area: ${area.description}, Polygon check: ${isInPolygon}`);
-          return isInPolygon;
-        } catch (error) {
-          console.error('Error checking polygon:', error);
-          debugLog('Polygon data that caused the error:', area.polygon);
-          
-          // If there's an error with the polygon, try a more lenient approach
-          try {
-            // Try to create a bounding box from the polygon points
-            const coords = area.polygon.map(coord => ({ lng: coord[0], lat: coord[1] }));
-            const bounds = getBoundingBox(coords);
-            
-            // Check if the user is within the bounding box
-            const isInBounds = userLocation.latitude >= bounds.south && 
-                              userLocation.latitude <= bounds.north && 
-                              userLocation.longitude >= bounds.west && 
-                              userLocation.longitude <= bounds.east;
-            
-            debugLog(`Fallback bounding box check: ${isInBounds}`);
-            return isInBounds;
-          } catch (fallbackError) {
-            console.error('Error in fallback bounding box check:', fallbackError);
-            return false;
+      // Check if area description matches user's region or nearby regions
+      if (area.description) {
+        const areaDescription = area.description.toLowerCase();
+        
+        // Check if the area description contains the user's region
+        if (userRegion && areaDescription.includes(userRegion.toLowerCase())) {
+          debugLog(`Region match found: ${userRegion} in ${area.description}`);
+          return true;
+        }
+        
+        // Check if the area description contains any nearby regions
+        for (const region of nearbyRegions) {
+          if (region && areaDescription.includes(region.toLowerCase())) {
+            debugLog(`Nearby region match found: ${region} in ${area.description}`);
+            return true;
           }
         }
       }
       
-      // Check circle
-      if (area.circle && area.circle.center && area.circle.radius) {
+      // Check polygon with improved validation and buffering
+      if (area.polygon && Array.isArray(area.polygon) && area.polygon.length >= 3) {
         try {
-          const centerPoint = turf.point(area.circle.center);
-          const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
-          const isInCircle = distance <= area.circle.radius;
-          debugLog(`Area: ${area.description}, Circle check: distance=${distance}km, radius=${area.circle.radius}km, isInCircle=${isInCircle}`);
-          return isInCircle;
+          // Make sure the polygon is closed (first and last points are the same)
+          let polygonCoords = [...area.polygon];
+          if (JSON.stringify(polygonCoords[0]) !== JSON.stringify(polygonCoords[polygonCoords.length - 1])) {
+            polygonCoords.push(polygonCoords[0]); // Close the polygon
+          }
+          
+          // Create the polygon
+          const alertPolygon = turf.polygon([polygonCoords]);
+          
+          // Check if the user is in the polygon
+          const isInPolygon = turf.booleanPointInPolygon(userPoint, alertPolygon);
+          
+          if (isInPolygon) {
+            debugLog(`User is inside polygon for area: ${area.description}`);
+            return true;
+          }
+          
+          // If not in the polygon, check with a buffer (10km)
+          try {
+            const bufferedPolygon = turf.buffer(alertPolygon, 10, { units: 'kilometers' });
+            const isInBufferedPolygon = turf.booleanPointInPolygon(userPoint, bufferedPolygon);
+            
+            if (isInBufferedPolygon) {
+              debugLog(`User is within 10km of polygon for area: ${area.description}`);
+              return true;
+            }
+          } catch (bufferError) {
+            console.error('Error creating buffered polygon:', bufferError);
+          }
         } catch (error) {
-          console.error('Error checking circle:', error);
-          debugLog('Circle data that caused the error:', area.circle);
-          return false;
+          console.error('Error checking polygon:', error);
+          debugLog('Polygon data that caused the error:', area.polygon);
+          
+          // Try the bounding box approach as a fallback
+          try {
+            const coords = area.polygon.map(coord => ({ lng: coord[0], lat: coord[1] }));
+            const bounds = getBoundingBox(coords);
+            
+            // Add a small buffer to the bounds (0.1 degrees ~ 11km)
+            const bufferedBounds = {
+              north: bounds.north + 0.1,
+              south: bounds.south - 0.1,
+              east: bounds.east + 0.1,
+              west: bounds.west - 0.1
+            };
+            
+            const isInBufferedBounds = userLocation.latitude >= bufferedBounds.south && 
+                                      userLocation.latitude <= bufferedBounds.north && 
+                                      userLocation.longitude >= bufferedBounds.west && 
+                                      userLocation.longitude <= bufferedBounds.east;
+            
+            if (isInBufferedBounds) {
+              debugLog(`User is within buffered bounding box for area: ${area.description}`);
+              return true;
+            }
+          } catch (fallbackError) {
+            console.error('Error in fallback bounding box check:', fallbackError);
+          }
         }
       }
       
-      // If we have the area description but no polygon or circle data,
-      // try to match based on the description (e.g., city or region name)
-      if (area.description) {
-        // This is a very basic check - in a real app, you might want to use a more sophisticated
-        // approach, such as geocoding the area description and checking if the user is within that area
-        const userLocationString = JSON.stringify(userLocation).toLowerCase();
-        const areaDescription = area.description.toLowerCase();
-        
-        // Check if the area description contains any part of the user's location
-        const isMatch = userLocationString.includes(areaDescription) || 
-                        (area.description.length > 3 && areaDescription.includes(userLocationString));
-        
-        debugLog(`Area description match check: ${isMatch} for "${area.description}"`);
-        return isMatch;
+      // Check circle with improved validation and buffering
+      if (area.circle && area.circle.center && typeof area.circle.radius === 'number') {
+        try {
+          const centerPoint = turf.point(area.circle.center);
+          const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
+          
+          // Add a 10km buffer to the radius
+          const bufferedRadius = area.circle.radius + 10;
+          const isInBufferedCircle = distance <= bufferedRadius;
+          
+          if (isInBufferedCircle) {
+            debugLog(`User is within ${distance}km of circle center (radius: ${area.circle.radius}km, buffered: ${bufferedRadius}km)`);
+            return true;
+          }
+        } catch (error) {
+          console.error('Error checking circle:', error);
+          debugLog('Circle data that caused the error:', area.circle);
+        }
       }
       
       return false;

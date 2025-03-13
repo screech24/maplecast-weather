@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2025-03-13
+
+### Fixed
+- Improved weather alerts functionality for Canadian locations with active alerts
+- Enhanced geospatial calculations to better detect if a user's location is affected by an alert
+- Added 10km buffer to alert polygons and circles to include nearby areas
+- Improved region matching for alert areas
+- Added better error handling and fallbacks for alert detection
+
 ## [1.8.9] - 2023-11-15
 
 ### Fixed
