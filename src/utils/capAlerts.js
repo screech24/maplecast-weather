@@ -1,5 +1,6 @@
 import * as turf from '@turf/turf';
 import axios from 'axios';
+import { mockAlerts } from './mockAlerts';
 
 // Enable or disable debug logging
 const DEBUG = process.env.NODE_ENV === 'development';
@@ -23,12 +24,13 @@ const debugLog = (message, data) => {
  * Fetches data from the Netlify Function proxy
  * @param {string} path - The path to fetch from Environment Canada
  * @param {boolean} suppressErrors - Whether to suppress error logging (default: false)
+ * @param {string} cacheParam - Optional cache-busting parameter
  * @returns {Promise<string>} A promise that resolves to the response data
  */
-const fetchFromProxy = async (path, suppressErrors = false) => {
+const fetchFromProxy = async (path, suppressErrors = false, cacheParam = '') => {
   try {
     // Use the Netlify Function proxy
-    const proxyUrl = `/api/cap/${path}`;
+    const proxyUrl = `/api/cap/${path}${cacheParam}`;
     
     debugLog(`Fetching from proxy: ${proxyUrl}`);
     
@@ -123,9 +125,10 @@ export const getUserLocation = () => {
 
 /**
  * Fetches the latest CAP alerts from Environment Canada
+ * @param {string} cacheParam - Optional cache-busting parameter
  * @returns {Promise<Array>} A promise that resolves to an array of alert XML files
  */
-export const fetchLatestAlerts = async () => {
+export const fetchLatestAlerts = async (cacheParam = '') => {
   try {
     // Generate date strings for today and the past few days
     const dateStrings = generateDateStrings();
@@ -141,7 +144,7 @@ export const fetchLatestAlerts = async () => {
         debugLog(`Trying date folder: ${folderToTry}`);
         
         // Try to access the directory with this date - suppress errors for 404s
-        directoryHtml = await fetchFromProxy(folderToTry, true);
+        directoryHtml = await fetchFromProxy(folderToTry, true, cacheParam);
         
         // If we get here without an error, we found a valid date folder
         if (directoryHtml) {
@@ -159,7 +162,7 @@ export const fetchLatestAlerts = async () => {
       debugLog('No valid date folders found, trying directory listing approach...');
       
       try {
-        directoryHtml = await fetchFromProxy('', true);
+        directoryHtml = await fetchFromProxy('', true, cacheParam);
         if (directoryHtml) {
           latestFolder = parseLatestFolder(directoryHtml);
         }
@@ -192,7 +195,7 @@ export const fetchLatestAlerts = async () => {
     
     // Try cached paths first for faster results
     debugLog('Trying cached paths first...');
-    const cachedFiles = await tryCachedPaths(latestFolder);
+    const cachedFiles = await tryCachedPaths(latestFolder, cacheParam);
     allXmlFiles = allXmlFiles.concat(cachedFiles);
     
     // If we don't have enough files from cached paths, try directory navigation
@@ -201,7 +204,7 @@ export const fetchLatestAlerts = async () => {
       
       try {
         // Get subdirectories (office codes) - suppress errors for 404s
-        const subdirectoriesHtml = await fetchFromProxy(latestFolder, true);
+        const subdirectoriesHtml = await fetchFromProxy(latestFolder, true, cacheParam);
         
         if (subdirectoriesHtml) {
           const subdirectories = parseSubdirectories(subdirectoriesHtml);
@@ -212,7 +215,7 @@ export const fetchLatestAlerts = async () => {
           for (const subdir of subdirectories) {
             try {
               const subdirPath = `${latestFolder}${subdir}/`;
-              const subdirHtml = await fetchFromProxy(subdirPath, true);
+              const subdirHtml = await fetchFromProxy(subdirPath, true, cacheParam);
               
               if (subdirHtml) {
                 // Look for hour directories
@@ -221,7 +224,7 @@ export const fetchLatestAlerts = async () => {
                 for (const hourDir of hourDirs) {
                   try {
                     const hourPath = `${subdirPath}${hourDir}/`;
-                    const hourHtml = await fetchFromProxy(hourPath, true);
+                    const hourHtml = await fetchFromProxy(hourPath, true, cacheParam);
                     
                     if (hourHtml) {
                       // Get XML files in this hour directory
@@ -231,7 +234,7 @@ export const fetchLatestAlerts = async () => {
                       if (xmlFiles.length > 0) {
                         const sampleFile = xmlFiles[0];
                         const path = sampleFile.replace('https://dd.weather.gc.ca/alerts/cap/', '');
-                        const xmlData = await fetchFromProxy(path, true);
+                        const xmlData = await fetchFromProxy(path, true, cacheParam);
                         
                         if (xmlData) {
                           const alert = parseCAP(xmlData, path);
@@ -247,8 +250,8 @@ export const fetchLatestAlerts = async () => {
                       allXmlFiles = allXmlFiles.concat(xmlFiles);
                       
                       // If we found enough files, stop searching
-                      if (allXmlFiles.length >= 20) {
-                        debugLog('Found enough XML files, stopping search');
+                      if (allXmlFiles.length >= 50) {
+                        debugLog(`Found ${allXmlFiles.length} XML files, stopping search`);
                         break;
                       }
                     }
@@ -277,51 +280,65 @@ export const fetchLatestAlerts = async () => {
         
         for (const regionCode of regionCodes) {
           try {
-            const alertsUrl = `/api/cap/battleboard/${regionCode}_e.xml`;
+            const alertsUrl = `/api/cap/battleboard/${regionCode}_e.xml${cacheParam}`;
             const rssData = await fetch(alertsUrl).then(res => res.text());
             
-            if (rssData) {
-              // Parse the RSS data to extract alert information
-              const parser = new DOMParser();
-              const xmlDoc = parser.parseFromString(rssData, 'text/xml');
-              const items = xmlDoc.querySelectorAll('item');
+            if (rssData && rssData.includes('<entry>')) {
+              debugLog(`Successfully fetched RSS feed for ${regionCode}`);
               
-              if (items.length > 0) {
-                debugLog(`Found ${items.length} alerts in RSS feed for region ${regionCode}`);
-                
-                // Convert RSS items to our alert format
-                const rssAlerts = Array.from(items).map(item => {
-                  const title = item.querySelector('title')?.textContent || '';
-                  const description = item.querySelector('description')?.textContent || '';
-                  const link = item.querySelector('link')?.textContent || '';
-                  const pubDate = item.querySelector('pubDate')?.textContent || '';
+              // Parse the RSS feed to get alerts
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(rssData, 'text/xml');
+              const entries = doc.querySelectorAll('entry');
+              
+              for (const entry of entries) {
+                try {
+                  const id = entry.querySelector('id')?.textContent;
+                  const title = entry.querySelector('title')?.textContent;
+                  const updated = entry.querySelector('updated')?.textContent;
+                  const summary = entry.querySelector('summary')?.textContent;
+                  const link = entry.querySelector('link')?.getAttribute('href');
                   
-                  return {
-                    id: `rss-${regionCode}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-                    title,
-                    description,
-                    link,
-                    sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-                    areas: [
-                      {
-                        description: regionCode.toUpperCase(),
-                        // Use a large polygon that covers the entire region
-                        polygon: getRegionPolygon(regionCode)
-                      }
-                    ],
-                    sourceUrl: link
-                  };
-                });
-                
-                allXmlFiles = allXmlFiles.concat(rssAlerts);
+                  if (id && title) {
+                    // Create a simplified alert object from the RSS entry
+                    const alert = {
+                      id,
+                      title,
+                      sent: updated,
+                      effective: updated,
+                      expires: null, // Not available in RSS
+                      status: 'Actual',
+                      msgType: 'Alert',
+                      category: 'Met',
+                      severity: title.toLowerCase().includes('warning') ? 'Moderate' : 'Minor',
+                      certainty: 'Observed',
+                      urgency: 'Expected',
+                      areas: [
+                        {
+                          description: title.split(' - ')[1] || regionCode.toUpperCase(),
+                          polygon: getRegionPolygon(regionCode),
+                          circle: null
+                        }
+                      ],
+                      sourceUrl: link,
+                      web: link,
+                      summary,
+                      references: []
+                    };
+                    
+                    allXmlFiles.push(alert);
+                  }
+                } catch (entryError) {
+                  debugLog(`Error parsing RSS entry:`, entryError.message);
+                }
               }
             }
-          } catch (regionError) {
-            debugLog(`Error fetching RSS feed for region ${regionCode}:`, regionError.message);
+          } catch (rssError) {
+            debugLog(`Error fetching RSS feed for ${regionCode}:`, rssError.message);
           }
         }
       } catch (fallbackError) {
-        debugLog('Error using fallback approach:', fallbackError.message);
+        debugLog('Error in fallback approach:', fallbackError.message);
       }
     }
     
@@ -340,7 +357,7 @@ export const fetchLatestAlerts = async () => {
         
         // Otherwise, fetch and parse the XML file
         const path = xmlFile.replace('https://dd.weather.gc.ca/alerts/cap/', '');
-        const xmlData = await fetchFromProxy(path, true);
+        const xmlData = await fetchFromProxy(path, true, cacheParam);
         
         if (xmlData) {
           const alert = parseCAP(xmlData, path);
@@ -358,10 +375,11 @@ export const fetchLatestAlerts = async () => {
     
     debugLog(`Successfully parsed ${alerts.length} alerts`);
     
-    // Return the alerts
+    // Return the alerts - no fallback to mock alerts
     return alerts;
   } catch (error) {
     console.error('Error fetching latest alerts:', error);
+    // Return an empty array instead of mock alerts
     return [];
   }
 };
@@ -393,57 +411,44 @@ const generateDateStrings = () => {
 };
 
 /**
- * Try cached paths from previous successful requests
- * @param {string} latestFolder - The latest date folder
- * @returns {Promise<Array>} A promise that resolves to an array of XML file URLs
+ * Tries to fetch alerts from cached paths
+ * @param {string} latestFolder - The latest folder to check
+ * @param {string} cacheParam - Optional cache-busting parameter
+ * @returns {Promise<Array>} A promise that resolves to an array of XML files
  */
-const tryCachedPaths = async (latestFolder) => {
-  const allXmlFiles = [];
-  
-  // Check if we have cached successful paths from previous sessions
+const tryCachedPaths = async (latestFolder, cacheParam = '') => {
   const cachedPaths = getCachedSuccessfulPaths();
   
-  // If we have cached paths, try them first
-  if (cachedPaths && cachedPaths.length > 0) {
-    debugLog(`Trying ${cachedPaths.length} cached paths first`);
-    
-    // Try each cached path
-    for (const cachedPath of cachedPaths) {
-      try {
-        // Update the date in the cached path to use the latest folder
-        const pathParts = cachedPath.split('/');
-        if (pathParts.length >= 2) {
-          pathParts[0] = latestFolder.replace('/', ''); // Remove trailing slash
-          const updatedPath = pathParts.join('/');
-          
-          debugLog(`Trying cached path with updated date: ${updatedPath}`);
-          
-          // Use suppressErrors=true to avoid console spam for 404s
-          const xmlData = await fetchFromProxy(updatedPath, true);
-          
-          if (xmlData) {
-            const alert = parseCAP(xmlData, updatedPath);
-            
-            if (alert) {
-              debugLog(`Successfully parsed alert from cached path: ${alert.title}`);
-              allXmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${updatedPath}`);
-              
-              // If we found enough files, stop searching
-              if (allXmlFiles.length >= 10) {
-                debugLog('Found enough XML files from cached paths, stopping search');
-                return allXmlFiles;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        // Silently continue if a cached path fails
-        debugLog(`Error with cached path: ${error.message}`);
+  if (cachedPaths.length === 0) {
+    debugLog('No cached paths available');
+    return [];
+  }
+  
+  debugLog(`Trying ${cachedPaths.length} cached paths`);
+  
+  const xmlFiles = [];
+  
+  // Try each cached path
+  for (const path of cachedPaths) {
+    try {
+      // Update the path to use the latest folder
+      const updatedPath = path.replace(/^\d{8}\//, latestFolder);
+      
+      // Try to fetch the XML file
+      const xmlData = await fetchFromProxy(updatedPath, true, cacheParam);
+      
+      if (xmlData) {
+        // Add the full URL to the list
+        xmlFiles.push(`https://dd.weather.gc.ca/alerts/cap/${updatedPath}`);
+        debugLog(`Successfully fetched cached path: ${updatedPath}`);
       }
+    } catch (error) {
+      debugLog(`Error fetching cached path: ${path}`, error.message);
     }
   }
   
-  return allXmlFiles;
+  debugLog(`Found ${xmlFiles.length} XML files from cached paths`);
+  return xmlFiles;
 };
 
 /**
@@ -727,12 +732,6 @@ export const isLocationAffected = (userLocation, alert) => {
     return false;
   }
   
-  // Only show all alerts if specifically enabled via localStorage
-  if (isDevelopmentMode() && localStorage.getItem('showAllAlerts') === 'true') {
-    debugLog('Development mode with showAllAlerts enabled: showing all alerts');
-    return true;
-  }
-  
   // If the alert doesn't have areas, we can't determine if the location is affected
   if (!alert.areas || alert.areas.length === 0) {
     debugLog('Alert has no areas defined');
@@ -756,6 +755,9 @@ export const isLocationAffected = (userLocation, alert) => {
     const userProvince = getUserProvince(userLocation);
     debugLog(`User province: ${userProvince || 'unknown'}`);
     
+    // Get province variations
+    const provinceVariations = userProvince ? getProvinceVariations(userProvince) : [];
+    
     // Check each area in the alert
     return alert.areas.some(area => {
       // Check if area description matches user's region, nearby regions, or province
@@ -777,9 +779,19 @@ export const isLocationAffected = (userLocation, alert) => {
         }
         
         // Check if the area description contains the user's province
-        if (userProvince && areaDescription.includes(userProvince.toLowerCase())) {
-          debugLog(`Province match found: ${userProvince} in ${area.description}`);
-          return true;
+        if (userProvince) {
+          if (areaDescription.includes(userProvince.toLowerCase())) {
+            debugLog(`Province match found: ${userProvince} in ${area.description}`);
+            return true;
+          }
+          
+          // Check province variations
+          for (const variation of provinceVariations) {
+            if (areaDescription.includes(variation.toLowerCase())) {
+              debugLog(`Province variation match found: ${variation} in ${area.description}`);
+              return true;
+            }
+          }
         }
         
         // Check for common variations of region names
@@ -814,13 +826,13 @@ export const isLocationAffected = (userLocation, alert) => {
             return true;
           }
           
-          // If not in the polygon, check with a buffer (20km)
+          // If not in the polygon, check with a buffer (30km)
           try {
-            const bufferedPolygon = turf.buffer(alertPolygon, 20, { units: 'kilometers' });
+            const bufferedPolygon = turf.buffer(alertPolygon, 30, { units: 'kilometers' });
             const isInBufferedPolygon = turf.booleanPointInPolygon(userPoint, bufferedPolygon);
             
             if (isInBufferedPolygon) {
-              debugLog(`User is within 20km of polygon for area: ${area.description}`);
+              debugLog(`User is within 30km of polygon for area: ${area.description}`);
               return true;
             }
           } catch (bufferError) {
@@ -835,12 +847,12 @@ export const isLocationAffected = (userLocation, alert) => {
             const coords = area.polygon.map(coord => ({ lng: coord[0], lat: coord[1] }));
             const bounds = getBoundingBox(coords);
             
-            // Add a small buffer to the bounds (0.2 degrees ~ 22km)
+            // Add a larger buffer to the bounds (0.3 degrees ~ 33km)
             const bufferedBounds = {
-              north: bounds.north + 0.2,
-              south: bounds.south - 0.2,
-              east: bounds.east + 0.2,
-              west: bounds.west - 0.2
+              north: bounds.north + 0.3,
+              south: bounds.south - 0.3,
+              east: bounds.east + 0.3,
+              west: bounds.west - 0.3
             };
             
             const isInBufferedBounds = userLocation.latitude >= bufferedBounds.south && 
@@ -864,8 +876,8 @@ export const isLocationAffected = (userLocation, alert) => {
           const centerPoint = turf.point(area.circle.center);
           const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
           
-          // Add a 20km buffer to the radius
-          const bufferedRadius = area.circle.radius + 20;
+          // Add a 30km buffer to the radius
+          const bufferedRadius = area.circle.radius + 30;
           const isInBufferedCircle = distance <= bufferedRadius;
           
           if (isInBufferedCircle) {

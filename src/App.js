@@ -296,7 +296,7 @@ function App() {
       // Use provided coordinates, then lastUsedLocation, then getUserLocation as fallback
       if (coordinates) {
         userLocation = { latitude: coordinates.lat, longitude: coordinates.lon };
-        console.log('Using provided coordinates for alerts');
+        console.log('Using provided coordinates for alerts:', coordinates);
       } else if (lastUsedLocation) {
         userLocation = { latitude: lastUsedLocation.lat, longitude: lastUsedLocation.lon };
         console.log('Using lastUsedLocation for alerts:', lastUsedLocation);
@@ -307,21 +307,44 @@ function App() {
       
       console.log(`Using location for alerts: ${JSON.stringify(userLocation)}`);
       
-      // Fetch all CAP alerts
-      const allAlerts = await fetchLatestAlerts();
+      // Fetch all CAP alerts with a fresh cache
+      const timestamp = new Date().getTime();
+      const allAlerts = await fetchLatestAlerts(`?_=${timestamp}`);
       console.log(`Fetched ${allAlerts.length} CAP alerts`);
+      
+      if (allAlerts.length === 0) {
+        console.warn('No alerts found from Environment Canada');
+        setAlertsError('No active weather alerts found for your location.');
+        setAlerts([]);
+        setIsLoadingAlerts(false);
+        return;
+      }
       
       // Filter alerts by user location
       const relevantAlerts = filterAlertsByLocation(allAlerts, userLocation);
       console.log(`Found ${relevantAlerts.length} alerts relevant to user location`);
       
-      // Format alerts for display
-      const formattedAlerts = relevantAlerts.map(formatAlertForDisplay).filter(alert => alert !== null);
-      
-      setAlerts(formattedAlerts);
-      
-      // Update service worker with the alerts and location
-      updateServiceWorkerData(formattedAlerts, { city, region });
+      if (relevantAlerts.length === 0) {
+        console.log('No relevant alerts found for user location');
+        setAlertsError('No active weather alerts for your location.');
+        setAlerts([]);
+      } else {
+        // Format alerts for display
+        const formattedAlerts = relevantAlerts.map(formatAlertForDisplay).filter(alert => alert !== null);
+        
+        if (formattedAlerts.length > 0) {
+          console.log(`Displaying ${formattedAlerts.length} formatted alerts`);
+          setAlerts(formattedAlerts);
+          setAlertsError(null);
+          
+          // Update service worker with the alerts and location
+          updateServiceWorkerData(formattedAlerts, { city, region });
+        } else {
+          console.warn('No alerts could be formatted for display');
+          setAlertsError('No displayable weather alerts for your location.');
+          setAlerts([]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching weather alerts:', err);
       setAlertsError('Failed to fetch weather alerts. Please try again later.');

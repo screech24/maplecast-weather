@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.4] - 2025-03-15
+
+### Fixed
+- Fixed alert system to properly fetch and display real alerts from Environment Canada
+- Removed fallback to mock alerts to ensure only real active alerts are displayed
+- Improved proxy implementation for fetching alerts from Environment Canada
+- Enhanced alert filtering logic with better location matching
+- Increased buffer zones for alert polygons and circles from 20km to 30km for better coverage
+- Added cache-busting parameters to ensure fresh alert data is fetched
+- Improved error handling and user feedback for alert system
+- Enhanced the alert display UI for better readability and navigation
+
+## [1.9.3] - 2025-03-14
+
+### Added
+- Added mock alert data for development environments to ensure alerts are displayed even when no real alerts are available
+- Created comprehensive mock alerts for all major Canadian regions for testing purposes
+
 ### Fixed
 - Fixed critical issue with alert system using wrong coordinates for saved locations
 - Ensured alert system consistently uses the last used location coordinates instead of browser geolocation

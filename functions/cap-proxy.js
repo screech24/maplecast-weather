@@ -5,7 +5,8 @@ exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Cache-Control': 'no-cache, no-store, must-revalidate'
   };
 
   // Handle preflight OPTIONS request
@@ -40,6 +41,41 @@ exports.handler = async function(event, context) {
     
     console.log(`Extracted path: ${path}`);
     
+    // Check for battleboard RSS feed requests
+    if (path.startsWith('battleboard/')) {
+      const regionCode = path.replace('battleboard/', '').replace('_e.xml', '');
+      const battleboardUrl = `https://weather.gc.ca/warnings/rss/${regionCode}_e.xml`;
+      
+      console.log(`Fetching battleboard RSS feed: ${battleboardUrl}`);
+      
+      try {
+        const response = await axios.get(battleboardUrl, {
+          headers: {
+            'Accept': 'application/xml, text/xml, */*',
+            'User-Agent': 'MapleCast-Weather-App/1.0',
+            'Cache-Control': 'no-cache'
+          },
+          timeout: 10000
+        });
+        
+        return {
+          statusCode: 200,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/xml'
+          },
+          body: response.data
+        };
+      } catch (rssError) {
+        console.error(`Error fetching RSS feed: ${rssError.message}`);
+        return {
+          statusCode: 502,
+          headers,
+          body: `Error fetching RSS feed: ${rssError.message}`
+        };
+      }
+    }
+    
     // Construct the URL to Environment Canada
     const url = `https://dd.weather.gc.ca/alerts/cap/${path}`;
     
@@ -49,7 +85,8 @@ exports.handler = async function(event, context) {
     const response = await axios.get(url, {
       headers: {
         'Accept': 'application/xml, text/xml, */*',
-        'User-Agent': 'MapleCast-Weather-App/1.0'
+        'User-Agent': 'MapleCast-Weather-App/1.0',
+        'Cache-Control': 'no-cache'
       },
       // Add a timeout to prevent hanging requests
       timeout: 15000,

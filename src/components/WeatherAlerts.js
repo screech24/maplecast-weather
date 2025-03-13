@@ -2,34 +2,20 @@ import React, { useState, useEffect } from 'react';
 import './WeatherAlerts.css';
 
 const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheckAlerts }) => {
-  const [expandedAlertIndex, setExpandedAlertIndex] = useState(null);
   const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
+  const [showAlertDetails, setShowAlertDetails] = useState(false);
   
-  // Reset expanded state when alerts change
+  // Reset current alert index when alerts change
   useEffect(() => {
-    setExpandedAlertIndex(null);
     setCurrentAlertIndex(0);
+    // Auto-show details if there's only one alert
+    setShowAlertDetails(alerts.length === 1);
   }, [alerts]);
   
-  // Handle alert click
-  const toggleAlert = (index) => {
-    if (expandedAlertIndex === index) {
-      setExpandedAlertIndex(null);
-    } else {
-      setExpandedAlertIndex(index);
-      setCurrentAlertIndex(index);
-    }
-  };
-  
-  // Navigate between alerts
-  const changeAlert = (newIndex) => {
-    const index = (newIndex + alerts.length) % alerts.length;
-    setCurrentAlertIndex(index);
-    setExpandedAlertIndex(index);
-  };
-  
-  // Format the date
+  // Format alert date for display
   const formatAlertDate = (dateString) => {
+    if (!dateString) return 'Unknown';
+    
     try {
       const date = new Date(dateString);
       return date.toLocaleString('en-CA', {
@@ -38,13 +24,45 @@ const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheck
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
+        timeZoneName: 'short'
       });
-    } catch (e) {
+    } catch (error) {
+      console.error('Error formatting date:', error);
       return dateString;
     }
   };
-
+  
+  // Handle clicking the "Check for Alerts" button
+  const handleCheckAlerts = () => {
+    if (onCheckAlerts) {
+      onCheckAlerts();
+    }
+  };
+  
+  // Handle clicking on an alert to show details
+  const handleAlertClick = (index) => {
+    setCurrentAlertIndex(index);
+    setShowAlertDetails(true);
+  };
+  
+  // Handle closing the alert details
+  const handleCloseDetails = (e) => {
+    e.stopPropagation();
+    setShowAlertDetails(false);
+  };
+  
+  // Handle navigating to the next alert
+  const handleNextAlert = (e) => {
+    e.stopPropagation();
+    setCurrentAlertIndex((prev) => (prev + 1) % alerts.length);
+  };
+  
+  // Handle navigating to the previous alert
+  const handlePrevAlert = (e) => {
+    e.stopPropagation();
+    setCurrentAlertIndex((prev) => (prev - 1 + alerts.length) % alerts.length);
+  };
+  
   // Get severity class based on alert severity
   const getSeverityClass = (alert) => {
     if (!alert || !alert.severity) return '';
@@ -61,104 +79,103 @@ const WeatherAlerts = ({ alerts, isLoading, error, notificationsEnabled, onCheck
     }
   };
   
-  // If there's an error, show error message
-  if (error) {
-    return (
-      <div className="weather-alerts error">
-        <div className="alert-indicator">
-          <i className="fa-solid fa-circle-exclamation"></i> {error}
-        </div>
-      </div>
-    );
-  }
-  
-  // If no alerts, show no alerts message
-  if (!alerts || alerts.length === 0) {
-    return (
-      <div className="weather-alerts no-alerts">
-        <div className="alert-indicator">
-          <i className="fa-solid fa-circle-check"></i> No active weather alerts
-          {onCheckAlerts && (
-            <button 
-              className="check-alerts-button" 
-              onClick={onCheckAlerts}
-              title="Check for new alerts"
-            >
-              <i className="fa-solid fa-rotate"></i>
-            </button>
-          )}
-          {notificationsEnabled && (
-            <span className="notification-status-indicator" title="Notifications enabled">
-              <i className="fa-solid fa-bell-on"></i>
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-  
-  // If loading, show loading state
-  if (isLoading) {
-    return (
-      <div className="weather-alerts loading">
-        <div className="alert-indicator">
-          <i className="fa-solid fa-circle-notch fa-spin"></i> Loading alerts...
-        </div>
-      </div>
-    );
-  }
-  
-  // Render alerts
   return (
-    <div className="weather-alerts">
-      {alerts.length > 0 && (
-        <div className="alerts-container">
-          <div 
-            className={`alert-header ${expandedAlertIndex !== null ? 'expanded' : ''} ${getSeverityClass(alerts[currentAlertIndex])}`}
-            onClick={() => toggleAlert(currentAlertIndex)}
-          >
-            <div className="alert-indicator">
-              <i className="fa-solid fa-triangle-exclamation"></i> 
-              {alerts.length > 1 
-                ? `${alerts.length} Active Weather Alerts` 
-                : 'Weather Alert'
-              }
+    <div className="weather-alerts-container">
+      <div className="weather-alerts-header">
+        <h2>
+          <i className="fa-solid fa-triangle-exclamation"></i> Weather Alerts
+          {alerts.length > 0 && <span className="alert-count">{alerts.length}</span>}
+        </h2>
+        <button 
+          className="refresh-alerts-button" 
+          onClick={handleCheckAlerts}
+          disabled={isLoading}
+          title="Check for new alerts"
+        >
+          <i className={`fa-solid fa-rotate ${isLoading ? 'fa-spin' : ''}`}></i>
+        </button>
+      </div>
+      
+      {isLoading ? (
+        <div className="alerts-loading">
+          <div className="loading-spinner"></div>
+          <p>Checking for weather alerts...</p>
+        </div>
+      ) : error ? (
+        <div className="alerts-error">
+          <p>{error}</p>
+          <button className="retry-button" onClick={handleCheckAlerts}>
+            Try Again
+          </button>
+        </div>
+      ) : alerts.length === 0 ? (
+        <div className="no-alerts">
+          <p>No active weather alerts for your location.</p>
+          <p className="alerts-note">
+            <i className="fa-solid fa-info-circle"></i> Alerts are provided by Environment Canada.
+          </p>
+        </div>
+      ) : (
+        <div className="alerts-list">
+          {!showAlertDetails ? (
+            <div className="alerts-summary">
+              {alerts.map((alert, index) => (
+                <div 
+                  key={alert.id || index} 
+                  className={`alert-item ${alert.severity?.toLowerCase() || ''}`}
+                  onClick={() => handleAlertClick(index)}
+                >
+                  <div className="alert-icon">
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                  </div>
+                  <div className="alert-summary-content">
+                    <h3>{alert.title}</h3>
+                    <p className="alert-meta">
+                      <span className="alert-time">
+                        <i className="fa-regular fa-clock"></i> {formatAlertDate(alert.published)}
+                      </span>
+                      {alert.severity && (
+                        <span className="alert-severity">
+                          <i className="fa-solid fa-exclamation-circle"></i> {alert.severity}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="alert-arrow">
+                    <i className="fa-solid fa-chevron-right"></i>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="alert-title">
-              {alerts[currentAlertIndex].title}
-            </div>
-            <div className="alert-toggle">
-              <i className={`fa-solid ${expandedAlertIndex !== null ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
-            </div>
-          </div>
-          
-          {expandedAlertIndex !== null && (
+          ) : (
             <div className="alert-details">
-              <div className="alert-navigation">
+              <div className="alert-details-header">
+                <button 
+                  className="close-details-button" 
+                  onClick={handleCloseDetails}
+                  aria-label="Close alert details"
+                >
+                  <i className="fa-solid fa-arrow-left"></i> Back
+                </button>
+                
                 {alerts.length > 1 && (
-                  <>
+                  <div className="alert-navigation">
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        changeAlert(currentAlertIndex - 1);
-                      }}
-                      className="alert-nav-button"
+                      onClick={handlePrevAlert}
+                      disabled={alerts.length <= 1}
+                      aria-label="Previous alert"
                     >
-                      <i className="fa-solid fa-chevron-left"></i> Previous
+                      <i className="fa-solid fa-chevron-left"></i>
                     </button>
-                    <span className="alert-counter">
-                      {currentAlertIndex + 1} of {alerts.length}
-                    </span>
+                    <span>{currentAlertIndex + 1} of {alerts.length}</span>
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        changeAlert(currentAlertIndex + 1);
-                      }}
-                      className="alert-nav-button"
+                      onClick={handleNextAlert}
+                      disabled={alerts.length <= 1}
+                      aria-label="Next alert"
                     >
-                      Next <i className="fa-solid fa-chevron-right"></i>
+                      <i className="fa-solid fa-chevron-right"></i>
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
               
