@@ -731,13 +731,14 @@ export const isLocationAffected = (userLocation, alert) => {
     return false;
   }
   
+  // For development/testing, return true to show all alerts
+  if (isDevelopmentMode()) {
+    debugLog('Development mode: showing all alerts');
+    return true;
+  }
+  
   // If the alert doesn't have areas, we can't determine if the location is affected
   if (!alert.areas || alert.areas.length === 0) {
-    // For development/testing, return true to show all alerts
-    if (isDevelopmentMode()) {
-      debugLog('No areas in alert, but returning true for development mode');
-      return true;
-    }
     debugLog('Alert has no areas defined');
     return false;
   }
@@ -755,9 +756,13 @@ export const isLocationAffected = (userLocation, alert) => {
     const nearbyRegions = getNearbyRegions(userLocation);
     debugLog(`Nearby regions: ${nearbyRegions.join(', ')}`);
     
+    // Get the user's province
+    const userProvince = getUserProvince(userLocation);
+    debugLog(`User province: ${userProvince || 'unknown'}`);
+    
     // Check each area in the alert
     return alert.areas.some(area => {
-      // Check if area description matches user's region or nearby regions
+      // Check if area description matches user's region, nearby regions, or province
       if (area.description) {
         const areaDescription = area.description.toLowerCase();
         
@@ -772,6 +777,23 @@ export const isLocationAffected = (userLocation, alert) => {
           if (region && areaDescription.includes(region.toLowerCase())) {
             debugLog(`Nearby region match found: ${region} in ${area.description}`);
             return true;
+          }
+        }
+        
+        // Check if the area description contains the user's province
+        if (userProvince && areaDescription.includes(userProvince.toLowerCase())) {
+          debugLog(`Province match found: ${userProvince} in ${area.description}`);
+          return true;
+        }
+        
+        // Check for common variations of region names
+        if (userRegion) {
+          const regionVariations = getRegionVariations(userRegion);
+          for (const variation of regionVariations) {
+            if (areaDescription.includes(variation.toLowerCase())) {
+              debugLog(`Region variation match found: ${variation} in ${area.description}`);
+              return true;
+            }
           }
         }
       }
@@ -796,13 +818,13 @@ export const isLocationAffected = (userLocation, alert) => {
             return true;
           }
           
-          // If not in the polygon, check with a buffer (10km)
+          // If not in the polygon, check with a buffer (20km)
           try {
-            const bufferedPolygon = turf.buffer(alertPolygon, 10, { units: 'kilometers' });
+            const bufferedPolygon = turf.buffer(alertPolygon, 20, { units: 'kilometers' });
             const isInBufferedPolygon = turf.booleanPointInPolygon(userPoint, bufferedPolygon);
             
             if (isInBufferedPolygon) {
-              debugLog(`User is within 10km of polygon for area: ${area.description}`);
+              debugLog(`User is within 20km of polygon for area: ${area.description}`);
               return true;
             }
           } catch (bufferError) {
@@ -817,12 +839,12 @@ export const isLocationAffected = (userLocation, alert) => {
             const coords = area.polygon.map(coord => ({ lng: coord[0], lat: coord[1] }));
             const bounds = getBoundingBox(coords);
             
-            // Add a small buffer to the bounds (0.1 degrees ~ 11km)
+            // Add a small buffer to the bounds (0.2 degrees ~ 22km)
             const bufferedBounds = {
-              north: bounds.north + 0.1,
-              south: bounds.south - 0.1,
-              east: bounds.east + 0.1,
-              west: bounds.west - 0.1
+              north: bounds.north + 0.2,
+              south: bounds.south - 0.2,
+              east: bounds.east + 0.2,
+              west: bounds.west - 0.2
             };
             
             const isInBufferedBounds = userLocation.latitude >= bufferedBounds.south && 
@@ -846,8 +868,8 @@ export const isLocationAffected = (userLocation, alert) => {
           const centerPoint = turf.point(area.circle.center);
           const distance = turf.distance(userPoint, centerPoint, { units: 'kilometers' });
           
-          // Add a 10km buffer to the radius
-          const bufferedRadius = area.circle.radius + 10;
+          // Add a 20km buffer to the radius
+          const bufferedRadius = area.circle.radius + 20;
           const isInBufferedCircle = distance <= bufferedRadius;
           
           if (isInBufferedCircle) {
@@ -866,6 +888,73 @@ export const isLocationAffected = (userLocation, alert) => {
     console.error('Error in isLocationAffected:', error);
     return false;
   }
+};
+
+/**
+ * Gets the user's province based on coordinates
+ * @param {Object} location - The location {latitude, longitude}
+ * @returns {string|null} The province name or null if unknown
+ */
+const getUserProvince = (location) => {
+  if (!location) return null;
+  
+  // First try to get the region, which might be a city or smaller area
+  const region = getRegionFromCoordinates(location);
+  
+  if (!region) return null;
+  
+  // Map of provinces and their major cities/regions
+  const provinceMap = {
+    'Alberta': ['Edmonton', 'Calgary', 'Red Deer', 'Lethbridge', 'Fort McMurray', 'Grande Prairie', 'Medicine Hat', 'Banff'],
+    'British Columbia': ['Vancouver', 'Victoria', 'Kelowna', 'Kamloops', 'Nanaimo', 'Prince George', 'Whistler', 'Tofino'],
+    'Manitoba': ['Winnipeg', 'Brandon', 'Thompson', 'Portage la Prairie', 'Steinbach', 'Dauphin'],
+    'New Brunswick': ['Fredericton', 'Moncton', 'Saint John', 'Bathurst', 'Edmundston', 'Miramichi'],
+    'Newfoundland and Labrador': ['St. John\'s', 'Corner Brook', 'Gander', 'Grand Falls-Windsor', 'Labrador City'],
+    'Northwest Territories': ['Yellowknife', 'Inuvik', 'Hay River', 'Fort Smith'],
+    'Nova Scotia': ['Halifax', 'Sydney', 'Truro', 'Dartmouth', 'Yarmouth', 'New Glasgow'],
+    'Nunavut': ['Iqaluit', 'Rankin Inlet', 'Arviat', 'Baker Lake', 'Cambridge Bay'],
+    'Ontario': ['Toronto', 'Ottawa', 'Hamilton', 'London', 'Windsor', 'Sudbury', 'Thunder Bay', 'Kingston', 'Niagara Falls'],
+    'Prince Edward Island': ['Charlottetown', 'Summerside', 'Stratford', 'Cornwall', 'Montague'],
+    'Quebec': ['Montreal', 'Quebec City', 'Laval', 'Gatineau', 'Sherbrooke', 'Trois-Rivieres', 'Saguenay'],
+    'Saskatchewan': ['Regina', 'Saskatoon', 'Prince Albert', 'Moose Jaw', 'Swift Current', 'Yorkton'],
+    'Yukon': ['Whitehorse', 'Dawson City', 'Watson Lake', 'Haines Junction']
+  };
+  
+  // Check if the region is in any of the provinces
+  for (const [province, cities] of Object.entries(provinceMap)) {
+    if (cities.some(city => region.includes(city))) {
+      return province;
+    }
+  }
+  
+  // If we couldn't determine the province from the region, return null
+  return null;
+};
+
+/**
+ * Gets variations of a region name for more flexible matching
+ * @param {string} region - The region name
+ * @returns {Array} Array of region name variations
+ */
+const getRegionVariations = (region) => {
+  if (!region) return [];
+  
+  const variations = [region];
+  
+  // Add common variations
+  variations.push(`${region} area`);
+  variations.push(`${region} region`);
+  variations.push(`${region} and vicinity`);
+  variations.push(`${region} and surrounding areas`);
+  
+  // For cities, add "City of" variation
+  variations.push(`City of ${region}`);
+  
+  // Add variations with hyphens and without spaces
+  variations.push(region.replace(/\s+/g, '-'));
+  variations.push(region.replace(/\s+/g, ''));
+  
+  return variations;
 };
 
 // Helper function to get a bounding box from a set of coordinates
@@ -965,73 +1054,304 @@ const getRegionFromCoordinates = (location) => {
 };
 
 /**
- * Gets nearby regions that might affect the user's location
- * @param {Object} location - The location {latitude, longitude}
- * @returns {Array<string>} Array of nearby region names
+ * Gets nearby regions based on the user's location
+ * @param {Object} location - The user's location {latitude, longitude}
+ * @returns {Array} Array of nearby region names
  */
 const getNearbyRegions = (location) => {
-  // Quebec City and Lévis area
-  if (location.latitude >= 46.7 && location.latitude <= 46.9 && 
-      location.longitude >= -71.3 && location.longitude <= -71.0) {
+  if (!location) return [];
+  
+  // Get the user's region
+  const userRegion = getRegionFromCoordinates(location);
+  
+  if (!userRegion) return [];
+  
+  // Map of regions and their nearby regions
+  const regionMap = {
+    // Alberta
+    'Edmonton': ['St. Albert', 'Sherwood Park', 'Leduc', 'Spruce Grove', 'Fort Saskatchewan', 'Beaumont', 'Devon', 'Stony Plain', 'Alberta', 'Central Alberta', 'Northern Alberta'],
+    'Calgary': ['Airdrie', 'Cochrane', 'Chestermere', 'Okotoks', 'Strathmore', 'Canmore', 'Banff', 'Alberta', 'Southern Alberta'],
+    'Red Deer': ['Sylvan Lake', 'Lacombe', 'Blackfalds', 'Innisfail', 'Penhold', 'Alberta', 'Central Alberta'],
+    'Lethbridge': ['Coaldale', 'Coalhurst', 'Taber', 'Raymond', 'Alberta', 'Southern Alberta'],
+    'Fort McMurray': ['Wood Buffalo', 'Alberta', 'Northern Alberta'],
+    'Grande Prairie': ['Wembley', 'Beaverlodge', 'Sexsmith', 'Alberta', 'Northern Alberta'],
+    'Medicine Hat': ['Redcliff', 'Dunmore', 'Alberta', 'Southern Alberta'],
     
-    return ['Québec', 'Lévis', 'Chaudière-Appalaches', 'Beauce', 'Etchemin', 'Montmagny', 'Bellechasse'];
+    // British Columbia
+    'Vancouver': ['Burnaby', 'Richmond', 'Surrey', 'North Vancouver', 'West Vancouver', 'Coquitlam', 'New Westminster', 'Delta', 'Langley', 'White Rock', 'British Columbia', 'Lower Mainland', 'BC', 'B.C.'],
+    'Victoria': ['Saanich', 'Oak Bay', 'Esquimalt', 'Colwood', 'Langford', 'Sidney', 'British Columbia', 'Vancouver Island', 'BC', 'B.C.'],
+    'Kelowna': ['West Kelowna', 'Lake Country', 'Peachland', 'Vernon', 'Penticton', 'British Columbia', 'Interior BC', 'BC', 'B.C.'],
+    'Kamloops': ['Chase', 'Barriere', 'British Columbia', 'Interior BC', 'BC', 'B.C.'],
+    'Nanaimo': ['Parksville', 'Qualicum Beach', 'Ladysmith', 'British Columbia', 'Vancouver Island', 'BC', 'B.C.'],
+    'Prince George': ['Vanderhoof', 'British Columbia', 'Northern BC', 'BC', 'B.C.'],
+    'Whistler': ['Squamish', 'Pemberton', 'British Columbia', 'BC', 'B.C.'],
+    'Tofino': ['Ucluelet', 'Port Alberni', 'British Columbia', 'Vancouver Island', 'BC', 'B.C.'],
+    
+    // Manitoba
+    'Winnipeg': ['Headingley', 'East St. Paul', 'West St. Paul', 'Stonewall', 'Selkirk', 'Niverville', 'Manitoba', 'Southern Manitoba', 'MB'],
+    'Brandon': ['Shilo', 'Carberry', 'Manitoba', 'Western Manitoba', 'MB'],
+    'Thompson': ['Flin Flon', 'The Pas', 'Manitoba', 'Northern Manitoba', 'MB'],
+    'Portage la Prairie': ['MacGregor', 'Manitoba', 'Southern Manitoba', 'MB'],
+    'Steinbach': ['Niverville', 'Manitoba', 'Southern Manitoba', 'MB'],
+    'Dauphin': ['Swan River', 'Manitoba', 'Western Manitoba', 'MB'],
+    
+    // New Brunswick
+    'Fredericton': ['Oromocto', 'New Maryland', 'Hanwell', 'New Brunswick', 'NB', 'N.B.'],
+    'Moncton': ['Dieppe', 'Riverview', 'Shediac', 'New Brunswick', 'NB', 'N.B.'],
+    'Saint John': ['Rothesay', 'Quispamsis', 'Grand Bay-Westfield', 'New Brunswick', 'NB', 'N.B.'],
+    'Bathurst': ['Beresford', 'Petit-Rocher', 'New Brunswick', 'NB', 'N.B.'],
+    'Edmundston': ['Saint-Basile', 'New Brunswick', 'NB', 'N.B.'],
+    'Miramichi': ['Chatham', 'Newcastle', 'New Brunswick', 'NB', 'N.B.'],
+    
+    // Newfoundland and Labrador
+    'St. John\'s': ['Mount Pearl', 'Paradise', 'Conception Bay South', 'Portugal Cove-St. Philip\'s', 'Torbay', 'Newfoundland and Labrador', 'Newfoundland', 'NL', 'N.L.'],
+    'Corner Brook': ['Deer Lake', 'Pasadena', 'Newfoundland and Labrador', 'Newfoundland', 'NL', 'N.L.'],
+    'Gander': ['Appleton', 'Glenwood', 'Newfoundland and Labrador', 'Newfoundland', 'NL', 'N.L.'],
+    'Grand Falls-Windsor': ['Bishop\'s Falls', 'Botwood', 'Newfoundland and Labrador', 'Newfoundland', 'NL', 'N.L.'],
+    'Labrador City': ['Wabush', 'Churchill Falls', 'Newfoundland and Labrador', 'Labrador', 'NL', 'N.L.'],
+    
+    // Northwest Territories
+    'Yellowknife': ['Behchoko', 'Dettah', 'Northwest Territories', 'NT', 'N.W.T.', 'NWT'],
+    'Inuvik': ['Aklavik', 'Tuktoyaktuk', 'Northwest Territories', 'NT', 'N.W.T.', 'NWT'],
+    'Hay River': ['Fort Smith', 'Enterprise', 'Northwest Territories', 'NT', 'N.W.T.', 'NWT'],
+    'Fort Smith': ['Hay River', 'Northwest Territories', 'NT', 'N.W.T.', 'NWT'],
+    
+    // Nova Scotia
+    'Halifax': ['Dartmouth', 'Bedford', 'Sackville', 'Cole Harbour', 'Eastern Passage', 'Timberlea', 'Waverley', 'Nova Scotia', 'NS', 'N.S.'],
+    'Sydney': ['Glace Bay', 'North Sydney', 'Sydney Mines', 'New Waterford', 'Nova Scotia', 'NS', 'N.S.'],
+    'Truro': ['Bible Hill', 'Salmon River', 'Valley', 'Nova Scotia', 'NS', 'N.S.'],
+    'Dartmouth': ['Halifax', 'Cole Harbour', 'Eastern Passage', 'Nova Scotia', 'NS', 'N.S.'],
+    'Yarmouth': ['Hebron', 'Arcadia', 'Nova Scotia', 'NS', 'N.S.'],
+    'New Glasgow': ['Stellarton', 'Westville', 'Trenton', 'Pictou', 'Nova Scotia', 'NS', 'N.S.'],
+    
+    // Nunavut
+    'Iqaluit': ['Apex', 'Nunavut', 'NU'],
+    'Rankin Inlet': ['Chesterfield Inlet', 'Baker Lake', 'Nunavut', 'NU'],
+    'Arviat': ['Whale Cove', 'Nunavut', 'NU'],
+    'Baker Lake': ['Rankin Inlet', 'Chesterfield Inlet', 'Nunavut', 'NU'],
+    'Cambridge Bay': ['Kugluktuk', 'Nunavut', 'NU'],
+    
+    // Ontario
+    'Toronto': ['Mississauga', 'Brampton', 'Markham', 'Vaughan', 'Richmond Hill', 'Pickering', 'Ajax', 'Whitby', 'Oshawa', 'Oakville', 'Burlington', 'Hamilton', 'Ontario', 'Southern Ontario', 'Greater Toronto Area', 'GTA', 'ON'],
+    'Ottawa': ['Gatineau', 'Kanata', 'Orleans', 'Nepean', 'Barrhaven', 'Gloucester', 'Ontario', 'Eastern Ontario', 'ON'],
+    'Hamilton': ['Burlington', 'Stoney Creek', 'Ancaster', 'Dundas', 'Grimsby', 'Ontario', 'Southern Ontario', 'ON'],
+    'London': ['St. Thomas', 'Strathroy', 'Dorchester', 'Ontario', 'Southwestern Ontario', 'ON'],
+    'Windsor': ['LaSalle', 'Tecumseh', 'Lakeshore', 'Amherstburg', 'Ontario', 'Southwestern Ontario', 'ON'],
+    'Sudbury': ['Lively', 'Azilda', 'Chelmsford', 'Val Caron', 'Ontario', 'Northern Ontario', 'ON'],
+    'Thunder Bay': ['Shuniah', 'Oliver Paipoonge', 'Ontario', 'Northern Ontario', 'ON'],
+    'Kingston': ['Gananoque', 'Napanee', 'Ontario', 'Eastern Ontario', 'ON'],
+    'Niagara Falls': ['St. Catharines', 'Welland', 'Fort Erie', 'Niagara-on-the-Lake', 'Ontario', 'Southern Ontario', 'ON'],
+    
+    // Prince Edward Island
+    'Charlottetown': ['Stratford', 'Cornwall', 'Summerside', 'Prince Edward Island', 'PEI', 'P.E.I.'],
+    'Summerside': ['Kensington', 'Borden-Carleton', 'Prince Edward Island', 'PEI', 'P.E.I.'],
+    'Stratford': ['Charlottetown', 'Prince Edward Island', 'PEI', 'P.E.I.'],
+    'Cornwall': ['Charlottetown', 'Prince Edward Island', 'PEI', 'P.E.I.'],
+    'Montague': ['Georgetown', 'Prince Edward Island', 'PEI', 'P.E.I.'],
+    
+    // Quebec
+    'Montréal': ['Laval', 'Longueuil', 'Brossard', 'Saint-Lambert', 'Boucherville', 'Repentigny', 'Terrebonne', 'Blainville', 'Mirabel', 'Saint-Jerome', 'Quebec', 'Québec', 'Southern Quebec', 'QC'],
+    'Montreal': ['Laval', 'Longueuil', 'Brossard', 'Saint-Lambert', 'Boucherville', 'Repentigny', 'Terrebonne', 'Blainville', 'Mirabel', 'Saint-Jerome', 'Quebec', 'Québec', 'Southern Quebec', 'QC'],
+    'Québec': ['Levis', 'Ancienne-Lorette', 'Saint-Augustin-de-Desmaures', 'Beauport', 'Charlesbourg', 'Quebec', 'Québec', 'QC'],
+    'Quebec City': ['Levis', 'Ancienne-Lorette', 'Saint-Augustin-de-Desmaures', 'Beauport', 'Charlesbourg', 'Quebec', 'Québec', 'QC'],
+    'Laval': ['Montreal', 'Montréal', 'Terrebonne', 'Blainville', 'Boisbriand', 'Quebec', 'Québec', 'QC'],
+    'Gatineau': ['Ottawa', 'Hull', 'Aylmer', 'Quebec', 'Québec', 'QC'],
+    'Sherbrooke': ['Magog', 'Coaticook', 'Quebec', 'Québec', 'QC'],
+    'Trois-Rivieres': ['Becancour', 'Shawinigan', 'Quebec', 'Québec', 'QC'],
+    'Saguenay': ['Alma', 'Jonquiere', 'Chicoutimi', 'Quebec', 'Québec', 'QC'],
+    'Lévis': ['Quebec City', 'Québec', 'Quebec', 'QC'],
+    
+    // Saskatchewan
+    'Regina': ['Moose Jaw', 'Lumsden', 'White City', 'Pilot Butte', 'Balgonie', 'Saskatchewan', 'Southern Saskatchewan', 'SK'],
+    'Saskatoon': ['Martensville', 'Warman', 'Osler', 'Saskatchewan', 'Central Saskatchewan', 'SK'],
+    'Prince Albert': ['Shellbrook', 'Saskatchewan', 'Northern Saskatchewan', 'SK'],
+    'Moose Jaw': ['Regina', 'Saskatchewan', 'Southern Saskatchewan', 'SK'],
+    'Swift Current': ['Herbert', 'Saskatchewan', 'Southern Saskatchewan', 'SK'],
+    'Yorkton': ['Melville', 'Saskatchewan', 'Eastern Saskatchewan', 'SK'],
+    
+    // Yukon
+    'Whitehorse': ['Marsh Lake', 'Carcross', 'Yukon', 'Yukon Territory', 'YT'],
+    'Dawson City': ['Mayo', 'Yukon', 'Yukon Territory', 'YT'],
+    'Watson Lake': ['Upper Liard', 'Yukon', 'Yukon Territory', 'YT'],
+    'Haines Junction': ['Destruction Bay', 'Yukon', 'Yukon Territory', 'YT']
+  };
+  
+  // Get nearby regions for the user's region
+  const nearbyRegions = regionMap[userRegion] || [];
+  
+  // Add the user's region to the list if not already included
+  if (userRegion && !nearbyRegions.includes(userRegion)) {
+    nearbyRegions.unshift(userRegion);
   }
   
-  // Montreal area
-  if (location.latitude >= 45.4 && location.latitude <= 45.7 && 
-      location.longitude >= -73.7 && location.longitude <= -73.4) {
-    return ['Montréal', 'Laval', 'Montérégie', 'Laurentides', 'Lanaudière'];
+  // Add province-level regions
+  const provinces = [
+    'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 
+    'Newfoundland and Labrador', 'Northwest Territories', 'Nova Scotia', 
+    'Nunavut', 'Ontario', 'Prince Edward Island', 'Quebec', 'Québec',
+    'Saskatchewan', 'Yukon'
+  ];
+  
+  // Add province abbreviations
+  const provinceAbbreviations = {
+    'Alberta': ['AB'],
+    'British Columbia': ['BC', 'B.C.'],
+    'Manitoba': ['MB'],
+    'New Brunswick': ['NB', 'N.B.'],
+    'Newfoundland and Labrador': ['NL', 'N.L.'],
+    'Northwest Territories': ['NT', 'N.W.T.', 'NWT'],
+    'Nova Scotia': ['NS', 'N.S.'],
+    'Nunavut': ['NU'],
+    'Ontario': ['ON'],
+    'Prince Edward Island': ['PEI', 'P.E.I.'],
+    'Quebec': ['QC', 'Québec'],
+    'Québec': ['QC', 'Quebec'],
+    'Saskatchewan': ['SK'],
+    'Yukon': ['YT', 'Yukon Territory']
+  };
+  
+  // Add regional variations
+  const regionalVariations = {
+    'Alberta': ['Northern Alberta', 'Southern Alberta', 'Central Alberta', 'Eastern Alberta', 'Western Alberta'],
+    'British Columbia': ['Northern BC', 'Southern BC', 'Central BC', 'Eastern BC', 'Western BC', 'Vancouver Island', 'Lower Mainland', 'Interior BC'],
+    'Manitoba': ['Northern Manitoba', 'Southern Manitoba', 'Eastern Manitoba', 'Western Manitoba'],
+    'Ontario': ['Northern Ontario', 'Southern Ontario', 'Eastern Ontario', 'Western Ontario', 'Central Ontario', 'Southwestern Ontario', 'Southeastern Ontario', 'Northwestern Ontario', 'Northeastern Ontario', 'Greater Toronto Area', 'GTA'],
+    'Quebec': ['Northern Quebec', 'Southern Quebec', 'Eastern Quebec', 'Western Quebec', 'Central Quebec'],
+    'Québec': ['Northern Quebec', 'Southern Quebec', 'Eastern Quebec', 'Western Quebec', 'Central Quebec'],
+    'Saskatchewan': ['Northern Saskatchewan', 'Southern Saskatchewan', 'Eastern Saskatchewan', 'Western Saskatchewan']
+  };
+  
+  // Add all relevant province variations
+  for (const province of provinces) {
+    if (nearbyRegions.includes(province)) {
+      // Add abbreviations
+      const abbrs = provinceAbbreviations[province] || [];
+      for (const abbr of abbrs) {
+        if (!nearbyRegions.includes(abbr)) {
+          nearbyRegions.push(abbr);
+        }
+      }
+      
+      // Add regional variations
+      const variations = regionalVariations[province] || [];
+      for (const variation of variations) {
+        if (!nearbyRegions.includes(variation)) {
+          nearbyRegions.push(variation);
+        }
+      }
+    }
   }
   
-  // Toronto area
-  if (location.latitude >= 43.6 && location.latitude <= 43.9 && 
-      location.longitude >= -79.5 && location.longitude <= -79.2) {
-    return ['Toronto', 'Peel', 'York', 'Durham', 'Halton', 'Hamilton', 'Niagara'];
+  return nearbyRegions;
+};
+
+/**
+ * Gets variations of a province name for more flexible matching
+ * @param {string} province - The province name
+ * @returns {Array} Array of province name variations
+ */
+const getProvinceVariations = (province) => {
+  if (!province) return [];
+  
+  const variations = [province];
+  
+  // Add common variations
+  variations.push(`${province} Province`);
+  
+  // Add specific variations for each province
+  switch (province) {
+    case 'Alberta':
+      variations.push('AB');
+      variations.push('Northern Alberta');
+      variations.push('Southern Alberta');
+      variations.push('Central Alberta');
+      variations.push('Eastern Alberta');
+      variations.push('Western Alberta');
+      break;
+    case 'British Columbia':
+      variations.push('BC');
+      variations.push('B.C.');
+      variations.push('Northern BC');
+      variations.push('Southern BC');
+      variations.push('Central BC');
+      variations.push('Eastern BC');
+      variations.push('Western BC');
+      variations.push('Vancouver Island');
+      variations.push('Lower Mainland');
+      variations.push('Interior BC');
+      break;
+    case 'Manitoba':
+      variations.push('MB');
+      variations.push('Northern Manitoba');
+      variations.push('Southern Manitoba');
+      variations.push('Eastern Manitoba');
+      variations.push('Western Manitoba');
+      break;
+    case 'New Brunswick':
+      variations.push('NB');
+      variations.push('N.B.');
+      break;
+    case 'Newfoundland and Labrador':
+      variations.push('NL');
+      variations.push('N.L.');
+      variations.push('Newfoundland');
+      variations.push('Labrador');
+      break;
+    case 'Northwest Territories':
+      variations.push('NT');
+      variations.push('N.W.T.');
+      variations.push('NWT');
+      break;
+    case 'Nova Scotia':
+      variations.push('NS');
+      variations.push('N.S.');
+      break;
+    case 'Nunavut':
+      variations.push('NU');
+      break;
+    case 'Ontario':
+      variations.push('ON');
+      variations.push('Northern Ontario');
+      variations.push('Southern Ontario');
+      variations.push('Eastern Ontario');
+      variations.push('Western Ontario');
+      variations.push('Central Ontario');
+      variations.push('Southwestern Ontario');
+      variations.push('Southeastern Ontario');
+      variations.push('Northwestern Ontario');
+      variations.push('Northeastern Ontario');
+      variations.push('Greater Toronto Area');
+      variations.push('GTA');
+      break;
+    case 'Prince Edward Island':
+      variations.push('PEI');
+      variations.push('P.E.I.');
+      break;
+    case 'Quebec':
+      variations.push('QC');
+      variations.push('Québec');
+      variations.push('Northern Quebec');
+      variations.push('Southern Quebec');
+      variations.push('Eastern Quebec');
+      variations.push('Western Quebec');
+      variations.push('Central Quebec');
+      break;
+    case 'Saskatchewan':
+      variations.push('SK');
+      variations.push('Northern Saskatchewan');
+      variations.push('Southern Saskatchewan');
+      variations.push('Eastern Saskatchewan');
+      variations.push('Western Saskatchewan');
+      break;
+    case 'Yukon':
+      variations.push('YT');
+      variations.push('Yukon Territory');
+      break;
+    default:
+      break;
   }
   
-  // Vancouver area
-  if (location.latitude >= 49.2 && location.latitude <= 49.3 && 
-      location.longitude >= -123.2 && location.longitude <= -123.0) {
-    return ['Vancouver', 'Burnaby', 'Richmond', 'Surrey', 'North Vancouver', 'West Vancouver', 'Coquitlam', 'Fraser Valley'];
-  }
-  
-  // Calgary area
-  if (location.latitude >= 51.0 && location.latitude <= 51.2 && 
-      location.longitude >= -114.2 && location.longitude <= -113.9) {
-    return ['Calgary', 'Airdrie', 'Rocky View County', 'Foothills'];
-  }
-  
-  // Edmonton area
-  if (location.latitude >= 53.5 && location.latitude <= 53.6 && 
-      location.longitude >= -113.6 && location.longitude <= -113.4) {
-    return ['Edmonton', 'St. Albert', 'Sherwood Park', 'Strathcona County', 'Leduc'];
-  }
-  
-  // Winnipeg area
-  if (location.latitude >= 49.8 && location.latitude <= 50.0 && 
-      location.longitude >= -97.2 && location.longitude <= -97.0) {
-    return ['Winnipeg', 'St. Boniface', 'Headingley', 'East St. Paul', 'West St. Paul'];
-  }
-  
-  // Ottawa area
-  if (location.latitude >= 45.3 && location.latitude <= 45.5 && 
-      location.longitude >= -75.8 && location.longitude <= -75.6) {
-    return ['Ottawa', 'Gatineau', 'Nepean', 'Kanata', 'Orleans', 'Gloucester'];
-  }
-  
-  // Halifax area
-  if (location.latitude >= 44.6 && location.latitude <= 44.7 && 
-      location.longitude >= -63.7 && location.longitude <= -63.5) {
-    return ['Halifax', 'Dartmouth', 'Bedford', 'Sackville', 'Cole Harbour'];
-  }
-  
-  // Victoria area
-  if (location.latitude >= 48.4 && location.latitude <= 48.5 && 
-      location.longitude >= -123.4 && location.longitude <= -123.3) {
-    return ['Victoria', 'Saanich', 'Esquimalt', 'Oak Bay', 'Colwood', 'Langford'];
-  }
-  
-  return [];
+  return variations;
 };
 
 /**

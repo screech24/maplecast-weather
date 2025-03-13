@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2025-03-13
+
+### Fixed
+- Fixed alerts not showing for Canadian locations with active alerts
+- Enhanced region matching system to work for all Canadian provinces and territories
+- Added comprehensive province and region variations for more accurate alert matching
+- Improved alert detection for all Canadian locations, not just specific regions
+- Increased buffer zones for alert polygons and circles from 10km to 20km for better coverage
+
 ## [1.9.0] - 2025-03-13
 
 ### Fixed
