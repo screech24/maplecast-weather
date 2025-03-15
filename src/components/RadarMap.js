@@ -36,6 +36,25 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
     return () => clearTimeout(timer);
   }, []);
   
+  // Function to get a proxied URL for the WMS service
+  const getProxiedWmsUrl = () => {
+    // Check if we're in development mode
+    const isLocalDevelopment = window.location.hostname === 'localhost' || 
+                              window.location.hostname === '127.0.0.1';
+    
+    if (isLocalDevelopment) {
+      // In development, use the direct URL
+      return "https://geo.weather.gc.ca/geomet";
+    } else {
+      // In production (GitHub Pages), use a CORS proxy
+      // Try a different CORS proxy that might work better with WMS services
+      return "https://corsproxy.io/?https://geo.weather.gc.ca/geomet";
+    }
+  };
+  
+  // Get the proxied WMS URL
+  const wmsUrl = getProxiedWmsUrl();
+  
   // Environment Canada radar layer parameters
   const radarLayerParams = {
     layers: 'RADAR_1KM_RSNO',
@@ -73,7 +92,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
           />
           {isMapReady && (
             <WMSTileLayer
-              url="https://geo.weather.gc.ca/geomet"
+              url={wmsUrl}
               params={radarLayerParams}
             />
           )}

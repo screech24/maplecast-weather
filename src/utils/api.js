@@ -376,13 +376,16 @@ export const fetchWeatherAlerts = async (cityName, province) => {
     return { alerts: [], error: 'Could not determine region code for your location' };
   }
   
-  // Try multiple CORS proxies - updated with more reliable options
+  // Try multiple CORS proxies - updated with more reliable options and prioritized
   const corsProxies = [
-    'https://api.codetabs.com/v1/proxy?quest=',
+    // Prioritize more reliable proxies
     'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url=',
+    'https://api.codetabs.com/v1/proxy?quest=',
     'https://proxy.cors.sh/',
     'https://cors-anywhere.herokuapp.com/',
-    'https://api.allorigins.win/raw?url='
+    // Add a new proxy option that might work better
+    'https://thingproxy.freeboard.io/fetch/'
   ];
   
   // Try both battleboard and city-specific feeds
@@ -450,6 +453,32 @@ export const fetchWeatherAlerts = async (cityName, province) => {
       
       console.log(`Trying to fetch alerts from: ${alertUrl}`);
       
+      // Try direct fetch with GitHub Pages domain first (might work if GitHub Pages allows it)
+      if (window.location.hostname.includes('github.io')) {
+        try {
+          console.log('Trying direct fetch from GitHub Pages');
+          const response = await fetch(alertUrl, {
+            headers: {
+              'Accept': 'application/xml, text/xml, */*',
+              'Cache-Control': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            const text = await response.text();
+            if (text && text.trim() !== '') {
+              xmlData = text;
+              fetchSucceeded = true;
+              console.log('Direct fetch from GitHub Pages succeeded');
+              break;
+            }
+          }
+        } catch (directError) {
+          console.log('Direct fetch from GitHub Pages failed:', directError);
+        }
+      }
+      
+      // If direct fetch failed, try the proxies
       for (const proxy of corsProxies) {
         try {
           const proxyUrl = `${proxy}${encodeURIComponent(alertUrl)}`;

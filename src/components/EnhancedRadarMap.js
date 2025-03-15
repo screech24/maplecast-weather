@@ -273,6 +273,25 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
     attribution: 'Weather Alerts © Environment Canada'
   };
 
+  // Function to get a proxied URL for the WMS service
+  const getProxiedWmsUrl = () => {
+    // Check if we're in development mode
+    const isLocalDevelopment = window.location.hostname === 'localhost' || 
+                              window.location.hostname === '127.0.0.1';
+    
+    if (isLocalDevelopment) {
+      // In development, use the direct URL
+      return "https://geo.weather.gc.ca/geomet";
+    } else {
+      // In production (GitHub Pages), use a CORS proxy
+      // Try a different CORS proxy that might work better with WMS services
+      return "https://corsproxy.io/?https://geo.weather.gc.ca/geomet";
+    }
+  };
+  
+  // Get the proxied WMS URL
+  const wmsUrl = getProxiedWmsUrl();
+
   return (
     <div className={`enhanced-radar-container ${isDarkMode ? 'dark-mode' : ''}`}>
       <h2><i className="fa-solid fa-satellite-dish"></i> Enhanced Radar Visualization</h2>
@@ -393,25 +412,25 @@ const EnhancedRadarMap = ({ coordinates, isDarkMode }) => {
             <>
               {activeLayers.rain && (
                 <WMSTileLayer
-                  url="https://geo.weather.gc.ca/geomet"
+                  url={wmsUrl}
                   params={rainLayerParams}
                 />
               )}
               {activeLayers.snow && (
                 <WMSTileLayer
-                  url="https://geo.weather.gc.ca/geomet"
+                  url={wmsUrl}
                   params={snowLayerParams}
                 />
               )}
               {activeLayers.mixed && (
                 <WMSTileLayer
-                  url="https://geo.weather.gc.ca/geomet"
+                  url={wmsUrl}
                   params={mixedLayerParams}
                 />
               )}
               {activeLayers.alerts && (
                 <WMSTileLayer
-                  url="https://geo.weather.gc.ca/geomet"
+                  url={wmsUrl}
                   params={alertsLayerParams}
                 />
               )}
