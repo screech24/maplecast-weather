@@ -1,34 +1,31 @@
 {
   "name": "maplecast",
-  "version": "1.9.4",
+  "version": "1.4.15",
   "private": true,
-  "homepage": "https://maplecast.netlify.app",
+  "homepage": "https://screech24.github.io/maplecast-weather",
   "dependencies": {
-    "@react-leaflet/core": "^2.1.0",
+    "@react-leaflet/core": "^3.0.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^14.2.1",
+    "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
-    "@turf/turf": "^7.2.0",
     "axios": "^1.8.2",
     "iso8601-js-period": "^0.2.1",
     "leaflet": "^1.9.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-leaflet": "^4.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4",
     "xml2js": "^0.6.2"
   },
   "scripts": {
     "start": "HOST=0.0.0.0 react-app-rewired start",
-    "dev": "REACT_APP_ENV=development react-app-rewired start",
-    "debug": "REACT_APP_ENV=development REACT_APP_DEBUG=true react-app-rewired start",
     "build": "react-app-rewired build",
-    "build:dev": "REACT_APP_ENV=development react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
-    "netlify:deploy": "npm run build && netlify deploy --prod"
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
@@ -52,6 +49,8 @@
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
     "events": "^3.3.0",
+    "gh-pages": "^6.3.0",
+    "http-proxy-middleware": "^2.0.6",
     "process": "^0.11.10",
     "react-app-rewired": "^2.2.1",
     "stream-browserify": "^3.0.0",

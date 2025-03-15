@@ -5,227 +5,141 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [1.9.4] - 2025-03-15
+## [1.4.15] - 2025-03-29
 
 ### Fixed
-- Fixed alert system to properly fetch and display real alerts from Environment Canada
-- Removed fallback to mock alerts to ensure only real active alerts are displayed
-- Improved proxy implementation for fetching alerts from Environment Canada
-- Enhanced alert filtering logic with better location matching
-- Increased buffer zones for alert polygons and circles from 20km to 30km for better coverage
-- Added cache-busting parameters to ensure fresh alert data is fetched
-- Improved error handling and user feedback for alert system
-- Enhanced the alert display UI for better readability and navigation
+- Fixed CORS proxy issues with weather alerts by adding more reliable proxy options
+- Added local development proxy for testing weather alerts on localhost
+- Improved error handling and fallback mechanisms for alert fetching
+- Added informative error message about HTTPS deployment resolving the proxy issue
+- Updated version number in app footer
 
-## [1.9.3] - 2025-03-14
+## [1.4.14] - 2025-03-28
+
+### Fixed
+- Fixed weather alert system not displaying alerts for user's location
+- Improved alert fetching mechanism with multiple CORS proxies and fallback options
+- Enhanced alert notification system to properly send notifications when new alerts are detected
+- Fixed XML parsing to handle both ATOM and RSS feed formats from Environment Canada
+- Added better error handling and logging for alert-related operations
+- Improved service worker implementation for background alert checking
+
+## [1.4.13] - 2025-03-27
+
+### Fixed
+- Fixed layer ordering so radar layers always appear on top of the alerts layer
+- Improved visibility of radar data when both radar and alert layers are at maximum opacity
+- Reordered WMS layers to ensure proper z-index stacking
+
+## [1.4.12] - 2025-03-26
+
+### Fixed
+- Fixed opacity sliders not controlling the opacity of radar and alert layers
+- Moved opacity values from WMS parameters to direct props on WMSTileLayer components
+- Improved layer rendering with proper opacity controls
+
+## [1.4.11] - 2025-03-25
+
+### Fixed
+- Fixed missing opacity slider controls for radar and alert layers
+- Improved timeline slider with larger, more visible blue position indicator
+- Adjusted timeline labels to prevent overlap and improve readability
+- Enhanced slider controls with better styling and improved usability
+- Fixed timeline track alignment and improved visual appearance
+
+## [1.4.10] - 2025-03-24
+
+### Fixed
+- Fixed "Invalid time value" error when generating radar frames by adding robust date validation
+- Added error handling for invalid dates in formatWMSTime and formatTime functions
+- Implemented fallback to current time when invalid radar timestamps are detected
+- Enhanced error logging for better debugging of timestamp-related issues
+
+## [1.4.9] - 2025-03-23
 
 ### Added
-- Added mock alert data for development environments to ensure alerts are displayed even when no real alerts are available
-- Created comprehensive mock alerts for all major Canadian regions for testing purposes
+- Added direct integration with Environment Canada's WMS GetCapabilities API to fetch the exact latest radar timestamp
+- Implemented fallback mechanism to use estimated time when API request fails
+- Added detailed logging of radar timestamp sources and calculations
 
 ### Fixed
-- Fixed critical issue with alert system using wrong coordinates for saved locations
-- Ensured alert system consistently uses the last used location coordinates instead of browser geolocation
-- Improved logging to better track coordinate usage in alert system
-- Reduced unnecessary API calls by limiting date range for alert checks
+- Fixed discrepancy between Environment Canada's radar time (12:42) and app timeline (12:30)
+- Adjusted radar time delay calculation from 15 minutes to 6 minutes based on observed data
+- Improved accuracy of radar frame timestamps to match Environment Canada's actual data
+- Enhanced auto-refresh mechanism to use the most accurate timestamp source available
 
-## [1.9.1] - 2025-03-13
-
-### Fixed
-- Fixed alerts not showing for Canadian locations with active alerts
-- Enhanced region matching system to work for all Canadian provinces and territories
-- Added comprehensive province and region variations for more accurate alert matching
-- Improved alert detection for all Canadian locations, not just specific regions
-- Increased buffer zones for alert polygons and circles from 10km to 20km for better coverage
-
-## [1.9.0] - 2025-03-13
+## [1.4.8] - 2025-03-22
 
 ### Fixed
-- Improved weather alerts functionality for Canadian locations with active alerts
-- Enhanced geospatial calculations to better detect if a user's location is affected by an alert
-- Added 10km buffer to alert polygons and circles to include nearby areas
-- Improved region matching for alert areas
-- Added better error handling and fallbacks for alert detection
+- Fixed issue with radar not showing the most current data available from Environment Canada
+- Added adjustment for Environment Canada's radar data processing delay (typically 10-15 minutes)
+- Implemented a new utility function to calculate the most recent available radar frame time
+- Improved frame generation logic to ensure proper alignment with available radar data
+- Enhanced logging to better track radar frame timestamps and current frame selection
+- Fixed discrepancy between timeline slider display and actual radar frame times
 
-## [1.8.9] - 2023-11-15
-
-### Fixed
-- Fixed CSS issues in the LocationSearch component by correcting class names
-- Implemented fallback mechanism for Environment Canada API failures
-- Added hardcoded Canadian cities and weather stations data as fallback when API is unavailable
-- Added timeout to API requests to prevent long loading times
-- Improved error handling in location search functionality
-
-## [1.8.8] - 2025-03-13
+## [1.4.7] - 2025-03-21
 
 ### Fixed
-- Fixed critical app loading error: "Cannot access 'fetchAlertsForLocation' before initialization"
-- Reordered function declarations to ensure proper initialization sequence
-- Improved code structure to prevent dependency reference errors
+- Fixed issue with the app not loading with the current radar frame being displayed
+- Added state tracking to ensure radar layers are only rendered when both the map is ready and frames have been generated
+- Improved initialization of radar frames with proper timestamp formatting
+- Enhanced default frame handling to use properly rounded timestamps that align with Environment Canada's data
+- Moved formatTime function to be available during frame generation
 
-## [1.8.7] - 2025-03-13
-
-### Fixed
-- Fixed ESLint errors related to undefined 'isDevelopment' variable in LocationSearch component
-- Properly imported isDevelopment from devMode utility
-
-## [1.8.6] - 2025-03-13
-
-### Added
-- Integrated Environment Canada's MSC GeoMet service for improved Canadian location search
-- Added direct access to Canadian cities and weather stations data
-- Implemented location caching to improve performance and reduce API calls
-- Enhanced reverse geocoding using Environment Canada data
-
-### Changed
-- Switched from OpenWeatherMap geocoding API to Environment Canada data for Canadian locations
-- Improved location search UI with clearer results display
-- Enhanced "Use My Location" functionality to use Environment Canada data for location identification
+## [1.4.6] - 2025-03-20
 
 ### Fixed
-- Fixed issues with location search for Canadian locations that weren't properly recognized
-- Improved search accuracy for smaller Canadian communities and remote locations
-- Reduced dependency on OpenWeatherMap API for geocoding (now used only as fallback)
+- Fixed issue with radar not showing during animation playback
+- Improved cross-fade between frames using a step function to ensure at least one layer is always fully visible
+- Removed redundant timeline indicators to eliminate multiple dots on the timeline
+- Ensured radar always shows the most current frame when data loads
+- Made the default range input thumb completely invisible for a cleaner UI
 
-## [1.8.5] - 2025-03-12
-
-### Added
-- Enhanced support for searching national parks and other geographical features
-- Added special location type detection for parks, mountains, lakes, and other landmarks
-- Improved search algorithm with dedicated handling for special location types
-- Added more specific error messages and suggestions for special location searches
+## [1.4.5] - 2025-03-19
 
 ### Fixed
-- Fixed search functionality for smaller locations like national parks and provincial parks
-- Improved search results for locations without explicit province references
-- Enhanced alternative search suggestions with more relevant options
-- Added special handling for different types of parks and geographical features
+- Eliminated radar and alert layer flickering during animation playback
+- Implemented cross-fading between radar frames for smooth transitions
+- Added custom timeline slider with smooth movement
+- Improved time display to transition smoothly between frames
+- Enhanced animation loop for more fluid playback experience
 
-## [1.8.4] - 2025-03-12
-
-### Fixed
-- Fixed ESLint warnings related to conflicting environment variable definitions
-- Resolved webpack configuration issues with process.env.REACT_APP_VERSION
-- Improved location search functionality for Canadian locations
-- Enhanced search box clearing behavior when starting a new search
-- Fixed search input to properly clear previous search terms when clicked
-- Improved province detection in search terms for better Canadian location results
-
-## [1.8.3] - 2025-03-12
-
-### Added
-- Development mode for easier local testing and debugging
-- DevTools panel with application info, console logs, and network monitoring
-- Enhanced logging utilities for development and debugging
-- New npm scripts: `npm run dev` and `npm run debug`
+## [1.4.4] - 2025-03-18
 
 ### Fixed
-- Significantly improved location search functionality to work properly across all Canadian locations
-- Enhanced search algorithm with multi-stage approach for more reliable results
-- Improved province detection with partial matching for better search accuracy
-- Added more robust location name extraction for better search results
-- Expanded provincial search terms generation with more variations
-- Enhanced result filtering and prioritization for Canadian locations
-- Added detailed logging throughout the search process for better diagnostics
+- Fixed flashing alert layer issue during radar animation playback by using a static key
+- Improved radar animation smoothness by replacing setTimeout with requestAnimationFrame
+- Added smooth timeline indicator that moves continuously between frames
+- Added CSS transitions for smoother visual elements during animation
+- Implemented interpolation for timeline position to create a more fluid animation experience
 
-## [1.8.2] - 2025-03-21
+## [1.4.3] - 2025-03-17
 
 ### Fixed
-- Fixed version number inconsistency across environment files
-- Improved weather alerts functionality to better detect and display relevant alerts
-- Enhanced location search to work properly across all Canadian locations
-- Fixed issue with alerts not being fetched for searched locations
-- Improved service worker alert syncing for more reliable notifications
-- Added fallback methods for alert fetching when primary methods fail
+- Fixed radar data not displaying by aligning timestamps with Environment Canada's 6-minute data intervals
+- Changed 3-hour view from 12-minute to 6-minute intervals to match radar data availability
+- Added timestamp rounding to ensure alignment with available radar data
+- Added error handling for WMS layer requests
+- Updated layer keys to include timestamps for proper refreshing
+- Improved logging for radar frame timestamps to aid in debugging
 
-## [1.8.1] - 2025-03-20
-
-### Fixed
-- Fixed issue with location search results not being clickable
-- Improved error handling in location selection process
-- Enhanced search results UI with better visual indicators for selection
-- Added keyboard accessibility for search results navigation
-
-## [1.8.0] - 2025-03-19
-
-### Added
-- Enhanced location search functionality with multi-stage search approach
-- Added support for Canadian postal code detection in search
-- Implemented provincial search suggestions when locations aren't found
-- Added intelligent location name extraction for better search results
-
-### Changed
-- Improved search algorithm to try multiple variations of search terms
-- Enhanced user interface with clickable alternative search suggestions
-- Improved error messages with specific suggestions for better searches
-- Optimized province detection with more flexible matching
-
-## [1.7.0] - 2025-03-18
-
-### Added
-- Implemented a comprehensive weather alert system based on Environment Canada's CAP alerts
-- Added robust geospatial calculations to determine if a user's location is affected by alerts
-- Created a caching system for successful alert paths to improve performance
-- Added detailed error handling and logging for alert fetching
-- Enhanced alert deduplication to show only the most relevant and recent alerts
-
-### Changed
-- Improved alert fetching mechanism with fallback strategies for different date formats
-- Enhanced the alert display UI with severity indicators and navigation between multiple alerts
-- Optimized network requests with timeout handling and proper error suppression
-- Updated alert parsing to handle different alert formats more effectively
+## [1.4.2] - 2025-03-16
 
 ### Fixed
-- Resolved issues with alert fetching in production environments
-- Fixed geospatial calculations for polygon and circle-based alerts
-- Improved error handling for malformed XML and network failures
-- Enhanced reliability of the alert system across all Canadian regions
+- Fixed issue with radar bin data not showing on the map by removing time parameters from radar layer requests
+- Updated WMSTileLayer key props to use Date.now() for proper refreshing of radar layers
+- Ensured consistent implementation across both RadarMap and EnhancedRadarMap components
 
-## [1.6.0] - 2025-03-15
-
-### Added
-- Expanded support for weather alerts across all Canadian regions
-- Added comprehensive region mapping for major Canadian cities including Toronto, Vancouver, Calgary, Edmonton, Winnipeg, Ottawa, Halifax, and Victoria
-- Added nearby regions for all major Canadian cities to improve alert relevance
-
-### Changed
-- Removed Quebec-specific hardcoded elements from the alerts system
-- Generalized the location matching algorithm to work for all Canadian locations
-- Made the version number in the footer clickable, linking to the GitHub repository
+## [1.4.1] - 2025-03-15
 
 ### Fixed
-- Fixed issues with alert detection for locations outside Quebec
-- Improved geospatial calculations for more accurate alert matching
-- Enhanced error handling for 404 responses when fetching alerts
-
-## [1.5.1] - 2025-03-12
-
-### Changed
-- Migrated deployment from GitHub Pages to Netlify for complete functionality
-- Updated documentation to reflect Netlify as the primary hosting platform
-- Removed GitHub Pages deployment scripts from package.json
-- Updated application homepage URL to point to Netlify
-
-## [1.5.0] - 2025-03-12
-
-### Added
-- Implemented server-side proxy using Netlify Functions to resolve CORS issues
-- Added robust error handling for weather alert fetching
-- Improved alert detection algorithm for Canadian locations
-- Enhanced location-based alert filtering for more accurate notifications
-
-### Changed
-- Migrated from client-side API calls to server-side proxy for Environment Canada data
-- Optimized alert fetching to reduce API calls and improve performance
-- Updated notification interval from 15 minutes to 1 minute for more timely alerts
-- Removed hardcoded test dates from alert fetching logic
-
-### Fixed
-- Resolved CORS issues that prevented the app from working properly on GitHub Pages
-- Fixed alert fetching mechanism to work reliably in production environments
-- Improved error handling for network failures when fetching alerts
+- Fixed issue with radar bin data not showing on the map
+- Fixed weather alerts layer not displaying properly
+- Updated WMS version from 1.4.0 to 1.3.0 for better compatibility with Environment Canada GeoMet API
+- Added key props to WMS layers to force re-rendering and ensure data updates
+- Added time parameter to radar layers for proper temporal data display
+- Improved logging for coordinate changes to aid in debugging
 
 ## [1.4.0] - 2025-03-11
 
@@ -234,20 +148,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved clear sky daytime image to show a pure blue sky without clouds
 - Added dynamic snow falling images to replace static snow scene
 - Optimized image loading and rendering for better performance
-- Enhanced location search with Canadian province recognition
-- Added fallback search mechanism when no results are found
-- Increased search results limit from 5 to 10 for more comprehensive options
 
 ### Changed
 - Improved visual experience with more accurate weather condition representations
 - Enhanced user experience with time-appropriate background images
 - Updated documentation to reflect recent changes
-- Improved location search UI with better error handling and feedback
-- Prioritized Canadian locations in search results
-
-### Fixed
-- Fixed issues with location search not recognizing some Canadian cities
-- Improved search algorithm to better handle province abbreviations and names
 
 ## [1.3.0] - 2025-03-11
 

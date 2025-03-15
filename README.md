@@ -1,9 +1,9 @@
 # MapleCast Weather App
 
-A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data and location search. It functions as a Progressive Web App (PWA) with push notifications.
+A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
-[![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://maplecast.netlify.app)
+[![Version](https://img.shields.io/badge/version-1.4.15-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
 
@@ -14,9 +14,7 @@ A React-based weather application that displays local weather data with enhanced
 - **Dynamic Weather Backgrounds**: Background images that change based on weather conditions and time of day
 - **Day/Night Visualization**: Different background images for day and night for all weather conditions
 - **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
-- **Weather Alerts**: Real-time alerts from Environment Canada's CAP system with geospatial filtering
-- **Canadian Location Database**: Direct integration with Environment Canada's MSC GeoMet service for accurate Canadian location search
-- **Advanced Location Search**: Intelligent search for Canadian locations with postal code support and provincial suggestions
+- **Weather Alerts**: Real-time alerts for severe weather conditions with push notifications
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)
 - **Progressive Web App**: Install on your device and use offline
@@ -30,23 +28,6 @@ A React-based weather application that displays local weather data with enhanced
 - Node.js 14.0.0 or later
 - npm 6.0.0 or later
 - An OpenWeatherMap API key
-
-### Development Modes
-
-The app supports different development modes for easier testing and debugging:
-
-- **Standard Mode**: `npm start` - Runs the app in standard development mode
-- **Development Mode**: `npm run dev` - Runs with development environment variables for testing
-- **Debug Mode**: `npm run debug` - Runs with enhanced logging and debugging tools
-
-When running in development or debug mode, a DevTools panel will be available in the bottom right corner of the app, providing:
-
-- Application information
-- Console logs
-- Network request monitoring
-- Performance metrics
-
-This makes it easier to test changes locally without having to deploy to Netlify.
 
 ### Setting up the API Key
 
@@ -106,21 +87,7 @@ This application is a Progressive Web App, which means you can:
 
 - **Weather Data**: [OpenWeatherMap API](https://openweathermap.org/api)
 - **Radar Data**: [Environment Canada GeoMet-Weather](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/)
-- **Weather Alerts**: [Environment Canada CAP Alerts](http://dd.weather.gc.ca/alerts/cap/)
-
-## Weather Alert System
-
-The app features a comprehensive weather alert system that:
-
-- Fetches real-time CAP (Common Alerting Protocol) alerts from Environment Canada
-- Uses geospatial calculations to determine if alerts affect your location
-- Displays alerts with appropriate severity indicators (extreme, severe, moderate)
-- Provides detailed information about each alert including affected areas and expiry times
-- Implements smart caching to improve performance and reduce API calls
-- Handles multiple concurrent alerts with an intuitive navigation interface
-- Deduplicates alerts to show only the most relevant and recent information
-
-The alert system is designed to work across all Canadian regions and provides critical weather information to help users stay safe during severe weather events.
+- **Weather Alerts**: [Environment Canada Weather Alerts](https://weather.gc.ca/warnings/index_e.html)
 
 ## Technologies Used
 
@@ -128,11 +95,10 @@ The alert system is designed to work across all Canadian regions and provides cr
 - Axios (for API requests)
 - OpenWeatherMap API (for weather data)
 - Environment Canada (for radar and weather alerts)
-- Netlify Functions (for server-side proxy to resolve CORS issues)
-- Netlify (for application hosting)
 - Leaflet & React-Leaflet (for interactive maps)
 - Service Workers (for PWA functionality)
 - Web Push API (for notifications)
+- GitHub Pages (for deployment)
 
 ## Versioning and Deployment
 
@@ -151,7 +117,7 @@ All notable changes to this project are documented in the [CHANGELOG.md](./CHANG
 
 ### Deployment
 
-The app is deployed to Netlify. To deploy a new version:
+The app is deployed to GitHub Pages. To deploy a new version:
 
 1. Make your changes and update the version number in `package.json`
 2. Update the `CHANGELOG.md` with your changes
@@ -159,23 +125,38 @@ The app is deployed to Netlify. To deploy a new version:
 
 ```bash
 cd weather-app
-npm run netlify:deploy
+./deploy.sh
 ```
 
 Or from the project root:
 
 ```bash
-cd weather-app && npm run netlify:deploy
+./weather-app/deploy.sh
 ```
+The script will:
+- Automatically navigate to the correct directory
+- Check and update the git remote URL if needed
+- Commit your source code changes
+- Pull latest changes from the remote repository with rebase
+- Push your changes to the repository
+- Build the application
+- Deploy to GitHub Pages
+- Deploy to GitHub Pages
 
 Additional deployment options:
 
 ```bash
 # Install dependencies and deploy
-npm install && npm run netlify:deploy
+./deploy.sh --install
+
+# Deploy with a custom commit message
+./deploy.sh "Your custom commit message"
+
+# Install dependencies and deploy with a custom commit message
+./deploy.sh --install "Your custom commit message"
 ```
 
-This will build the app and deploy it to Netlify at: https://maplecast.netlify.app
+This will build the app and deploy it to GitHub Pages at: https://screech24.github.io/maplecast-weather/
 
 ## License
 
