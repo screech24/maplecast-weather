@@ -293,6 +293,7 @@ const findKnownParkProvince = (parkName) => {
 };
 
 // Generate search terms for special location types like national parks
+// eslint-disable-next-line no-unused-vars
 const generateSpecialLocationSearchTerms = (locationName) => {
   const terms = [];
   
@@ -363,7 +364,7 @@ const generateSpecialLocationSearchTerms = (locationName) => {
         terms.push(`${baseName} Provincial Park, Canada`);
         
         // Try with each province
-        for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+        for (const [, province] of Object.entries(CANADIAN_PROVINCES)) {
           terms.push(`${baseName} Provincial Park, ${province}, Canada`);
         }
       }
@@ -390,7 +391,7 @@ const generateSpecialLocationSearchTerms = (locationName) => {
         terms.push(`${baseName} Park, Canada`);
         
         // Try with each province
-        for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
+        for (const [, province] of Object.entries(CANADIAN_PROVINCES)) {
           terms.push(`${baseName} Park, ${province}, Canada`);
         }
       }
@@ -434,46 +435,6 @@ const generateSpecialLocationSearchTerms = (locationName) => {
 };
 
 // Generate search terms with different province combinations
-const generateProvincialSearchTerms = (locationName) => {
-  const terms = [];
-  
-  // Clean the location name to ensure it's usable
-  const cleanName = locationName.trim().replace(/\s+/g, ' ');
-  if (!cleanName) return terms;
-  
-  debugLog('LocationSearch', `Generating provincial search terms for: "${cleanName}"`);
-  
-  // First, check if it's a special location type and add those terms
-  const specialTerms = generateSpecialLocationSearchTerms(cleanName);
-  terms.push(...specialTerms);
-  
-  // Add terms with each province
-  for (const [abbr, province] of Object.entries(CANADIAN_PROVINCES)) {
-    // Add with abbreviation
-    terms.push(`${cleanName}, ${abbr}, Canada`);
-    
-    // Add with full province name
-    terms.push(`${cleanName}, ${province}, Canada`);
-    
-    // For major cities, try without comma
-    if (cleanName.length > 3) {
-      terms.push(`${cleanName} ${province} Canada`);
-    }
-  }
-  
-  // Add some variations for major cities
-  if (cleanName.length > 3) {
-    // Try with just Canada
-    terms.push(`${cleanName}, Canada`);
-    
-    // Try with "City" appended for common place names
-    if (!cleanName.toLowerCase().includes('city')) {
-      terms.push(`${cleanName} City, Canada`);
-    }
-  }
-  
-  return terms;
-};
 
 const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTermChange }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -715,7 +676,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
             type="text"
             value={searchTerm}
             onChange={handleSearchTermChange}
-            placeholder={initialized ? "Search for a Canadian location..." : "Initializing search..."}
+            placeholder={initialized ? "Search location..." : "Initializing..."}
             className={`search-input ${!initialized ? 'disabled' : ''}`}
             disabled={!initialized || isSearching}
           />

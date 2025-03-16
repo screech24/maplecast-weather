@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatTemp } from '../utils/api';
 import './CurrentWeather.css';
+import AnimatedWeatherIcon from './AnimatedWeatherIcon';
 
 const CurrentWeather = ({ data }) => {
   if (!data) return <div className="loading">Loading current weather...</div>;
@@ -36,19 +37,46 @@ const CurrentWeather = ({ data }) => {
     return (visibility / 1000).toFixed(1) + ' km';
   };
 
+  // Get color theme based on weather condition
+  const getColorTheme = () => {
+    if (weatherId >= 200 && weatherId < 300) {
+      return { primary: '#5a5a5a', secondary: '#ffeb3b' }; // Thunderstorm: dark gray and yellow
+    } else if (weatherId >= 300 && weatherId < 400) {
+      return { primary: '#c8c8c8', secondary: '#a8d8ff' }; // Drizzle: light gray and light blue
+    } else if (weatherId >= 500 && weatherId < 600) {
+      return { primary: '#b8b8b8', secondary: '#6eb6ff' }; // Rain: gray and blue
+    } else if (weatherId >= 600 && weatherId < 700) {
+      return { primary: '#d8d8d8', secondary: '#ffffff' }; // Snow: light gray and white
+    } else if (weatherId >= 700 && weatherId < 800) {
+      return { primary: '#c0c0c0', secondary: '#e0e0e0' }; // Atmosphere: silver and light silver
+    } else if (weatherId === 800) {
+      return isDay 
+        ? { primary: '#ffde59', secondary: '#ff914d' } // Clear day: yellow and orange
+        : { primary: '#2c3e50', secondary: '#d4d4d4' }; // Clear night: dark blue and silver
+    } else if (weatherId === 801) {
+      return isDay 
+        ? { primary: '#ffde59', secondary: '#f0f0f0' } // Few clouds day: yellow and white
+        : { primary: '#2c3e50', secondary: '#f0f0f0' }; // Few clouds night: dark blue and white
+    } else if (weatherId >= 802 && weatherId < 900) {
+      return { primary: '#7f8c8d', secondary: '#f0f0f0' }; // Clouds: gray and white
+    } else {
+      return { primary: '#3498db', secondary: '#f0f0f0' }; // Default: blue and white
+    }
+  };
+
+  const colorTheme = getColorTheme();
+
   return (
     <div className="current-weather card" style={backgroundStyle}>
       <div className="weather-overlay"></div>
       <div className="weather-content">
         <div className="section-title">
-          <i className="fa-solid fa-sun"></i>
+          <i className="fa-solid fa-sun" style={{ color: colorTheme.primary }}></i>
           <h2>Current Weather</h2>
         </div>
         
         <div className="current-weather-main">
-          <div className="weather-icon">
-            <i className={getWeatherIcon(weatherId, isDay)}></i>
-          </div>
+          <AnimatedWeatherIcon weatherId={weatherId} isDay={isDay} />
           <div className="current-temp">
             <h1>{formatTemp(temp)}°C</h1>
             <p>Feels like {formatTemp(feels_like)}°C</p>
@@ -56,40 +84,54 @@ const CurrentWeather = ({ data }) => {
         </div>
         
         <div className="weather-description">
-          <h3>{description.charAt(0).toUpperCase() + description.slice(1)}</h3>
+          <h3 style={{ color: colorTheme.secondary }}>
+            {description.charAt(0).toUpperCase() + description.slice(1)}
+          </h3>
         </div>
         
         <div className="weather-details">
-          <div className="weather-detail">
-            <i className="fa-solid fa-droplet"></i>
-            <span className="detail-label">Humidity</span>
-            <span className="detail-value">{humidity}%</span>
+          <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+            <i className="fa-solid fa-droplet" style={{ color: '#6eb6ff' }}></i>
+            <div className="detail-info">
+              <span className="detail-label">Humidity</span>
+              <span className="detail-value">{humidity}%</span>
+            </div>
           </div>
-          <div className="weather-detail">
-            <i className="fa-solid fa-wind"></i>
-            <span className="detail-label">Wind</span>
-            <span className="detail-value">{Math.round(wind_speed * 3.6)} km/h</span>
+          <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+            <i className="fa-solid fa-wind" style={{ color: '#b8e0ff' }}></i>
+            <div className="detail-info">
+              <span className="detail-label">Wind</span>
+              <span className="detail-value">{Math.round(wind_speed * 3.6)} km/h</span>
+            </div>
           </div>
-          <div className="weather-detail">
-            <i className="fa-solid fa-sun"></i>
-            <span className="detail-label">UV Index</span>
-            <span className="detail-value">{Math.round(uvi)}</span>
+          <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+            <i className="fa-solid fa-sun" style={{ color: '#ffde59' }}></i>
+            <div className="detail-info">
+              <span className="detail-label">UV Index</span>
+              <span className="detail-value">{Math.round(uvi)}</span>
+            </div>
           </div>
-          <div className="weather-detail">
-            <i className="fa-solid fa-gauge-high"></i>
-            <span className="detail-label">Pressure</span>
-            <span className="detail-value">{pressure} hPa</span>
+          <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+            <i className="fa-solid fa-gauge-high" style={{ color: '#ff914d' }}></i>
+            <div className="detail-info">
+              <span className="detail-label">Pressure</span>
+              <span className="detail-value">{pressure} hPa</span>
+            </div>
           </div>
-          <div className="weather-detail">
-            <i className="fa-solid fa-eye"></i>
-            <span className="detail-label">Visibility</span>
-            <span className="detail-value">{formatVisibility(visibility)}</span>
+          <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+            <i className="fa-solid fa-eye" style={{ color: '#d4d4d4' }}></i>
+            <div className="detail-info">
+              <span className="detail-label">Visibility</span>
+              <span className="detail-value">{formatVisibility(visibility)}</span>
+            </div>
           </div>
           {wind_gust && (
-            <div className="weather-detail">
-              <i className="fa-solid fa-wind"></i>
-              <span className="detail-label">Wind Gusts</span>
-              <span className="detail-value">{Math.round(wind_gust * 3.6)} km/h</span>
+            <div className="weather-detail" style={{ borderLeft: `3px solid ${colorTheme.primary}` }}>
+              <i className="fa-solid fa-wind" style={{ color: '#a8d8ff' }}></i>
+              <div className="detail-info">
+                <span className="detail-label">Wind Gusts</span>
+                <span className="detail-value">{Math.round(wind_gust * 3.6)} km/h</span>
+              </div>
             </div>
           )}
         </div>
@@ -151,6 +193,7 @@ const getWeatherBackground = (weatherId, isDay) => {
 };
 
 // Function to get the appropriate weather icon based on the weather ID and day/night
+// eslint-disable-next-line no-unused-vars
 const getWeatherIcon = (weatherId, isDay) => {
   // Icon mapping based on weather ID
   if (weatherId >= 200 && weatherId < 300) {

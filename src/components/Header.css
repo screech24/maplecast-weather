@@ -1,8 +1,10 @@
 .header {
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, #2980b9, #3498db);
   color: white;
-  padding: 1rem 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 10;
 }
 
 .header-content {
@@ -16,13 +18,15 @@
 .logo-container {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .logo-container h1 {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  margin-left: 0.5rem;
+  margin-left: 0.3rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.5px;
 }
 
 .maple-leaf {
@@ -35,9 +39,10 @@
 }
 
 .maple-leaf-icon {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   animation: gently-sway 3s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
 }
 
 @keyframes gently-sway {
@@ -61,28 +66,59 @@
   display: flex;
   align-items: center;
   margin-right: 15px;
-  color: #e11d48;
+  color: #ffffff;
   cursor: pointer;
+  position: relative;
 }
 
 .notification-status i {
   font-size: 1.2rem;
+  filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.notification-status::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background-color: #e11d48;
+  border-radius: 50%;
+  border: 2px solid #3498db;
+}
+
+/* Dark mode adjustments */
+.dark-mode .header {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .notification-status::after {
+  border-color: #16213e;
 }
 
 @media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    align-items: flex-start;
+  .header {
+    padding: 0.4rem 0.75rem;
   }
   
-  .header-right {
-    margin-top: 0.75rem;
-    width: 100%;
+  .header-content {
+    flex-direction: row;
+    align-items: center;
     justify-content: space-between;
   }
   
-  .header h2 {
+  .logo-container h1 {
+    font-size: 1.4rem;
+  }
+  
+  .maple-leaf-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .header-right {
     margin-top: 0;
-    font-size: 1.1rem;
   }
 } 

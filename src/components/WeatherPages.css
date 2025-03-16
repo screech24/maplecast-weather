@@ -1,0 +1,94 @@
+.weather-pages-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  margin-top: 0.25rem; /* Reduced margin after location and navigation */
+  margin-bottom: 0.25rem; /* Reduced margin at the bottom */
+}
+
+.weather-pages-content {
+  width: 100%;
+  padding: 0 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
+  height: 100%;
+}
+
+.weather-pages-content.transitioning {
+  opacity: 0;
+}
+
+.page {
+  min-width: 100%;
+  flex-shrink: 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Ensure all pages have the same height */
+}
+
+/* Add swipe hint animation for mobile */
+@media (max-width: 768px) {
+  .swipe-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    animation: fadeInOut 3s ease-in-out;
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  .swipe-hint i {
+    margin: 0 10px;
+  }
+  
+  @keyframes fadeInOut {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+  
+  /* Add swipe indicator on first load */
+  .swipe-indicator {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    animation: fadeInOut 5s ease-in-out;
+    pointer-events: none;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 12px;
+    border-radius: 20px;
+  }
+  
+  .swipe-indicator i {
+    margin: 0 5px;
+  }
+}
+
+/* Ensure content is properly sized on desktop */
+@media (min-width: 769px) {
+  .weather-pages-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .weather-pages-content {
+    padding: 0 20px;
+  }
+} 

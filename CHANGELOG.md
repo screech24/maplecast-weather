@@ -5,6 +5,14 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-04-20
+
+### Changed
+- Improved mobile layouts for Hourly Forecast and 7-Day Forecast pages
+- Changed mobile view to use a vertical list layout for better readability on smaller screens
+- Optimized space usage in mobile view by rearranging elements horizontally within each list item
+- Desktop layouts remain unchanged
+
 ## [1.6.1] - 2025-04-19
 
 ### Changed

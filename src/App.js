@@ -62,6 +62,7 @@ function App() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const enableNotifications = () => {
     // Enable notifications
     setNotificationsEnabled(true);
@@ -74,6 +75,7 @@ function App() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const retryFetchWeather = async () => {
     setIsLoading(true);
     setError(null);
@@ -95,6 +97,7 @@ function App() {
   };
 
   // Update service worker data
+  // eslint-disable-next-line no-unused-vars
   const updateServiceWorkerData = useCallback((data, locationData) => {
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
       console.log('Service worker not available or not controlling the page');
@@ -114,6 +117,7 @@ function App() {
   }, []);
 
   // Browser notifications
+  // eslint-disable-next-line no-unused-vars
   const checkNotificationPermission = useCallback(() => {
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
@@ -130,6 +134,7 @@ function App() {
     }
   }, []);
   
+  // eslint-disable-next-line no-unused-vars
   const requestNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) {
       return;
@@ -151,10 +156,12 @@ function App() {
     setShowNotificationPrompt(false);
   }, []);
   
+  // eslint-disable-next-line no-unused-vars
   const dismissNotificationPrompt = useCallback(() => {
     setShowNotificationPrompt(false);
   }, []);
   
+  // eslint-disable-next-line no-unused-vars
   const showBrowserNotification = useCallback((title, options) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
       return;
@@ -493,7 +500,7 @@ function App() {
           <>
             {!initialLoadComplete ? (
               <div className="welcome-container card">
-                <h2>Welcome to MapleCast weather</h2>
+                <h2>Welcome to MapleCast Weather</h2>
                 <p>Click "Use my location" or search for a location to get started.</p>
                 <p className="search-hint">You can search directly for any location using the search bar above.</p>
               </div>

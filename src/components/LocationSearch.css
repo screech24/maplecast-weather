@@ -1,15 +1,19 @@
 .location-search {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   position: relative;
-  max-width: 600px;
-  margin: 0 auto 20px;
+  flex: 0 1 auto;
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .search-form {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .search-container {
@@ -21,13 +25,14 @@
 
 .search-input {
   width: 100%;
-  padding: 10px 45px 10px 15px;
+  padding: 6px 40px 6px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 24px;
-  font-size: 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
   background-color: var(--input-bg);
   color: var(--text-color);
   transition: all 0.3s ease;
+  height: 32px;
 }
 
 .search-input.disabled {
@@ -48,8 +53,8 @@
   right: 5px;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: none;
   background-color: var(--primary-color);
@@ -72,8 +77,8 @@
 
 .search-icon {
   display: inline-block;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -83,14 +88,17 @@
 .location-button {
   display: flex;
   align-items: center;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 24px;
-  background-color: var(--secondary-color);
+  justify-content: center;
+  background-color: var(--primary-color);
   color: white;
-  font-size: 0.9rem;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 10px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  font-weight: 500;
+  height: 32px;
 }
 
 .location-button:hover {
@@ -99,9 +107,9 @@
 
 .location-dot {
   display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin-right: 8px;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -243,12 +251,28 @@
 
 @media (max-width: 600px) {
   .search-form {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 6px;
   }
   
   .location-button {
-    margin-top: 10px;
+    padding: 5px 8px;
+    height: 30px;
+  }
+  
+  .search-input {
+    padding: 5px 35px 5px 10px;
+    height: 30px;
+  }
+  
+  .search-button {
+    width: 24px;
+    height: 24px;
+    right: 4px;
+  }
+  
+  .search-icon {
+    width: 14px;
+    height: 14px;
   }
   
   .alternative-terms ul {

@@ -1,23 +1,29 @@
 .location-info {
-  background-color: var(--card-background);
-  border-radius: var(--border-radius);
-  padding: 1rem 1.5rem;
-  box-shadow: var(--shadow);
-  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  box-shadow: none;
+  margin-bottom: 0;
+  text-align: left;
+  flex-shrink: 0;
+  margin-right: 0;
 }
 
 .location-details {
   display: flex;
   align-items: center;
-  font-size: 1.1rem;
+  justify-content: flex-start;
+  font-size: 1rem;
   font-weight: 500;
+  color: var(--text-color);
 }
 
 .location-icon {
   display: inline-block;
-  width: 20px;
-  height: 20px;
-  margin-right: 0.5rem;
+  width: 16px;
+  height: 16px;
+  margin-right: 0.4rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 384 512'%3E%3Cpath fill='%23e11d48' d='M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 256c-35.3 0-64-28.7-64-64s28.7-64 64-64s64 28.7 64 64s-28.7 64-64 64z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -25,11 +31,19 @@
 }
 
 .canada-alert {
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  background-color: rgba(239, 68, 68, 0.1);
-  border-radius: 4px;
-  border-left: 3px solid var(--accent-color);
+  display: none; /* Hide the Canada alert since we're making this compact */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .location-info {
+    padding: 0.2rem 0.5rem;
+    margin-bottom: 0;
+  }
+  
+  .location-details {
+    font-size: 0.9rem;
+  }
 }
 
 .canada-alert p {
