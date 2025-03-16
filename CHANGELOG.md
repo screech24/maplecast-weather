@@ -5,6 +5,15 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.7] - 2025-04-29
+
+### Fixed
+- Fixed 7-day forecast showing duplicate "Today" entries and missing Friday
+- Updated formatDate function to use Math.floor instead of Math.round for more accurate day calculations
+- Enhanced formatForecastToDaily function to ensure consistent noon timestamps for each day
+- Added additional logging for better debugging of forecast date generation
+- Ensured each forecast day has a unique date to prevent duplicates
+
 ## [1.8.6] - 2025-04-28
 
 ### Fixed

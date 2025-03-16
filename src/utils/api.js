@@ -146,7 +146,8 @@ const formatForecastToDaily = (forecastData) => {
   // Get today's date at midnight for consistent comparison
   const today = new Date();
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const todayTimestamp = Math.floor(todayMidnight.getTime() / 1000);
+  
+  console.log('Today midnight:', todayMidnight.toISOString());
   
   // Group forecast by day
   forecastData.list.forEach(item => {
@@ -188,18 +189,31 @@ const formatForecastToDaily = (forecastData) => {
   for (let i = 0; i < 7; i++) {
     // Calculate the date for this forecast day
     const forecastDate = new Date(todayMidnight);
-    forecastDate.setDate(forecastDate.getDate() + i);
+    forecastDate.setDate(todayMidnight.getDate() + i);
+    
+    // Set the time to noon (12:00:00) for consistent timestamps
+    forecastDate.setHours(12, 0, 0, 0);
+    
     const forecastDay = forecastDate.toISOString().split('T')[0];
+    const noonTimestamp = Math.floor(forecastDate.getTime() / 1000);
+    
+    console.log(`Day ${i}: ${forecastDate.toISOString()} (${forecastDay}), timestamp: ${noonTimestamp}`);
     
     // Find if we have data for this day in our processed API data
     const dayData = dailyData.find(day => {
       const dayDate = new Date(day.dt * 1000);
-      return dayDate.toISOString().split('T')[0] === forecastDay;
+      const dayDateStr = dayDate.toISOString().split('T')[0];
+      return dayDateStr === forecastDay;
     });
     
     if (dayData) {
-      // We have data for this day, use it
-      sevenDayForecast.push(dayData);
+      // We have data for this day, use it but ensure the timestamp is at noon
+      const updatedDayData = {
+        ...dayData,
+        dt: noonTimestamp // Use noon timestamp for consistent time of day
+      };
+      sevenDayForecast.push(updatedDayData);
+      console.log(`Using API data for day ${i} (${forecastDay})`);
     } else {
       // No data for this day, generate it
       // Use the last day's data as a base if available, otherwise use defaults
@@ -208,9 +222,6 @@ const formatForecastToDaily = (forecastData) => {
         : dailyData.length > 0 
           ? dailyData[dailyData.length - 1]
           : null;
-      
-      // Create a timestamp for this day at noon
-      const noonTimestamp = Math.floor(forecastDate.getTime() / 1000) + 43200; // Add 12 hours
       
       if (baseData) {
         // Create a new forecast entry based on the base data
@@ -226,6 +237,7 @@ const formatForecastToDaily = (forecastData) => {
           weather: [...baseData.weather], // Clone the weather array
           pop: Math.max(0, Math.min(1, baseData.pop + (Math.random() * 0.2 - 0.1))) // Vary precipitation slightly
         });
+        console.log(`Generated data for day ${i} (${forecastDay}) based on previous day`);
       } else {
         // No base data available, create default entry
         sevenDayForecast.push({
@@ -242,9 +254,24 @@ const formatForecastToDaily = (forecastData) => {
           }],
           pop: 0
         });
+        console.log(`Generated default data for day ${i} (${forecastDay})`);
       }
     }
   }
+  
+  // Verify we have 7 days with unique dates
+  const uniqueDates = new Set(sevenDayForecast.map(day => {
+    const date = new Date(day.dt * 1000);
+    return date.toISOString().split('T')[0];
+  }));
+  
+  console.log(`Generated ${sevenDayForecast.length} days with ${uniqueDates.size} unique dates`);
+  
+  // Log the final forecast days for debugging
+  sevenDayForecast.forEach((day, index) => {
+    const date = new Date(day.dt * 1000);
+    console.log(`Forecast day ${index}: ${date.toISOString().split('T')[0]} (${formatDate(day.dt)})`);
+  });
   
   return sevenDayForecast;
 };
@@ -306,7 +333,7 @@ export const formatDate = (timestamp) => {
   
   // Calculate the difference in days
   const diffTime = forecastDate.getTime() - todayDate.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   
   // Check if the date is today, tomorrow, or another day
   if (diffDays === 0) {
