@@ -5,6 +5,78 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2025-04-19
+
+### Changed
+- Deployed application to GitHub Pages
+- Updated version numbers across the application
+
+## [1.6.0] - 2025-04-18
+
+### Added
+- Implemented page navigation system with three separate pages: Current Conditions, Hourly Forecast, and 7-Day Forecast
+- Added swipe functionality for mobile devices to navigate between pages
+- Added button navigation for desktop users
+- Created new components: WeatherPages and PageNavigation
+
+### Changed
+- Reordered weather pages to show Current Conditions, Hourly Forecast, then 7-Day Forecast
+- Improved page transitions with fade effect
+
+## [1.5.1] - 2025-04-17
+
+### Changed
+- Temporarily removed radar functionality for future reimplementation
+- Removed RadarMap and EnhancedRadarMap components and related CSS
+- Removed radar proxy functionality from setupProxy.js
+- Removed radar-proxy.js Netlify function
+
+## [1.5.0] - 2025-04-16
+
+### Changed
+- Temporarily removed weather alert functionality for future reimplementation
+- Removed WeatherAlerts component and related CSS
+- Removed alert utility functions from the codebase (capAlerts.js, mockAlerts.js)
+- Removed alert documentation (alerts.md)
+
+## [1.4.20] - 2025-04-03
+
+### Changed
+- Removed Netlify serverless functions for weather alerts as they're not required
+- Simplified API fetching logic to use CORS proxies for all production environments
+- Improved environment detection for better compatibility across hosting platforms
+
+## [1.4.19] - 2025-04-02
+
+### Fixed
+- Fixed weather alerts not working on GitHub Pages deployment and local development
+- Added explicit GitHub Pages detection to improve API handling strategy
+- Updated CORS proxy list with more reliable proxy options
+- Enhanced error messages with hosting-specific troubleshooting guidance
+- Improved logging to better identify environment-specific issues
+- Fixed error handling in alert fetching process with more descriptive messages
+
+## [1.4.18] - 2025-04-01
+
+### Fixed
+- Fixed weather alerts not working in both development and production environments
+- Added Netlify serverless function for reliable weather alerts fetching in production
+- Improved local proxy implementation for development environment
+- Enhanced CORS proxy handling with better error reporting
+- Fixed syntax error in alerts processing code
+- Added multiple fallback mechanisms for alerts fetching
+- Improved logging for better debugging of alert fetching issues
+
+## [1.4.17] - 2025-03-31
+
+### Fixed
+- Fixed radar layers not displaying on GitHub Pages and in development environment
+- Updated WMS version from 1.4.0 to 1.3.0 for better compatibility with Environment Canada GeoMet API
+- Improved CORS proxy handling for radar layers with multiple fallback options
+- Enhanced weather alerts fetching with optimized CORS proxy order
+- Added direct access attempt before trying CORS proxies for better performance
+- Improved error handling and user feedback for both radar and alerts
+
 ## [1.4.16] - 2025-03-30
 
 ### Fixed

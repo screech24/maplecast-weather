@@ -1,6 +1,6 @@
 {
   "name": "maplecast",
-  "version": "1.4.16",
+  "version": "1.6.1",
   "private": true,
   "homepage": "https://screech24.github.io/maplecast-weather",
   "dependencies": {
@@ -16,6 +16,7 @@
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
     "react-scripts": "5.0.1",
+    "react-swipeable": "^7.0.2",
     "web-vitals": "^2.1.4",
     "xml2js": "^0.6.2"
   },

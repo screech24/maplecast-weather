@@ -357,7 +357,7 @@ export const getRegionCode = (cityName, province) => {
   return defaultRegionsByProvince[provinceUpper] || null;
 };
 
-// Update the fetchWeatherAlerts function to use more reliable CORS proxies and API endpoints
+// Update the fetchWeatherAlerts function to use the new serverless function in production
 export const fetchWeatherAlerts = async (cityName, province) => {
   console.log(`Fetching weather alerts for ${cityName}, ${province}`);
   
@@ -376,17 +376,13 @@ export const fetchWeatherAlerts = async (cityName, province) => {
     return { alerts: [], error: 'Could not determine region code for your location' };
   }
   
-  // Try multiple CORS proxies - updated with more reliable options and prioritized
-  const corsProxies = [
-    // Prioritize more reliable proxies
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/raw?url=',
-    'https://api.codetabs.com/v1/proxy?quest=',
-    'https://proxy.cors.sh/',
-    'https://cors-anywhere.herokuapp.com/',
-    // Add a new proxy option that might work better
-    'https://thingproxy.freeboard.io/fetch/'
-  ];
+  // Check if we're in development mode or production
+  const isLocalDevelopment = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1';
+  
+  // Detect GitHub Pages hosting
+  const isGitHubPages = window.location.hostname.includes('github.io');
+  console.log(`Deployment environment: ${isLocalDevelopment ? 'Local Development' : isGitHubPages ? 'GitHub Pages' : 'Production'}`);
   
   // Try both battleboard and city-specific feeds
   const alertUrls = [
@@ -397,47 +393,92 @@ export const fetchWeatherAlerts = async (cityName, province) => {
   let fetchSucceeded = false;
   let xmlData = null;
   
-  // Check if we're in development mode and can use the local proxy
-  const isLocalDevelopment = window.location.hostname === 'localhost' || 
-                            window.location.hostname === '127.0.0.1';
+  // For all environments (GitHub Pages, local development, or other production),
+  // we'll use CORS proxies or direct access as appropriate
   
-  // If in development, try using the local proxy first
+  // In development, try using the local proxy
   if (isLocalDevelopment) {
     try {
       console.log('Using local development proxy');
       
-      // In development, we can use the proxy set up in package.json
-      for (const alertUrl of alertUrls) {
+      // Try both feed types with the direct RSS proxy
+      const feedTypes = [
+        { type: 'battleboard', path: `/proxy-api/rss/battleboard/${regionCode}_e.xml` },
+        { type: 'warning', path: `/proxy-api/rss/warning/${regionCode}_e.xml` }
+      ];
+      
+      for (const feed of feedTypes) {
         if (fetchSucceeded) break;
         
         try {
-          // Use relative URL to leverage the proxy set in package.json
-          const proxyUrl = `/proxy-api/weather-alerts?url=${encodeURIComponent(alertUrl)}`;
-          console.log(`Using local proxy: ${proxyUrl}`);
+          console.log(`Using direct RSS proxy: ${feed.path}`);
           
-          const response = await fetch(proxyUrl, {
+          const response = await fetch(feed.path, {
             headers: {
               'Accept': 'application/xml, text/xml, */*',
               'Cache-Control': 'no-cache'
-            }
+            },
+            // Add a longer timeout
+            signal: AbortSignal.timeout(15000)
           });
           
           if (!response.ok) {
-            console.log(`Failed to fetch from local proxy with status: ${response.status}`);
+            console.log(`Failed to fetch from direct RSS proxy with status: ${response.status}`);
             continue;
           }
           
           const text = await response.text();
           if (!text || text.trim() === '') {
-            console.log('Empty response from local proxy');
+            console.log('Empty response from direct RSS proxy');
             continue;
           }
           
           xmlData = text;
           fetchSucceeded = true;
+          console.log('Direct RSS proxy succeeded');
           break;
         } catch (error) {
-          console.error('Error fetching alerts with local proxy:', error);
+          console.error(`Error fetching alerts with direct RSS proxy for ${feed.type}:`, error);
+        }
+      }
+      
+      // If direct RSS proxy failed, try the original proxy method
+      if (!fetchSucceeded) {
+        for (const alertUrl of alertUrls) {
+          if (fetchSucceeded) break;
+          
+          try {
+            // Use relative URL to leverage the proxy set up in setupProxy.js
+            const proxyUrl = `/proxy-api/weather-alerts?url=${encodeURIComponent(alertUrl)}`;
+            console.log(`Using local proxy: ${proxyUrl}`);
+            
+            const response = await fetch(proxyUrl, {
+              headers: {
+                'Accept': 'application/xml, text/xml, */*',
+                'Cache-Control': 'no-cache'
+              },
+              // Add a longer timeout
+              signal: AbortSignal.timeout(15000)
+            });
+            
+            if (!response.ok) {
+              console.log(`Failed to fetch from local proxy with status: ${response.status}`);
+              continue;
+            }
+            
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+              console.log('Empty response from local proxy with status: ${response.status}');
+              continue;
+            }
+            
+            xmlData = text;
+            fetchSucceeded = true;
+            console.log('Local proxy succeeded');
+            break;
+          } catch (error) {
+            console.error(`Error fetching alerts with local proxy:`, error);
+          }
         }
       }
     } catch (localProxyError) {
@@ -445,133 +486,73 @@ export const fetchWeatherAlerts = async (cityName, province) => {
     }
   }
   
-  // If local proxy failed or we're not in development, try the CORS proxies
+  // For production environments (including GitHub Pages)
+  // Use public CORS proxies as a fallback or primary method
   if (!fetchSucceeded) {
-    // Try each URL with each proxy
-    for (const alertUrl of alertUrls) {
-      if (fetchSucceeded) break;
+    try {
+      console.log('Using public CORS proxies');
       
-      console.log(`Trying to fetch alerts from: ${alertUrl}`);
+      // List of public CORS proxies to try
+      const corsProxies = [
+        url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        url => `https://cors-anywhere.herokuapp.com/${url}`,
+        url => `https://crossorigin.me/${url}`
+      ];
       
-      // Try direct fetch with GitHub Pages domain first (might work if GitHub Pages allows it)
-      if (window.location.hostname.includes('github.io')) {
-        try {
-          console.log('Trying direct fetch from GitHub Pages');
-          const response = await fetch(alertUrl, {
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'Cache-Control': 'no-cache'
-            }
-          });
+      // Try each alert URL with each proxy until one succeeds
+      for (const alertUrl of alertUrls) {
+        if (fetchSucceeded) break;
+        
+        for (const proxyGenerator of corsProxies) {
+          if (fetchSucceeded) break;
           
-          if (response.ok) {
+          try {
+            const proxiedUrl = proxyGenerator(alertUrl);
+            console.log(`Trying public CORS proxy: ${proxiedUrl}`);
+            
+            const response = await fetch(proxiedUrl, {
+              headers: {
+                'Accept': 'application/xml, text/xml, */*',
+                'Cache-Control': 'no-cache'
+              },
+              // Add a longer timeout
+              signal: AbortSignal.timeout(15000)
+            });
+            
+            if (!response.ok) {
+              console.log(`Failed to fetch from public CORS proxy with status: ${response.status}`);
+              continue;
+            }
+            
             const text = await response.text();
-            if (text && text.trim() !== '') {
-              xmlData = text;
-              fetchSucceeded = true;
-              console.log('Direct fetch from GitHub Pages succeeded');
-              break;
+            if (!text || text.trim() === '') {
+              console.log('Empty response from public CORS proxy');
+              continue;
             }
-          }
-        } catch (directError) {
-          console.log('Direct fetch from GitHub Pages failed:', directError);
-        }
-      }
-      
-      // If direct fetch failed, try the proxies
-      for (const proxy of corsProxies) {
-        try {
-          const proxyUrl = `${proxy}${encodeURIComponent(alertUrl)}`;
-          console.log(`Using proxy: ${proxyUrl}`);
-          
-          const response = await fetch(proxyUrl, {
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'Cache-Control': 'no-cache'
+            
+            // Verify it's XML data
+            if (!text.includes('<?xml') && !text.includes('<rss')) {
+              console.log('Response does not appear to be XML data');
+              continue;
             }
-          });
-          
-          if (!response.ok) {
-            console.log(`Failed to fetch from ${proxy} with status: ${response.status}`);
-            continue;
+            
+            xmlData = text;
+            fetchSucceeded = true;
+            console.log('Public CORS proxy succeeded');
+            break;
+          } catch (error) {
+            console.error(`Error fetching alerts with public CORS proxy:`, error);
           }
-          
-          const text = await response.text();
-          if (!text || text.trim() === '') {
-            console.log(`Empty response from ${proxy}`);
-            continue;
-          }
-          
-          xmlData = text;
-          fetchSucceeded = true;
-          break;
-        } catch (error) {
-          console.error(`Error fetching alerts with proxy ${proxy}:`, error);
         }
       }
-    }
-  }
-  
-  // If all fetch attempts failed, try a fallback approach
-  if (!fetchSucceeded) {
-    console.log('All fetch attempts failed, trying fallback approach');
-    try {
-      // Try using a JSONP approach via YQL (may work in some cases)
-      const yqlUrl = `https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20xml%20where%20url%3D'${encodeURIComponent(`https://weather.gc.ca/rss/warning/${regionCode}_e.xml`)}'&format=json&callback=`;
-      console.log(`Trying YQL fallback: ${yqlUrl}`);
-      
-      const response = await fetch(yqlUrl);
-      
-      if (response.ok) {
-        const jsonData = await response.json();
-        if (jsonData && jsonData.query && jsonData.query.results) {
-          // Convert JSON back to XML
-          const serializer = new XMLSerializer();
-          xmlData = serializer.serializeToString(jsonData.query.results);
-          fetchSucceeded = true;
-        } else {
-          console.error('YQL response did not contain expected data');
-        }
-      } else {
-        console.error('YQL fallback fetch failed with status:', response.status);
-      }
-    } catch (yqlError) {
-      console.error('YQL fallback attempt failed:', yqlError);
-    }
-  }
-  
-  // If we still don't have data, try a direct fetch (may not work due to CORS)
-  if (!fetchSucceeded) {
-    try {
-      const fallbackUrl = `https://weather.gc.ca/rss/warning/${regionCode}_e.xml`;
-      console.log(`Trying direct fetch: ${fallbackUrl}`);
-      
-      const response = await fetch(fallbackUrl, {
-        mode: 'no-cors' // This will make the response opaque but might work in some browsers
-      });
-      
-      // With mode: 'no-cors', we can't actually read the response
-      // But we can check if we got a response object at all
-      if (response) {
-        console.log('Got a response with no-cors mode, but cannot read its contents');
-        // We can't actually use this response due to CORS restrictions
-        // This is just a last-ditch effort
-      }
-    } catch (directFetchError) {
-      console.error('Direct fetch attempt also failed:', directFetchError);
-    }
-    
-    // If we've tried everything and still failed, return an error
-    if (!fetchSucceeded) {
-      return { 
-        alerts: [], 
-        error: 'Could not fetch weather alerts. Please try again later. This issue will be resolved when the app is deployed to HTTPS.'
-      };
+    } catch (corsProxyError) {
+      console.error('CORS proxy attempt failed:', corsProxyError);
     }
   }
   
   // If we have XML data, parse it
-  if (xmlData) {
+  if (fetchSucceeded && xmlData) {
     try {
       console.log('Successfully fetched XML data, parsing...');
       
@@ -661,13 +642,58 @@ export const fetchWeatherAlerts = async (cityName, province) => {
                          entry.querySelector('lastBuildDate')?.textContent || 
                          new Date().toISOString();
           
+          // Determine severity based on title and content
+          let severity = 'Unknown';
+          
+          // Check title for severity indicators
+          const titleLower = title.toLowerCase();
+          if (titleLower.includes('warning')) {
+            severity = 'Severe';
+          } else if (titleLower.includes('watch')) {
+            severity = 'Moderate';
+          } else if (titleLower.includes('statement') || titleLower.includes('advisory')) {
+            severity = 'Minor';
+          }
+          
+          // Check summary for additional severity indicators
+          const summaryLower = summary.toLowerCase();
+          if (summaryLower.includes('extreme') || summaryLower.includes('emergency')) {
+            severity = 'Extreme';
+          } else if (summaryLower.includes('severe') && !summaryLower.includes('not severe')) {
+            severity = 'Severe';
+          }
+          
+          // Extract areas affected if mentioned in the summary
+          let areas = '';
+          const areasMatch = summary.match(/(?:for|in)\s+([^\.]+)/i);
+          if (areasMatch && areasMatch[1]) {
+            areas = areasMatch[1].trim();
+          }
+          
+          // Extract expiry time if mentioned
+          let expires = null;
+          const expiryMatch = summary.match(/(?:until|expires|ending|end[s]? by|valid until)\s+([^\.]+)/i);
+          if (expiryMatch && expiryMatch[1]) {
+            // Try to parse the date
+            try {
+              const dateStr = expiryMatch[1].trim();
+              // This is a simple attempt - might need more sophisticated parsing
+              expires = new Date(dateStr).toISOString();
+            } catch (e) {
+              console.log('Could not parse expiry date:', expiryMatch[1]);
+            }
+          }
+          
           return {
             id,
             title,
             summary,
             published,
             link,
-            updated
+            updated,
+            severity,
+            areas,
+            expires
           };
         });
       
@@ -675,11 +701,12 @@ export const fetchWeatherAlerts = async (cityName, province) => {
       return { alerts, error: null };
     } catch (parseError) {
       console.error('Error parsing XML:', parseError);
-      return { alerts: [], error: 'Error processing weather alerts data' };
+      return { alerts: [], error: 'Error processing weather alerts data: ' + parseError.message };
     }
   }
   
-  return { alerts: [], error: 'Could not fetch weather alerts. Please try again later.' };
+  // This should never happen, but just in case
+  return { alerts: [], error: 'Unknown error fetching weather alerts' };
 };
 
 // Helper function to get region code for a province

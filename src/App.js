@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Header from './components/Header';
-import CurrentWeather from './components/CurrentWeather';
-import Forecast from './components/Forecast';
-import HourlyForecast from './components/HourlyForecast';
+import WeatherPages from './components/WeatherPages';
 import LocationInfo from './components/LocationInfo';
 import LocationSearch from './components/LocationSearch';
-import WeatherAlerts from './components/WeatherAlerts';
-import EnhancedRadarMap from './components/EnhancedRadarMap';
-import { getCurrentPosition, fetchWeatherData, fetchWeatherAlerts, isLocationInCanada } from './utils/api';
+import PageNavigation from './components/PageNavigation';
+import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
 import axios from 'axios';
 
 // Import API key from utils/api.js to maintain consistency
@@ -30,9 +27,6 @@ function App() {
     localStorage.getItem('darkMode') === 'true' || 
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
-  const [alerts, setAlerts] = useState([]);
-  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
-  const [alertsError, setAlertsError] = useState(null);
   // Add state to track if weather data has been loaded initially
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -40,6 +34,8 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   // Add state for last used location
   const [lastUsedLocation, setLastUsedLocation] = useState(null);
+  // Add state for current page
+  const [currentPage, setCurrentPage] = useState(0);
 
   // Update body class and localStorage when dark mode changes
   useEffect(() => {
@@ -55,190 +51,128 @@ function App() {
     setIsDarkMode(!isDarkMode);
   };
 
-  // Function to subscribe to push notifications
-  const subscribeToPushNotifications = useCallback(async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.log('Push notifications not supported by the browser');
-      return false;
+  const toggleNotifications = () => {
+    if (notificationsEnabled) {
+      // Disable notifications
+      setNotificationsEnabled(false);
+      localStorage.setItem('notificationsEnabled', 'false');
+    } else {
+      // Show prompt to enable notifications
+      setShowNotificationPrompt(true);
+    }
+  };
+
+  const enableNotifications = () => {
+    // Enable notifications
+    setNotificationsEnabled(true);
+    localStorage.setItem('notificationsEnabled', 'true');
+    setShowNotificationPrompt(false);
+    
+    // Here you would typically request notification permissions
+    if ('Notification' in window) {
+      Notification.requestPermission();
+    }
+  };
+
+  const retryFetchWeather = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (coordinates) {
+        const data = await fetchWeatherData(coordinates.lat, coordinates.lon);
+        setWeatherData(data);
+        setIsLoading(false);
+      } else {
+        // If no coordinates, try to get current position again
+        await handleUseMyLocation();
+      }
+    } catch (err) {
+      setError('Failed to fetch weather data. Please try again.');
+      setIsLoading(false);
+      console.error('Error retrying weather fetch:', err);
+    }
+  };
+
+  // Update service worker data
+  const updateServiceWorkerData = useCallback((data, locationData) => {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+      console.log('Service worker not available or not controlling the page');
+      return;
     }
     
     try {
-      const registration = await navigator.serviceWorker.ready;
-      
-      // Check if we already have a subscription
-      let subscription = await registration.pushManager.getSubscription();
-      
-      if (!subscription) {
-        // Create a new subscription
-        const vapidPublicKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-        
-        if (!vapidPublicKey) {
-          console.error('VAPID public key is missing');
-          return false;
-        }
-        
-        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-        
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: convertedVapidKey
-        });
-      }
-      
-      // Send the subscription to the server
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subscription,
-          userPreferences: {
-            location: locationInfo,
-            alertTypes: ['warning', 'watch', 'advisory']
-          }
-        }),
+      navigator.serviceWorker.controller.postMessage({
+        type: 'UPDATE_DATA',
+        data: data,
+        location: locationData
       });
-      
-      console.log('Push notification subscription successful');
-      return true;
+      console.log('Sent data update to service worker');
     } catch (error) {
-      console.error('Error subscribing to push notifications:', error);
-      return false;
+      console.error('Error sending message to service worker:', error);
     }
-  }, [locationInfo]);
+  }, []);
 
-  // Request notification permission
-  const requestNotificationPermission = useCallback(async () => {
+  // Browser notifications
+  const checkNotificationPermission = useCallback(() => {
     if (!('Notification' in window)) {
-      console.log('Notifications not supported by the browser');
-      return false;
+      console.log('This browser does not support notifications');
+      setNotificationsEnabled(false);
+      return;
     }
     
     if (Notification.permission === 'granted') {
-      return await subscribeToPushNotifications();
+      console.log('Notification permission already granted');
+      setNotificationsEnabled(true);
+    } else if (Notification.permission !== 'denied') {
+      // We need to ask for permission
+      setShowNotificationPrompt(true);
     }
-    
-    if (Notification.permission !== 'denied') {
-      try {
-        const permission = await Notification.requestPermission();
-        
-        if (permission === 'granted') {
-          return await subscribeToPushNotifications();
-        } else {
-          console.log('Notification permission not granted');
-          return false;
-        }
-      } catch (error) {
-        console.error('Error requesting notification permission:', error);
-        return false;
-      }
-    } else {
-      console.log('Notification permission denied');
-      return false;
-    }
-  }, [subscribeToPushNotifications]);
-
-  // Helper function to convert base64 string to Uint8Array
-  // (required for the applicationServerKey)
-  function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding)
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-  }
-
-  // Function to check notification permission status on component mount
-  const checkNotificationPermission = useCallback(() => {
+  }, []);
+  
+  const requestNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) {
       return;
     }
     
-    const permission = Notification.permission;
-    if (permission === 'granted') {
-      setNotificationsEnabled(true);
-      // If notification is granted, make sure we're subscribed to push
-      subscribeToPushNotifications();
-    } else if (permission === 'default' && !localStorage.getItem('notificationPromptShown')) {
-      // Only show the prompt if we haven't shown it before (stored in localStorage)
-      setShowNotificationPrompt(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Notification permission granted');
+        setNotificationsEnabled(true);
+      } else {
+        console.log('Notification permission denied');
+        setNotificationsEnabled(false);
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
     }
-  }, [subscribeToPushNotifications]);
-
-  // Function to display a browser notification (for when the page is open)
+    
+    setShowNotificationPrompt(false);
+  }, []);
+  
+  const dismissNotificationPrompt = useCallback(() => {
+    setShowNotificationPrompt(false);
+  }, []);
+  
   const showBrowserNotification = useCallback((title, options) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
       return;
     }
     
     try {
-      new Notification(title, options);
+      const notification = new Notification(title, options);
+      console.log('Browser notification shown:', title);
+      
+      notification.onclick = () => {
+        console.log('Notification clicked');
+        window.focus();
+        notification.close();
+      };
     } catch (error) {
-      console.error('Error showing browser notification:', error);
+      console.error('Error showing notification:', error);
     }
   }, []);
-
-  // Send alerts and location info to the service worker
-  const updateServiceWorkerData = useCallback((alerts, locationData) => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      console.log('Updating service worker with new alerts and location data');
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_ALERTS',
-        alerts,
-        locationInfo: locationData
-      });
-    }
-  }, []);
-
-  // Fetch weather alerts based on location
-  const getWeatherAlerts = useCallback(async (city, region) => {
-    if (!city || !region) return;
-    
-    try {
-      setIsLoadingAlerts(true);
-      setAlertsError(null);
-      
-      const { alerts: alertsData, error: alertsErrorData } = await fetchWeatherAlerts(city, region);
-      
-      if (alertsErrorData) {
-        setAlertsError(alertsErrorData);
-        setAlerts([]);
-      } else {
-        console.log('Fetched alerts:', alertsData);
-        setAlerts(alertsData);
-        
-        // Update service worker with the alerts and location
-        updateServiceWorkerData(alertsData, { city, region });
-        
-        // Show notifications for new alerts if notifications are enabled
-        if (notificationsEnabled && alertsData.length > 0) {
-          for (const alert of alertsData) {
-            showBrowserNotification('Weather Alert', {
-              body: `${alert.title} - ${alert.summary ? alert.summary.substring(0, 100) : ''}...`,
-              icon: '/android-chrome-192x192.png',
-              badge: '/favicon-32x32.png',
-              tag: `alert-${alert.id}`,
-              requireInteraction: true
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching weather alerts:', err);
-      setAlertsError('Failed to fetch weather alerts. Please try again later.');
-      setAlerts([]);
-    } finally {
-      setIsLoadingAlerts(false);
-    }
-  }, [updateServiceWorkerData, notificationsEnabled, showBrowserNotification]);
 
   // Function to get location and weather data based on coordinates
   const getLocationAndWeatherData = useCallback(async (position) => {
@@ -277,10 +211,9 @@ function App() {
           
           // Fetch weather alerts if in Canada
           if (inCanada) {
-            await getWeatherAlerts(locationData.city, locationData.region);
+            // Weather alerts functionality removed and will be reimplemented later
           } else {
-            setAlerts([]);
-            setIsLoadingAlerts(false);
+            // Weather alerts functionality removed and will be reimplemented later
           }
         } else {
           console.warn('No location data found in reverse geocoding response');
@@ -329,31 +262,13 @@ function App() {
       setIsLoading(false);
       return false; // Failed
     }
-  }, [getWeatherAlerts]);
-
-  // Function to manually check for new alerts
-  const checkForNewAlerts = useCallback(() => {
-    console.log('Manually checking for new alerts');
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      console.log('Checking for new alerts via service worker');
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CHECK_ALERTS'
-      });
-    } else {
-      console.log('Service worker not available for alert check, fetching directly');
-      // If service worker is not controlling the page, we'll check directly
-      if (locationInfo && locationInfo.city && locationInfo.region) {
-        getWeatherAlerts(locationInfo.city, locationInfo.region);
-      }
-    }
-  }, [locationInfo, getWeatherAlerts]);
+  }, []);
 
   const handleUseMyLocation = useCallback(async () => {
     try {
       setError(null);
       setUsingFallbackLocation(false);
       setIsLoading(true);
-      setAlerts([]);
       
       // Get user's location with fallback mechanisms
       console.log('Getting current position...');
@@ -385,7 +300,6 @@ function App() {
   const handleLocationSelect = async (location) => {
     console.log('Location selected in App component:', location);
     try {
-      setAlerts([]);
       setIsLoading(true); // Show loading state while fetching weather data
       
       const position = {
@@ -495,75 +409,17 @@ function App() {
     }
   }, [initialLoadComplete]);
 
-  // Add a useEffect to check notification permission on mount and set up periodic alert checking
+  // Add a useEffect to check notification permission on mount
   useEffect(() => {
     checkNotificationPermission();
     
-    // Set up the initial fetch of weather alerts if we have location
-    if (locationInfo && locationInfo.city && locationInfo.region) {
-      console.log('Initial fetch of weather alerts');
-      getWeatherAlerts(locationInfo.city, locationInfo.region);
-    }
-    
-    // Set up periodic checking for new alerts (every 15 minutes)
-    const alertCheckInterval = setInterval(() => {
-      if (locationInfo && locationInfo.city && locationInfo.region) {
-        console.log('Performing periodic alert check');
-        checkForNewAlerts();
-      }
-    }, 15 * 60 * 1000); // 15 minutes
-    
-    // When new alerts are found and the page is open, show a browser notification
-    const handleMessage = (event) => {
-      console.log('Received message from service worker:', event.data);
-      if (event.data && event.data.type === 'NEW_ALERTS') {
-        const newAlerts = event.data.alerts;
-        
-        if (newAlerts && newAlerts.length > 0) {
-          console.log('Received new alerts from service worker:', newAlerts);
-          // Update the state with new alerts
-          setAlerts(prevAlerts => {
-            // Merge the alerts, avoiding duplicates
-            const allAlerts = [...prevAlerts];
-            
-            for (const alert of newAlerts) {
-              if (!prevAlerts.some(a => a.id === alert.id)) {
-                allAlerts.push(alert);
-              }
-            }
-            
-            return allAlerts;
-          });
-          
-          // If notifications are enabled, show a browser notification for each new alert
-          if (notificationsEnabled) {
-            for (const alert of newAlerts) {
-              showBrowserNotification('Weather Alert', {
-                body: `${alert.title} - ${alert.summary ? alert.summary.substring(0, 100) : alert.description ? alert.description.substring(0, 100) : alert.title}...`,
-                icon: '/android-chrome-192x192.png',
-                badge: '/favicon-32x32.png',
-                tag: `alert-${alert.id}`,
-                requireInteraction: true
-              });
-            }
-          }
-        }
-      }
-    };
-    
-    // Listen for messages from the service worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', handleMessage);
-    }
-    
     // Clean up
     return () => {
-      clearInterval(alertCheckInterval);
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.removeEventListener('message', handleMessage);
+        navigator.serviceWorker.removeEventListener('message', () => {});
       }
     };
-  }, [checkNotificationPermission, getWeatherAlerts, checkForNewAlerts, locationInfo, notificationsEnabled, showBrowserNotification]);
+  }, [checkNotificationPermission]);
 
   if (error && !usingFallbackLocation) {
     return (
@@ -584,20 +440,31 @@ function App() {
   }
 
   return (
-    <div className={`app ${isDarkMode ? 'dark-mode' : ''}`}>
+    <div className="app">
       <Header 
-        isDarkMode={isDarkMode} 
         toggleDarkMode={toggleDarkMode} 
+        isDarkMode={isDarkMode} 
+        toggleNotifications={toggleNotifications}
         notificationsEnabled={notificationsEnabled}
       />
       
       <div className="app-container">
-        <LocationSearch 
-          apiKey={API_KEY} 
-          onLocationSelect={handleLocationSelect} 
-          onUseMyLocation={handleUseMyLocation} 
-          onSearchTermChange={setSearchTerm}
-        />
+        <div className="search-location-container">
+          {initialLoadComplete && !isLoading && (
+            <LocationInfo 
+              isInCanada={isInCanada} 
+              cityName={locationInfo.city} 
+              regionName={locationInfo.region} 
+            />
+          )}
+          
+          <LocationSearch 
+            apiKey={API_KEY} 
+            onLocationSelect={handleLocationSelect} 
+            onUseMyLocation={handleUseMyLocation} 
+            onSearchTermChange={setSearchTerm}
+          />
+        </div>
         
         {usingFallbackLocation && (
           <div className="warning-banner">
@@ -606,13 +473,12 @@ function App() {
           </div>
         )}
         
-        {isInCanada && (
-          <WeatherAlerts 
-            alerts={alerts} 
-            isLoading={isLoadingAlerts} 
-            error={alertsError}
-            notificationsEnabled={notificationsEnabled}
-            onCheckAlerts={() => checkForNewAlerts()}
+        {/* Add PageNavigation component here, only show when weather data is loaded */}
+        {initialLoadComplete && !isLoading && (
+          <PageNavigation 
+            currentPage={currentPage} 
+            setCurrentPage={setCurrentPage} 
+            totalPages={3} 
           />
         )}
         
@@ -633,23 +499,10 @@ function App() {
               </div>
             ) : (
               <>
-                <LocationInfo 
-                  isInCanada={isInCanada} 
-                  cityName={locationInfo.city} 
-                  regionName={locationInfo.region} 
-                />
-                <div className="weather-container">
-                  <div className="main-weather">
-                    <CurrentWeather data={weatherData} />
-                    <HourlyForecast data={weatherData} />
-                    <Forecast data={weatherData} />
-                  </div>
-                </div>
-                
-                {/* Enhanced Radar Visualization */}
-                <EnhancedRadarMap
-                  coordinates={coordinates}
-                  isDarkMode={isDarkMode}
+                <WeatherPages 
+                  weatherData={weatherData} 
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
                 />
               </>
             )}
@@ -659,8 +512,8 @@ function App() {
       
       <footer className="footer">
         <div className="container">
-          <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | Enhanced Radar Visualization powered by Environment Canada</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.4.15</span></p>
+          <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap</p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.6.1</span></p>
         </div>
       </footer>
 
