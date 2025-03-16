@@ -37,7 +37,7 @@ const Forecast = ({ data }) => {
 
           return (
             <div key={index} className="forecast-day">
-              <p className="forecast-date">{index === 0 ? 'Today' : date}</p>
+              <p className="forecast-date">{date}</p>
               <div className="forecast-icon">
                 <AnimatedWeatherIcon weatherId={weatherId} isDay={isDay} />
               </div>

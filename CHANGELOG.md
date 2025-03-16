@@ -5,6 +5,51 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.5] - 2025-04-27
+
+### Fixed
+- Fixed 7-day forecast showing two "Today" entries and missing Saturday
+- Improved forecast data generation to ensure all 7 days are displayed in the correct order
+- Removed day of week tracking logic that was causing days to be skipped
+
+## [1.8.4] - 2025-04-26
+
+### Fixed
+- Fixed 7-day forecast showing Sunday twice instead of showing "Today" for the current day
+- Updated date formatting to display "Today" for the current day instead of the day name
+- Improved user experience by making it clearer which forecast day is the current day
+
+## [1.8.3] - 2025-04-25
+
+### Fixed
+- Fixed issue with 7-day forecast showing duplicate days of the week
+- Improved day of week tracking when generating forecast data
+- Enhanced date handling to ensure each day of the week appears only once in the forecast
+
+## [1.8.2] - 2025-04-24
+
+### Fixed
+- Fixed issue with 7-day forecast showing duplicate days (two Sundays) and missing Saturday
+- Improved date handling when extrapolating additional forecast days
+- Enhanced forecast data sorting to ensure chronological order
+
+## [1.8.1] - 2025-04-23
+
+### Changed
+- Modified 7-day forecast to show actual day names for all days instead of showing "Today" for the first day
+- Improved forecast accuracy by displaying consistent day names throughout the forecast
+
+## [1.8.0] - 2025-04-22
+
+### Added
+- Made the version number in the app footer clickable, linking to the GitHub changelog
+- Added hover effects to the version number to indicate it's clickable
+
+## [1.7.1] - 2025-04-21
+
+### Fixed
+- Fixed mobile layout issue where hourly forecast dynamic icons were overlapping with temperature display
+
 ## [1.7.0] - 2025-04-20
 
 ### Changed

@@ -173,16 +173,22 @@ const formatForecastToDaily = (forecastData) => {
     dailyData.push(value);
   });
   
-  // If we don't have enough days (we need 7 days total), generate additional days
-  // The free API typically provides 5 days, so we may need to extrapolate for days 6 and 7
+  // Sort the daily data by timestamp to ensure chronological order
+  dailyData.sort((a, b) => a.dt - b.dt);
+  
+  // We need exactly 7 days total (today + 6 more days)
   const requiredDays = 7;
+  
+  // If we don't have enough days, generate additional days
   if (dailyData.length < requiredDays) {
+    // Get the last day from our sorted array
     const lastDay = dailyData[dailyData.length - 1];
     const lastDayDate = new Date(lastDay.dt * 1000);
     
+    // Generate the missing days
     for (let i = dailyData.length; i < requiredDays; i++) {
       // Create a new date by adding days to the last available date
-      const newDate = new Date(lastDayDate);
+      let newDate = new Date(lastDayDate);
       newDate.setDate(newDate.getDate() + (i - dailyData.length + 1));
       
       // Create a new forecast entry based on the last day's data
@@ -199,9 +205,13 @@ const formatForecastToDaily = (forecastData) => {
         pop: Math.max(0, Math.min(1, lastDay.pop + (Math.random() * 0.2 - 0.1))) // Vary precipitation slightly
       });
     }
+    
+    // Sort again to ensure chronological order after adding extrapolated days
+    dailyData.sort((a, b) => a.dt - b.dt);
   }
   
-  return dailyData;
+  // Ensure we only return exactly 7 days
+  return dailyData.slice(0, 7);
 };
 
 // Format forecast data to hourly structure
@@ -253,6 +263,13 @@ export const isLocationInCanada = async (lat, lon) => {
 // Format date from Unix timestamp
 export const formatDate = (timestamp) => {
   const date = new Date(timestamp * 1000);
+  const today = new Date();
+  
+  // Check if the date is today
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  
   return date.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
 };
 

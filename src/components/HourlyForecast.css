@@ -201,6 +201,7 @@
     height: 40px;
     width: 40px;
     order: 1;
+    margin-right: -10px;
   }
   
   .hourly-icon .animated-weather-icon {
