@@ -520,7 +520,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.6.1</span></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <span className="version">v1.7.0</span></p>
         </div>
       </footer>
 
