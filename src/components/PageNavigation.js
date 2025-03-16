@@ -29,6 +29,14 @@ const PageNavigation = ({ currentPage, setCurrentPage, totalPages }) => {
           <i className="fa-solid fa-calendar-days"></i>
           <span>7-Day</span>
         </button>
+        <button 
+          className={`nav-button ${currentPage === 3 ? 'active' : ''}`} 
+          onClick={() => setCurrentPage(3)}
+          aria-label="Radar Map"
+        >
+          <i className="fa-solid fa-satellite-dish"></i>
+          <span>Radar</span>
+        </button>
       </div>
       <div className="page-indicators">
         {Array.from({ length: totalPages }).map((_, index) => (

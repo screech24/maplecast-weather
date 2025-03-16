@@ -5,6 +5,17 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2025-04-30
+
+### Added
+- Added Environment Canada radar map as a new page after the 7-day forecast
+- Implemented radar animation with playback controls
+- Added support for different radar types (mixed precipitation, rain, snow)
+- Added weather alerts layer overlay
+- Added cities layer for better location context
+- Added radar legend for intensity interpretation
+- Implemented dark mode support for the radar map
+
 ## [1.8.7] - 2025-04-29
 
 ### Fixed

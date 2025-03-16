@@ -485,7 +485,7 @@ function App() {
           <PageNavigation 
             currentPage={currentPage} 
             setCurrentPage={setCurrentPage} 
-            totalPages={3} 
+            totalPages={4}
           />
         )}
         
@@ -510,6 +510,8 @@ function App() {
                   weatherData={weatherData} 
                   currentPage={currentPage}
                   setCurrentPage={setCurrentPage}
+                  coordinates={coordinates}
+                  isDarkMode={isDarkMode}
                 />
               </>
             )}

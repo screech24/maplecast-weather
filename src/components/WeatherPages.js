@@ -3,13 +3,14 @@ import { useSwipeable } from 'react-swipeable';
 import CurrentWeather from './CurrentWeather';
 import Forecast from './Forecast';
 import HourlyForecast from './HourlyForecast';
+import RadarMap from './RadarMap';
 import './WeatherPages.css';
 
-const WeatherPages = ({ weatherData, currentPage, setCurrentPage }) => {
+const WeatherPages = ({ weatherData, currentPage, setCurrentPage, coordinates, isDarkMode }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayedPage, setDisplayedPage] = useState(0);
   const [showSwipeIndicator, setShowSwipeIndicator] = useState(true);
-  const TOTAL_PAGES = 3;
+  const TOTAL_PAGES = 4;
 
   // Handle page changes with transition
   const changePage = (newPage) => {
@@ -70,6 +71,8 @@ const WeatherPages = ({ weatherData, currentPage, setCurrentPage }) => {
         return <HourlyForecast data={weatherData} />;
       case 2:
         return <Forecast data={weatherData} />;
+      case 3:
+        return <RadarMap coordinates={coordinates} isDarkMode={isDarkMode} />;
       default:
         return <CurrentWeather data={weatherData} />;
     }

@@ -2,7 +2,7 @@
 
 A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.8.7-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
@@ -10,6 +10,7 @@ A React-based weather application that displays local weather data with enhanced
 - **Current Weather Conditions**: Temperature, humidity, wind speed, and more
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
 - **Hourly Forecast**: Detailed hourly predictions for the next 24 hours
+- **Environment Canada Radar**: Live radar data with animation controls and multiple layer options
 - **Mobile-Optimized Views**: List view layout for forecasts on mobile devices for better readability
 - **Page Navigation**: Swipe between pages on mobile or use button navigation on desktop
 - **Enhanced Radar Visualization**: Interactive radar map with animation controls
@@ -22,6 +23,19 @@ A React-based weather application that displays local weather data with enhanced
 - **Progressive Web App**: Install on your device and use offline
 - **Dark Mode**: Toggle between light and dark themes
 - **Responsive Design**: Optimized for all device sizes
+
+## Radar Map Features
+
+The radar map page provides:
+
+- **Live Environment Canada Radar**: High-resolution radar data for precipitation across Canada
+- **Animation Controls**: Play/pause and speed controls for radar animation
+- **Multiple Radar Types**: Switch between mixed precipitation, rain, and snow layers
+- **Weather Alerts Overlay**: View active weather alerts on the map
+- **City Labels**: Toggle city names for better location context
+- **Dark Mode Support**: Radar map adapts to the app's dark mode setting
+- **Interactive Map**: Pan and zoom to explore different regions
+- **Timestamp Display**: Shows the current radar frame's timestamp
 
 ## Getting Started
 
