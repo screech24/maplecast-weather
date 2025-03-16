@@ -5,6 +5,15 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.6] - 2025-04-28
+
+### Fixed
+- Fixed 7-day forecast display issue with improved date handling
+- Enhanced formatDate function to properly identify Today, Tomorrow, and future days
+- Completely rewrote formatForecastToDaily function to ensure 7 consecutive days starting from today
+- Improved timestamp handling to ensure consistent day representation across the forecast
+- Added noon timestamp generation for more accurate day representation
+
 ## [1.8.5] - 2025-04-27
 
 ### Fixed

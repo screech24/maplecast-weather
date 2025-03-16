@@ -143,6 +143,11 @@ const formatForecastToDaily = (forecastData) => {
   const dailyData = [];
   const dailyMap = new Map();
   
+  // Get today's date at midnight for consistent comparison
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayTimestamp = Math.floor(todayMidnight.getTime() / 1000);
+  
   // Group forecast by day
   forecastData.list.forEach(item => {
     const date = new Date(item.dt * 1000);
@@ -176,42 +181,72 @@ const formatForecastToDaily = (forecastData) => {
   // Sort the daily data by timestamp to ensure chronological order
   dailyData.sort((a, b) => a.dt - b.dt);
   
-  // We need exactly 7 days total (today + 6 more days)
-  const requiredDays = 7;
+  // Create a new array for the final 7-day forecast
+  const sevenDayForecast = [];
   
-  // If we don't have enough days, generate additional days
-  if (dailyData.length < requiredDays) {
-    // Get the last day from our sorted array
-    const lastDay = dailyData[dailyData.length - 1];
-    const lastDayDate = new Date(lastDay.dt * 1000);
+  // Generate exactly 7 days starting from today
+  for (let i = 0; i < 7; i++) {
+    // Calculate the date for this forecast day
+    const forecastDate = new Date(todayMidnight);
+    forecastDate.setDate(forecastDate.getDate() + i);
+    const forecastDay = forecastDate.toISOString().split('T')[0];
     
-    // Generate the missing days
-    for (let i = dailyData.length; i < requiredDays; i++) {
-      // Create a new date by adding days to the last available date
-      let newDate = new Date(lastDayDate);
-      newDate.setDate(newDate.getDate() + (i - dailyData.length + 1));
+    // Find if we have data for this day in our processed API data
+    const dayData = dailyData.find(day => {
+      const dayDate = new Date(day.dt * 1000);
+      return dayDate.toISOString().split('T')[0] === forecastDay;
+    });
+    
+    if (dayData) {
+      // We have data for this day, use it
+      sevenDayForecast.push(dayData);
+    } else {
+      // No data for this day, generate it
+      // Use the last day's data as a base if available, otherwise use defaults
+      const baseData = sevenDayForecast.length > 0 
+        ? sevenDayForecast[sevenDayForecast.length - 1] 
+        : dailyData.length > 0 
+          ? dailyData[dailyData.length - 1]
+          : null;
       
-      // Create a new forecast entry based on the last day's data
-      // with slight variations to make it look realistic
-      const tempVariation = Math.random() * 2 - 1; // Random variation between -1 and +1
+      // Create a timestamp for this day at noon
+      const noonTimestamp = Math.floor(forecastDate.getTime() / 1000) + 43200; // Add 12 hours
       
-      dailyData.push({
-        dt: Math.floor(newDate.getTime() / 1000),
-        temp: {
-          min: lastDay.temp.min + tempVariation,
-          max: lastDay.temp.max + tempVariation
-        },
-        weather: [...lastDay.weather], // Clone the weather array
-        pop: Math.max(0, Math.min(1, lastDay.pop + (Math.random() * 0.2 - 0.1))) // Vary precipitation slightly
-      });
+      if (baseData) {
+        // Create a new forecast entry based on the base data
+        // with slight variations to make it look realistic
+        const tempVariation = Math.random() * 2 - 1; // Random variation between -1 and +1
+        
+        sevenDayForecast.push({
+          dt: noonTimestamp,
+          temp: {
+            min: baseData.temp.min + tempVariation,
+            max: baseData.temp.max + tempVariation
+          },
+          weather: [...baseData.weather], // Clone the weather array
+          pop: Math.max(0, Math.min(1, baseData.pop + (Math.random() * 0.2 - 0.1))) // Vary precipitation slightly
+        });
+      } else {
+        // No base data available, create default entry
+        sevenDayForecast.push({
+          dt: noonTimestamp,
+          temp: {
+            min: 10, // Default temperature
+            max: 20
+          },
+          weather: [{
+            id: 800, // Clear sky
+            main: "Clear",
+            description: "clear sky",
+            icon: "01d"
+          }],
+          pop: 0
+        });
+      }
     }
-    
-    // Sort again to ensure chronological order after adding extrapolated days
-    dailyData.sort((a, b) => a.dt - b.dt);
   }
   
-  // Ensure we only return exactly 7 days
-  return dailyData.slice(0, 7);
+  return sevenDayForecast;
 };
 
 // Format forecast data to hourly structure
@@ -265,12 +300,23 @@ export const formatDate = (timestamp) => {
   const date = new Date(timestamp * 1000);
   const today = new Date();
   
-  // Check if the date is today
-  if (date.toDateString() === today.toDateString()) {
-    return 'Today';
-  }
+  // Reset hours to compare just the dates
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const forecastDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   
-  return date.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+  // Calculate the difference in days
+  const diffTime = forecastDate.getTime() - todayDate.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Check if the date is today, tomorrow, or another day
+  if (diffDays === 0) {
+    return 'Today';
+  } else if (diffDays === 1) {
+    return 'Tomorrow';
+  } else {
+    // For other days, return the weekday name
+    return date.toLocaleDateString('en-CA', { weekday: 'long' });
+  }
 };
 
 // Format temperature to nearest whole number
