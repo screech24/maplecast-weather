@@ -1,8 +1,8 @@
 # MapleCast Weather App
 
-A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Environment Canada for radar data. It functions as a Progressive Web App (PWA) with push notifications.
+A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Windy.com for interactive radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.9.6-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
@@ -28,14 +28,13 @@ A React-based weather application that displays local weather data with enhanced
 
 The radar map page provides:
 
-- **Live Environment Canada Radar**: High-resolution radar data for precipitation across Canada
-- **Animation Controls**: Play/pause and speed controls for radar animation
-- **Multiple Radar Types**: Switch between mixed precipitation, rain, and snow layers
-- **Weather Alerts Overlay**: View active weather alerts on the map
-- **City Labels**: Toggle city names for better location context
+- **Interactive Windy.com Radar**: High-resolution radar data with detailed precipitation visualization
+- **Multiple Weather Layers**: Access to various weather data layers provided by Windy.com
+- **Interactive Controls**: Zoom, pan, and explore different regions with intuitive controls
+- **Real-time Updates**: Regularly updated radar data from Windy.com's weather service
 - **Dark Mode Support**: Radar map adapts to the app's dark mode setting
-- **Interactive Map**: Pan and zoom to explore different regions
-- **Timestamp Display**: Shows the current radar frame's timestamp
+- **Responsive Design**: Optimized for both desktop and mobile viewing
+- **Location Synchronization**: Automatically centers on your selected location
 
 ## Getting Started
 
@@ -102,7 +101,7 @@ This application is a Progressive Web App, which means you can:
 ## Data Sources
 
 - **Weather Data**: [OpenWeatherMap API](https://openweathermap.org/api)
-- **Radar Data**: [Environment Canada GeoMet-Weather](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/)
+- **Radar Data**: [Windy.com](https://www.windy.com/)
 - **Weather Alerts**: [Environment Canada Weather Alerts](https://weather.gc.ca/warnings/index_e.html)
 
 ## Technologies Used
