@@ -5,6 +5,15 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2025-05-02
+
+### Fixed
+- Fixed radar data not showing by improving timestamp handling
+- Enhanced XML parsing for Environment Canada radar data
+- Added support for different time formats in WMS capabilities
+- Improved fallback timestamp generation using device's system time
+- Ensured timestamps are displayed in the user's local time zone
+
 ## [1.9.1] - 2025-05-01
 
 ### Fixed

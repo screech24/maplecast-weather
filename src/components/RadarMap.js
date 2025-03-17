@@ -86,40 +86,89 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
       
       console.log(`Searching for layer: ${selectedLayer} in ${layers.length} layers`);
       
+      // More robust layer search
       for (let i = 0; i < layers.length; i++) {
-        const nameNode = layers[i].getElementsByTagName('Name')[0];
-        if (nameNode && nameNode.textContent === selectedLayer) {
-          console.log(`Found layer: ${selectedLayer}`);
-          const dimensions = layers[i].getElementsByTagName('Dimension');
-          for (let j = 0; j < dimensions.length; j++) {
-            if (dimensions[j].getAttribute('name') === 'time') {
-              dimensionNode = dimensions[j];
-              break;
+        const nameNodes = layers[i].getElementsByTagName('Name');
+        if (nameNodes.length > 0) {
+          const layerName = nameNodes[0].textContent.trim();
+          if (layerName === selectedLayer) {
+            console.log(`Found layer: ${selectedLayer}`);
+            const dimensions = layers[i].getElementsByTagName('Dimension');
+            for (let j = 0; j < dimensions.length; j++) {
+              if (dimensions[j].getAttribute('name') === 'time') {
+                dimensionNode = dimensions[j];
+                break;
+              }
             }
+            
+            // If we found the dimension, no need to continue searching
+            if (dimensionNode) break;
+            
+            // If we found the layer but no time dimension, check for Extent elements
+            // (some WMS services use Extent instead of Dimension for time)
+            const extents = layers[i].getElementsByTagName('Extent');
+            for (let j = 0; j < extents.length; j++) {
+              if (extents[j].getAttribute('name') === 'time') {
+                dimensionNode = extents[j];
+                break;
+              }
+            }
+            
+            break;
           }
-          break;
         }
       }
       
       if (dimensionNode) {
         // Extract timestamps from the dimension node
-        const timeValues = dimensionNode.textContent.trim().split(',');
+        const timeContent = dimensionNode.textContent.trim();
+        let timeValues = [];
+        
+        // Handle different time formats (comma-separated list or range)
+        if (timeContent.includes(',')) {
+          timeValues = timeContent.split(',');
+        } else if (timeContent.includes('/')) {
+          // Handle time ranges in format "start/end/interval"
+          const [start, end, interval] = timeContent.split('/');
+          const startDate = new Date(start);
+          const endDate = new Date(end);
+          
+          // Parse interval (e.g., "PT10M" for 10 minutes)
+          let intervalMinutes = 10; // Default to 10 minutes
+          if (interval.includes('PT') && interval.includes('M')) {
+            intervalMinutes = parseInt(interval.replace('PT', '').replace('M', ''), 10);
+          }
+          
+          // Generate timestamps at the specified interval
+          const currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            timeValues.push(currentDate.toISOString());
+            currentDate.setMinutes(currentDate.getMinutes() + intervalMinutes);
+          }
+        } else {
+          // Single timestamp
+          timeValues = [timeContent];
+        }
+        
         console.log(`Found ${timeValues.length} timestamps`);
         
-        // Sort timestamps in ascending order
-        const sortedTimestamps = timeValues.sort();
-        setTimestamps(sortedTimestamps);
-        // Set current frame to the latest timestamp
-        setCurrentFrameIndex(sortedTimestamps.length - 1);
-        console.log('Timestamps loaded successfully');
-      } else {
-        console.error('No time dimension found for layer:', selectedLayer);
-        // Fallback: Generate timestamps for the last 24 hours
-        const fallbackTimestamps = generateFallbackTimestamps();
-        console.log(`Using ${fallbackTimestamps.length} fallback timestamps`);
-        setTimestamps(fallbackTimestamps);
-        setCurrentFrameIndex(fallbackTimestamps.length - 1);
+        if (timeValues.length > 0) {
+          // Sort timestamps in ascending order
+          const sortedTimestamps = timeValues.sort();
+          setTimestamps(sortedTimestamps);
+          // Set current frame to the latest timestamp
+          setCurrentFrameIndex(sortedTimestamps.length - 1);
+          console.log('Timestamps loaded successfully');
+          return;
+        }
       }
+      
+      console.error('No valid time dimension found for layer:', selectedLayer);
+      // Fallback: Generate timestamps for the last 24 hours
+      const fallbackTimestamps = generateFallbackTimestamps();
+      console.log(`Using ${fallbackTimestamps.length} fallback timestamps`);
+      setTimestamps(fallbackTimestamps);
+      setCurrentFrameIndex(fallbackTimestamps.length - 1);
     } catch (error) {
       console.error('Error fetching radar timestamps:', error);
       // Fallback: Generate timestamps for the last 24 hours
@@ -133,12 +182,15 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   // Generate fallback timestamps for the last 24 hours
   const generateFallbackTimestamps = () => {
     const timestamps = [];
+    // Use the device's system time
     const now = new Date();
+    console.log('Generating fallback timestamps from current time:', now.toISOString());
     
     // Generate timestamps for the last 24 hours at 10-minute intervals
     for (let i = 0; i < 144; i++) {
       const timestamp = new Date(now);
       timestamp.setMinutes(now.getMinutes() - i * 10);
+      // Format timestamp in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
       timestamps.push(timestamp.toISOString());
     }
     
@@ -191,13 +243,15 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
     if (!timestamp) return '';
     
     try {
+      // Use the device's system time zone for display
       const date = new Date(timestamp);
       return date.toLocaleString('en-CA', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // Use device's time zone
       });
     } catch (error) {
       console.error('Error formatting timestamp:', error);
