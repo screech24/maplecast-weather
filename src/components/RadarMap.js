@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, LayersControl, ZoomControl, ScaleControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, ZoomControl, ScaleControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
 import './RadarMap.css';
@@ -56,7 +56,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   const [showCities, setShowCities] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
   const [mapCenter, setMapCenter] = useState(coordinates ? [coordinates.lat, coordinates.lon] : [56.130366, -106.346771]); // Default to center of Canada
-  const [mapZoom, setMapZoom] = useState(5);
+  const [mapZoom] = useState(5);
   const animationRef = useRef(null);
   const wmsUrl = 'https://geo.weather.gc.ca/geomet';
   
@@ -70,6 +70,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   // Fetch radar timestamps for animation
   const fetchRadarTimestamps = async () => {
     try {
+      console.log('Fetching radar timestamps for layer:', selectedLayer);
       // Get available timestamps from WMS GetCapabilities
       const response = await axios.get(
         `${wmsUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities`
@@ -83,9 +84,12 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
       const layers = xmlDoc.getElementsByTagName('Layer');
       let dimensionNode = null;
       
+      console.log(`Searching for layer: ${selectedLayer} in ${layers.length} layers`);
+      
       for (let i = 0; i < layers.length; i++) {
         const nameNode = layers[i].getElementsByTagName('Name')[0];
         if (nameNode && nameNode.textContent === selectedLayer) {
+          console.log(`Found layer: ${selectedLayer}`);
           const dimensions = layers[i].getElementsByTagName('Dimension');
           for (let j = 0; j < dimensions.length; j++) {
             if (dimensions[j].getAttribute('name') === 'time') {
@@ -100,23 +104,55 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
       if (dimensionNode) {
         // Extract timestamps from the dimension node
         const timeValues = dimensionNode.textContent.trim().split(',');
+        console.log(`Found ${timeValues.length} timestamps`);
+        
         // Sort timestamps in ascending order
         const sortedTimestamps = timeValues.sort();
         setTimestamps(sortedTimestamps);
         // Set current frame to the latest timestamp
         setCurrentFrameIndex(sortedTimestamps.length - 1);
+        console.log('Timestamps loaded successfully');
       } else {
         console.error('No time dimension found for layer:', selectedLayer);
+        // Fallback: Generate timestamps for the last 24 hours
+        const fallbackTimestamps = generateFallbackTimestamps();
+        console.log(`Using ${fallbackTimestamps.length} fallback timestamps`);
+        setTimestamps(fallbackTimestamps);
+        setCurrentFrameIndex(fallbackTimestamps.length - 1);
       }
     } catch (error) {
       console.error('Error fetching radar timestamps:', error);
+      // Fallback: Generate timestamps for the last 24 hours
+      const fallbackTimestamps = generateFallbackTimestamps();
+      console.log(`Using ${fallbackTimestamps.length} fallback timestamps due to error`);
+      setTimestamps(fallbackTimestamps);
+      setCurrentFrameIndex(fallbackTimestamps.length - 1);
     }
+  };
+  
+  // Generate fallback timestamps for the last 24 hours
+  const generateFallbackTimestamps = () => {
+    const timestamps = [];
+    const now = new Date();
+    
+    // Generate timestamps for the last 24 hours at 10-minute intervals
+    for (let i = 0; i < 144; i++) {
+      const timestamp = new Date(now);
+      timestamp.setMinutes(now.getMinutes() - i * 10);
+      timestamps.push(timestamp.toISOString());
+    }
+    
+    return timestamps.reverse(); // Oldest to newest
   };
   
   // Start animation
   const startAnimation = () => {
-    if (timestamps.length === 0) return;
+    if (timestamps.length === 0) {
+      console.log('Cannot start animation: No timestamps available');
+      return;
+    }
     
+    console.log('Starting animation');
     setIsPlaying(true);
     
     const animate = () => {
@@ -142,6 +178,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   
   // Toggle animation
   const toggleAnimation = () => {
+    console.log('Toggle animation, current state:', isPlaying);
     if (isPlaying) {
       stopAnimation();
     } else {
@@ -227,7 +264,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   
   return (
     <div className="radar-map-container">
-      <div className="radar-controls">
+      <div className={`radar-controls ${isDarkMode ? 'dark-mode' : ''}`}>
         <div className="radar-layer-controls">
           <label htmlFor="radar-layer">Radar Type:</label>
           <select 
@@ -275,6 +312,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
           <button 
             onClick={toggleAnimation}
             className={`animation-button ${isDarkMode ? 'dark-mode' : ''}`}
+            aria-label={isPlaying ? 'Pause animation' : 'Play animation'}
           >
             {isPlaying ? (
               <i className="fa-solid fa-pause"></i>
