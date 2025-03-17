@@ -522,7 +522,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="version">v1.9.3</a></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="version">v1.9.4</a></p>
         </div>
       </footer>
 

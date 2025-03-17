@@ -5,6 +5,17 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.4] - 2025-05-04
+
+### Fixed
+- Fixed radar data not showing on the map by using correct layer names and intervals
+- Renamed "Surface Precipitation Type" layer to "Precipitation (Mixed)" for clarity
+- Added verification of radar data availability for timestamps
+- Implemented proper 6-minute intervals for short animation (1h, 11 frames)
+- Added option to toggle between 1-hour and 3-hour radar views
+- Added forced refresh keys to WMS layers to ensure proper rendering
+- Improved timestamp rounding to align with Environment Canada's 6-minute update intervals
+
 ## [1.9.3] - 2025-05-03
 
 ### Fixed

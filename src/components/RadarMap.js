@@ -57,6 +57,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   const [showLegend, setShowLegend] = useState(true);
   const [mapCenter, setMapCenter] = useState(coordinates ? [coordinates.lat, coordinates.lon] : [56.130366, -106.346771]); // Default to center of Canada
   const [mapZoom] = useState(5);
+  const [isLongAnimation, setIsLongAnimation] = useState(false); // Toggle between short (1h) and long (3h) animation
   const animationRef = useRef(null);
   const wmsUrl = 'https://geo.weather.gc.ca/geomet';
   
@@ -64,7 +65,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   const radarLayers = [
     { name: 'Precipitation (Rain)', value: 'RADAR_1KM_RRAI', label: 'Rain' },
     { name: 'Precipitation (Snow)', value: 'RADAR_1KM_RSNO', label: 'Snow' },
-    { name: 'Surface Precipitation Type', value: 'Radar_1km_SfcPrecipType', label: 'Type' }
+    { name: 'Precipitation (Mixed)', value: 'Radar_1km_SfcPrecipType', label: 'Mixed' }
   ];
   
   // Fetch radar timestamps for animation
@@ -73,7 +74,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
       console.log('Fetching radar timestamps for layer:', selectedLayer);
       // Get available timestamps from WMS GetCapabilities
       const response = await axios.get(
-        `${wmsUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities`
+        `${wmsUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&layer=${selectedLayer}`
       );
       
       // Parse the XML response to extract timestamps
@@ -133,8 +134,8 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
           const startDate = new Date(start);
           const endDate = new Date(end);
           
-          // Parse interval (e.g., "PT10M" for 10 minutes)
-          let intervalMinutes = 10; // Default to 10 minutes
+          // Parse interval (e.g., "PT6M" for 6 minutes)
+          let intervalMinutes = 6; // Default to 6 minutes
           if (interval.includes('PT') && interval.includes('M')) {
             intervalMinutes = parseInt(interval.replace('PT', '').replace('M', ''), 10);
           }
@@ -155,23 +156,34 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
         if (timeValues.length > 0) {
           // Sort timestamps in ascending order
           const sortedTimestamps = timeValues.sort();
-          setTimestamps(sortedTimestamps);
+          
+          // Limit to the most recent timestamps based on animation type
+          // Short animation (1h): 11 frames at 6-minute intervals
+          // Long animation (3h): 16 frames at 12-minute intervals
+          const numFrames = isLongAnimation ? 16 : 11;
+          const limitedTimestamps = sortedTimestamps.slice(-numFrames);
+          
+          setTimestamps(limitedTimestamps);
           // Set current frame to the latest timestamp
-          setCurrentFrameIndex(sortedTimestamps.length - 1);
+          setCurrentFrameIndex(limitedTimestamps.length - 1);
           console.log('Timestamps loaded successfully');
+          
+          // Verify if the radar data is actually available for the latest timestamp
+          await verifyRadarData(limitedTimestamps[limitedTimestamps.length - 1]);
+          
           return;
         }
       }
       
       console.error('No valid time dimension found for layer:', selectedLayer);
-      // Fallback: Generate timestamps for the last 24 hours
+      // Fallback: Generate timestamps for the last 1 or 3 hours
       const fallbackTimestamps = generateFallbackTimestamps();
       console.log(`Using ${fallbackTimestamps.length} fallback timestamps`);
       setTimestamps(fallbackTimestamps);
       setCurrentFrameIndex(fallbackTimestamps.length - 1);
     } catch (error) {
       console.error('Error fetching radar timestamps:', error);
-      // Fallback: Generate timestamps for the last 24 hours
+      // Fallback: Generate timestamps for the last 1 or 3 hours
       const fallbackTimestamps = generateFallbackTimestamps();
       console.log(`Using ${fallbackTimestamps.length} fallback timestamps due to error`);
       setTimestamps(fallbackTimestamps);
@@ -179,22 +191,61 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
     }
   };
   
-  // Generate fallback timestamps for the last 24 hours
+  // Verify if radar data is available for a timestamp
+  const verifyRadarData = async (timestamp) => {
+    try {
+      // Make a test request to check if the radar data is available
+      const testUrl = `${wmsUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&BBOX=45,-75,46,-74&CRS=EPSG:4326&WIDTH=10&HEIGHT=10&LAYERS=${selectedLayer}&FORMAT=image/png&TIME=${timestamp}`;
+      await axios.get(testUrl);
+      console.log('Radar data is available for timestamp:', timestamp);
+      return true;
+    } catch (error) {
+      console.error('Radar data is not available for timestamp:', timestamp);
+      // If the latest timestamp doesn't work, try the previous one
+      if (timestamps.length > 1) {
+        const previousTimestamp = timestamps[timestamps.length - 2];
+        console.log('Trying previous timestamp:', previousTimestamp);
+        return await verifyRadarData(previousTimestamp);
+      }
+      return false;
+    }
+  };
+  
+  // Generate fallback timestamps
   const generateFallbackTimestamps = () => {
     const timestamps = [];
     // Use the device's system time
     const now = new Date();
     console.log('Generating fallback timestamps from current time:', now.toISOString());
     
-    // Generate timestamps for the last 24 hours at 10-minute intervals
-    for (let i = 0; i < 144; i++) {
+    // Round down to the nearest 6 minutes to align with Environment Canada's update interval
+    const roundedMinutes = Math.floor(now.getMinutes() / 6) * 6;
+    now.setMinutes(roundedMinutes);
+    now.setSeconds(0);
+    now.setMilliseconds(0);
+    
+    // Determine number of frames and interval based on animation type
+    const numFrames = isLongAnimation ? 16 : 11;
+    const intervalMinutes = isLongAnimation ? 12 : 6;
+    
+    // Generate timestamps at the specified interval
+    for (let i = 0; i < numFrames; i++) {
       const timestamp = new Date(now);
-      timestamp.setMinutes(now.getMinutes() - i * 10);
+      timestamp.setMinutes(now.getMinutes() - i * intervalMinutes);
       // Format timestamp in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
       timestamps.push(timestamp.toISOString());
     }
     
     return timestamps.reverse(); // Oldest to newest
+  };
+  
+  // Toggle between short (1h) and long (3h) animation
+  const toggleAnimationLength = () => {
+    setIsLongAnimation(!isLongAnimation);
+    // Stop animation when changing animation length
+    stopAnimation();
+    // Reset timestamps
+    setTimestamps([]);
   };
   
   // Start animation
@@ -281,11 +332,11 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
     }
   };
   
-  // Fetch timestamps when selected layer changes
+  // Fetch timestamps when selected layer or animation length changes
   useEffect(() => {
     fetchRadarTimestamps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLayer]);
+  }, [selectedLayer, isLongAnimation]);
   
   // Clean up animation on unmount
   useEffect(() => {
@@ -359,6 +410,15 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
               />
               Legend
             </label>
+            
+            <label>
+              <input 
+                type="checkbox" 
+                checked={isLongAnimation} 
+                onChange={toggleAnimationLength} 
+              />
+              3h View
+            </label>
           </div>
         </div>
         
@@ -420,6 +480,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
             version="1.3.0"
             time={currentTimestamp}
             opacity={0.8}
+            key={`radar-${selectedLayer}-${currentTimestamp}-${Date.now()}`} // Force refresh
           />
           
           {/* Weather Alerts Layer */}
@@ -431,6 +492,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
               transparent={true}
               version="1.3.0"
               opacity={0.7}
+              key={`alerts-${Date.now()}`} // Force refresh
             />
           )}
           
@@ -443,6 +505,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
               transparent={true}
               version="1.3.0"
               opacity={1}
+              key={`cities-${Date.now()}`} // Force refresh
             />
           )}
           
@@ -456,6 +519,7 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
       <div className="radar-info">
         <p>Radar data provided by Environment Canada MSC GeoMet service.</p>
         <p>Last updated: {formatTimestamp(currentTimestamp)}</p>
+        <p>View: {isLongAnimation ? '3-hour (16 frames, 12-min intervals)' : '1-hour (11 frames, 6-min intervals)'}</p>
       </div>
     </div>
   );
