@@ -5,7 +5,9 @@ import WeatherPages from './components/WeatherPages';
 import LocationInfo from './components/LocationInfo';
 import LocationSearch from './components/LocationSearch';
 import PageNavigation from './components/PageNavigation';
+import WeatherAlerts from './components/WeatherAlerts';
 import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
+import { registerAlertBackgroundSync } from './utils/alertUtils';
 import axios from 'axios';
 
 // Import API key from utils/api.js to maintain consistency
@@ -420,13 +422,20 @@ function App() {
   useEffect(() => {
     checkNotificationPermission();
     
+    // Register for background sync for weather alerts
+    if (notificationsEnabled) {
+      registerAlertBackgroundSync().then(success => {
+        console.log('Background sync registration:', success ? 'successful' : 'failed');
+      });
+    }
+    
     // Clean up
     return () => {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', () => {});
       }
     };
-  }, [checkNotificationPermission]);
+  }, [checkNotificationPermission, notificationsEnabled]);
 
   if (error && !usingFallbackLocation) {
     return (
@@ -480,6 +489,14 @@ function App() {
           </div>
         )}
         
+        {/* Add WeatherAlerts component here */}
+        {initialLoadComplete && !isLoading && (
+          <WeatherAlerts 
+            locationInfo={locationInfo}
+            isInCanada={isInCanada}
+          />
+        )}
+        
         {/* Add PageNavigation component here, only show when weather data is loaded */}
         {initialLoadComplete && !isLoading && (
           <PageNavigation 
@@ -522,7 +539,7 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap</p>
-          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="version">v1.10.0</a></p>
+          <p>&copy; {new Date().getFullYear()} MapleCast | Written with Cursor AI | <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="version">v1.11.0</a></p>
         </div>
       </footer>
 

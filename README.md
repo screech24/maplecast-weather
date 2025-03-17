@@ -2,7 +2,7 @@
 
 A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Windy.com for interactive radar data. It functions as a Progressive Web App (PWA) with push notifications.
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
@@ -10,19 +10,32 @@ A React-based weather application that displays local weather data with enhanced
 - **Current Weather Conditions**: Temperature, humidity, wind speed, and more
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
 - **Hourly Forecast**: Detailed hourly predictions for the next 24 hours
-- **Environment Canada Radar**: Live radar data with animation controls and multiple layer options
+- **Interactive Radar**: Windy.com radar integration with multiple weather layers
+- **Environment Canada Weather Alerts**: Real-time alerts with push notifications
 - **Mobile-Optimized Views**: List view layout for forecasts on mobile devices for better readability
 - **Page Navigation**: Swipe between pages on mobile or use button navigation on desktop
 - **Enhanced Radar Visualization**: Interactive radar map with animation controls
 - **Dynamic Weather Backgrounds**: Background images that change based on weather conditions and time of day
 - **Day/Night Visualization**: Different background images for day and night for all weather conditions
 - **Multiple Precipitation Layers**: Toggle between rain, snow, and mixed precipitation
-- **Weather Alerts**: Real-time alerts for severe weather conditions with push notifications
 - **Location-based**: Uses your location to show relevant weather information
 - **Canada-specific**: Optimized for Canadian locations with appropriate units (°C, km/h)
 - **Progressive Web App**: Install on your device and use offline
 - **Dark Mode**: Toggle between light and dark themes
 - **Responsive Design**: Optimized for all device sizes
+
+## Weather Alerts Features
+
+The weather alerts system provides:
+
+- **Real-time Environment Canada Alerts**: Official weather warnings, watches, and advisories
+- **Dropdown Alert Banner**: Easily visible at the top of the app
+- **Multiple Alert Support**: View all active alerts for your location
+- **Severity Indicators**: Color-coded alerts based on urgency and severity
+- **Detailed Information**: Expand alerts to view complete details
+- **Push Notifications**: Receive alerts even when the app is closed
+- **Background Checking**: Automatic periodic checking for new alerts
+- **Direct Links**: Access the full alert on Environment Canada's website
 
 ## Radar Map Features
 

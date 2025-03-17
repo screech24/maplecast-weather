@@ -1,8 +1,8 @@
 // Service Worker for Weather App with Alerts Notification Support
-const APP_VERSION = '1.9.1'; // Match this with package.json version
+const APP_VERSION = '1.10.0'; // Match this with package.json version
 const CACHE_NAME = `weather-app-cache-v${APP_VERSION}`;
 const ALERTS_CACHE_NAME = `weather-alerts-cache-v${APP_VERSION}`;
-const ALERTS_SYNC_KEY = 'weather-alerts-sync';
+const ALERTS_SYNC_KEY = 'weather-alerts-periodic';
 
 // Files to cache for offline use
 const urlsToCache = [
@@ -713,21 +713,69 @@ async function cacheAlerts(alerts, locationInfo) {
 }
 
 // Helper function to get region codes for a province
-function getRegionCodesForProvince(province) {
-  if (!province) return ['onrm96', 'bcrm30', 'abrm32', 'qcrm1', 'mbrm9'];
+function getRegionCodes(province) {
+  if (!province) return ['ca'];
   
-  const provinceUpper = province.toUpperCase();
+  // Normalize the province name by removing case sensitivity and extra spaces
+  const normalizedProvince = province.trim().toLowerCase();
   
-  if (provinceUpper === 'ON' || provinceUpper === 'ONTARIO') {
-    return ['onrm119', 'onrm96', 'onrm97', 'on31', 'on33', 'on39', 'on48'];
-  } else if (provinceUpper === 'BC' || provinceUpper === 'BRITISH COLUMBIA') {
-    return ['bcrm30', 'bcrm31', 'bcrm3', 'bcrm4'];
-  } else if (provinceUpper === 'AB' || provinceUpper === 'ALBERTA') {
-    return ['abrm32', 'abrm1', 'abrm2'];
-  } else if (provinceUpper === 'QC' || provinceUpper === 'QUEBEC') {
-    return ['qcrm1', 'qc1', 'qc10', 'qc19'];
-  } else {
-    return ['mbrm9', 'skrm2', 'ns1', 'nb2', 'nl3', 'pei2', 'yt10', 'nt1', 'nu1'];
+  // Map of Canadian province names to Environment Canada region codes
+  const PROVINCE_TO_REGION_CODE = {
+    'alberta': 'ab',
+    'british columbia': 'bc',
+    'manitoba': 'mb',
+    'new brunswick': 'nb',
+    'newfoundland and labrador': 'nl',
+    'northwest territories': 'nt',
+    'nova scotia': 'ns',
+    'nunavut': 'nu',
+    'ontario': 'on',
+    'prince edward island': 'pe',
+    'quebec': 'qc',
+    'saskatchewan': 'sk',
+    'yukon': 'yt'
+  };
+  
+  // Check for exact matches
+  for (const [key, value] of Object.entries(PROVINCE_TO_REGION_CODE)) {
+    if (key === normalizedProvince) {
+      return [value, 'ca']; // Return the province code and 'ca' as fallback
+    }
+  }
+  
+  // Check for partial matches
+  for (const [key, value] of Object.entries(PROVINCE_TO_REGION_CODE)) {
+    if (normalizedProvince.includes(key) || key.includes(normalizedProvince)) {
+      return [value, 'ca']; // Return the province code and 'ca' as fallback
+    }
+  }
+  
+  // Check for abbreviations
+  const abbr = normalizedProvince.substring(0, 2);
+  if (Object.values(PROVINCE_TO_REGION_CODE).includes(abbr)) {
+    return [abbr, 'ca']; // Return the province code and 'ca' as fallback
+  }
+  
+  return ['on', 'ca']; // Default to Ontario if no match found, with 'ca' as fallback
+}
+
+// Helper function to get cached alerts and location info
+async function getCachedAlertsAndLocation() {
+  try {
+    const cache = await caches.open(ALERTS_CACHE_NAME);
+    
+    // Get cached alerts
+    const alertsResponse = await cache.match('alerts-data');
+    const alerts = alertsResponse ? await alertsResponse.json() : [];
+    
+    // Get cached location info
+    const locationResponse = await cache.match('location-info');
+    const locationInfo = locationResponse ? await locationResponse.json() : null;
+    
+    return { alerts, locationInfo };
+  } catch (error) {
+    console.error('[Service Worker] Error getting cached alerts:', error);
+    return { alerts: [], locationInfo: null };
   }
 }
 

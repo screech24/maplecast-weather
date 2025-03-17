@@ -5,6 +5,18 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2025-05-19
+
+### Added
+- Implemented Environment Canada weather alerts system
+- Added dropdown alert banner at the top of the page
+- Added support for displaying multiple alerts simultaneously
+- Implemented background checking for new alerts
+- Added push notifications for new weather alerts on both mobile and desktop
+- Added detailed alert information with severity indicators
+- Added ability to view full alert details and link to Environment Canada
+- Implemented automatic alert fetching based on user's location
+
 ## [1.10.0] - 2025-05-18
 
 ### Changed
