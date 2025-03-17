@@ -5,6 +5,14 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2025-05-03
+
+### Fixed
+- Fixed radar data not showing by updating the radar layer names to match Environment Canada's current API
+- Replaced outdated RADAR_1KM_RDPR layer with valid layers from Environment Canada
+- Updated default radar layer to RADAR_1KM_RRAI (Rain)
+- Added Surface Precipitation Type layer option
+
 ## [1.9.2] - 2025-05-02
 
 ### Fixed

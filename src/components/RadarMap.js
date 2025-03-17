@@ -47,7 +47,7 @@ const RadarLegend = () => {
 };
 
 const RadarMap = ({ coordinates, isDarkMode }) => {
-  const [selectedLayer, setSelectedLayer] = useState('RADAR_1KM_RDPR');
+  const [selectedLayer, setSelectedLayer] = useState('RADAR_1KM_RRAI');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [timestamps, setTimestamps] = useState([]);
@@ -62,9 +62,9 @@ const RadarMap = ({ coordinates, isDarkMode }) => {
   
   // Layer options
   const radarLayers = [
-    { name: 'Precipitation (Mixed)', value: 'RADAR_1KM_RDPR', label: 'Mixed' },
-    { name: 'Rain', value: 'RADAR_1KM_RRAI', label: 'Rain' },
-    { name: 'Snow', value: 'RADAR_1KM_RSNO', label: 'Snow' }
+    { name: 'Precipitation (Rain)', value: 'RADAR_1KM_RRAI', label: 'Rain' },
+    { name: 'Precipitation (Snow)', value: 'RADAR_1KM_RSNO', label: 'Snow' },
+    { name: 'Surface Precipitation Type', value: 'Radar_1km_SfcPrecipType', label: 'Type' }
   ];
   
   // Fetch radar timestamps for animation
