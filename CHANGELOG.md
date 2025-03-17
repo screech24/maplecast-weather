@@ -5,6 +5,13 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.5] - 2025-05-17
+
+### Fixed
+- Fixed radar data not displaying by updating react-leaflet to version 5.0.0-rc.1 to resolve compatibility issues with React 19
+- Improved map rendering stability for radar layers
+- Enhanced compatibility with latest browser versions
+
 ## [1.9.4] - 2025-05-04
 
 ### Fixed
