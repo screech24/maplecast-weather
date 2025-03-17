@@ -5,6 +5,17 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.3] - 2025-05-22
+
+### Fixed
+- Updated CORS proxies for more reliable weather alert fetching
+- Added new reliable CORS proxies including cors.x2u.in and api.codetabs.com
+- Reorganized proxy priority to use most reliable services first
+- Enhanced error handling and logging for better troubleshooting
+- Increased request timeouts for better reliability with slower proxy services
+- Added dedicated battleboard proxy endpoint for local development
+- Improved setupProxy.js with better error reporting and headers
+
 ## [1.11.2] - 2025-05-21
 
 ### Fixed

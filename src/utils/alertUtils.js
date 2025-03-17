@@ -20,10 +20,13 @@ const PROVINCE_TO_REGION_CODE = {
 // CORS proxies to try when fetching alerts
 const CORS_PROXIES = [
   '', // Try direct access first
-  'https://corsproxy.io/?',
-  'https://thingproxy.freeboard.io/fetch/',
-  'https://api.allorigins.win/raw?url=',
-  'https://cors-anywhere.herokuapp.com/'
+  'https://cors.x2u.in/', // New reliable proxy that works globally
+  'https://corsproxy.io/?', // Updated corsproxy.io service
+  'https://api.codetabs.com/v1/proxy?quest=', // Another reliable proxy
+  'https://corsproxy.org/?', // Another alternative
+  'https://thingproxy.freeboard.io/fetch/', // Keep as a fallback
+  'https://api.allorigins.win/raw?url=', // Lower priority due to header issues
+  'https://cors-anywhere.herokuapp.com/' // Lowest priority due to 403 errors
 ];
 
 /**
@@ -132,6 +135,7 @@ export async function fetchWeatherAlerts(locationInfo) {
   const regionCodes = getRegionCodes(locationInfo.region);
   let alerts = [];
   let fetchSucceeded = false;
+  let allProxyErrors = []; // Track all proxy errors for better diagnostics
   
   // Try each region code with each proxy
   for (const regionCode of regionCodes) {
@@ -150,7 +154,7 @@ export async function fetchWeatherAlerts(locationInfo) {
             'Accept': 'application/xml, text/xml, */*',
             'Cache-Control': 'no-cache'
           },
-          timeout: 5000 // 5 second timeout
+          timeout: 8000 // Increase timeout to 8 seconds for better reliability
         });
         
         if (!response.data || response.data.trim() === '') {
@@ -219,7 +223,9 @@ export async function fetchWeatherAlerts(locationInfo) {
           break;
         }
       } catch (error) {
-        console.log(`Error fetching from ${proxy}:`, error.message);
+        const errorMsg = `Error fetching from ${proxy}: ${error.message}`;
+        console.log(errorMsg);
+        allProxyErrors.push(errorMsg); // Store error message for diagnostics
       }
     }
   }
@@ -230,82 +236,173 @@ export async function fetchWeatherAlerts(locationInfo) {
       console.log('Trying local development proxy for alerts');
       
       for (const regionCode of regionCodes) {
+        // First try the general proxy
         const proxyUrl = `/proxy-api/weather-alerts?url=${encodeURIComponent(`https://weather.gc.ca/rss/battleboard/${regionCode}_e.xml`)}`;
         
-        const response = await axios.get(proxyUrl, {
-          headers: {
-            'Accept': 'application/xml, text/xml, */*',
-            'Cache-Control': 'no-cache'
-          },
-          timeout: 5000
-        });
-        
-        if (!response.data || response.data.trim() === '') {
-          continue;
-        }
-        
-        // Parse the XML
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-        
-        // Check if it's a valid XML document
-        if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-          continue;
-        }
-        
-        // Extract alerts from the XML
-        const items = xmlDoc.getElementsByTagName('item');
-        
-        if (items.length === 0) {
-          continue;
-        }
-        
-        console.log(`Found ${items.length} alert items from local proxy`);
-        
-        // Process each alert item
-        const fetchedAlerts = [];
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
+        try {
+          const response = await axios.get(proxyUrl, {
+            headers: {
+              'Accept': 'application/xml, text/xml, */*',
+              'Cache-Control': 'no-cache'
+            },
+            timeout: 8000 // Increase timeout here too
+          });
           
-          const title = item.getElementsByTagName('title')[0]?.textContent || '';
-          const description = item.getElementsByTagName('description')[0]?.textContent || '';
-          const link = item.getElementsByTagName('link')[0]?.textContent || '';
-          const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-          const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
-          
-          // Skip if no title or description
-          if (!title || !description) {
+          if (!response.data || response.data.trim() === '') {
             continue;
           }
           
-          // Create an alert object
-          const alert = {
-            id: guid || `${regionCode}-${Date.now()}-${i}`,
-            title,
-            description,
-            summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
-            link,
-            sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-            expires: null, // Not available in RSS
-            severity: getSeverityFromTitle(title),
-            urgency: getUrgencyFromTitle(title),
-            certainty: 'Observed', // Default value
-            sourceUrl: link
-          };
+          // Parse the XML
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(response.data, 'text/xml');
           
-          fetchedAlerts.push(alert);
+          // Check if it's a valid XML document
+          if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+            continue;
+          }
+          
+          // Extract alerts from the XML
+          const items = xmlDoc.getElementsByTagName('item');
+          
+          if (items.length === 0) {
+            continue;
+          }
+          
+          console.log(`Found ${items.length} alert items from local proxy`);
+          
+          // Process each alert item
+          const fetchedAlerts = [];
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            
+            const title = item.getElementsByTagName('title')[0]?.textContent || '';
+            const description = item.getElementsByTagName('description')[0]?.textContent || '';
+            const link = item.getElementsByTagName('link')[0]?.textContent || '';
+            const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+            const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
+            
+            // Skip if no title or description
+            if (!title || !description) {
+              continue;
+            }
+            
+            // Create an alert object
+            const alert = {
+              id: guid || `${regionCode}-${Date.now()}-${i}`,
+              title,
+              description,
+              summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
+              link,
+              sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+              expires: null, // Not available in RSS
+              severity: getSeverityFromTitle(title),
+              urgency: getUrgencyFromTitle(title),
+              certainty: 'Observed', // Default value
+              sourceUrl: link
+            };
+            
+            fetchedAlerts.push(alert);
+          }
+          
+          if (fetchedAlerts.length > 0) {
+            alerts = fetchedAlerts;
+            fetchSucceeded = true;
+            console.log(`Successfully fetched ${alerts.length} alerts from local proxy`);
+            break;
+          }
+        } catch (proxyError) {
+          console.log(`Error with general proxy: ${proxyError.message}`);
         }
         
-        if (fetchedAlerts.length > 0) {
-          alerts = fetchedAlerts;
-          fetchSucceeded = true;
-          console.log(`Successfully fetched ${alerts.length} alerts from local proxy`);
-          break;
+        // Try the direct battleboard proxy if general proxy failed
+        try {
+          console.log('Trying direct battleboard proxy');
+          const battleboardUrl = `/proxy-api/battleboard?province=${regionCode}`;
+          
+          const response = await axios.get(battleboardUrl, {
+            headers: {
+              'Accept': 'application/xml, text/xml, */*',
+              'Cache-Control': 'no-cache'
+            },
+            timeout: 8000
+          });
+          
+          if (!response.data || response.data.trim() === '') {
+            continue;
+          }
+          
+          // Parse the XML
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(response.data, 'text/xml');
+          
+          // Check if it's a valid XML document
+          if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+            continue;
+          }
+          
+          // Extract alerts from the XML
+          const items = xmlDoc.getElementsByTagName('item');
+          
+          if (items.length === 0) {
+            continue;
+          }
+          
+          console.log(`Found ${items.length} alert items from battleboard proxy`);
+          
+          // Process each alert item
+          const fetchedAlerts = [];
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            
+            const title = item.getElementsByTagName('title')[0]?.textContent || '';
+            const description = item.getElementsByTagName('description')[0]?.textContent || '';
+            const link = item.getElementsByTagName('link')[0]?.textContent || '';
+            const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+            const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
+            
+            // Skip if no title or description
+            if (!title || !description) {
+              continue;
+            }
+            
+            // Create an alert object
+            const alert = {
+              id: guid || `${regionCode}-${Date.now()}-${i}`,
+              title,
+              description,
+              summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
+              link,
+              sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+              expires: null, // Not available in RSS
+              severity: getSeverityFromTitle(title),
+              urgency: getUrgencyFromTitle(title),
+              certainty: 'Observed', // Default value
+              sourceUrl: link
+            };
+            
+            fetchedAlerts.push(alert);
+          }
+          
+          if (fetchedAlerts.length > 0) {
+            alerts = fetchedAlerts;
+            fetchSucceeded = true;
+            console.log(`Successfully fetched ${alerts.length} alerts from battleboard proxy`);
+            break;
+          }
+        } catch (battleboardError) {
+          console.log(`Error with battleboard proxy: ${battleboardError.message}`);
         }
       }
     } catch (error) {
-      console.log('Error fetching from local proxy:', error.message);
+      const errorMsg = `Error fetching from local proxy: ${error.message}`;
+      console.log(errorMsg);
+      allProxyErrors.push(errorMsg);
     }
+  }
+  
+  // Log all errors if no proxy succeeded
+  if (!fetchSucceeded && allProxyErrors.length > 0) {
+    console.error('All proxies failed with the following errors:', allProxyErrors);
   }
   
   // Filter alerts by relevance to the user's location
