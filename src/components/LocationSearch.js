@@ -607,6 +607,10 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     // Call the parent component's callback with the location data
     if (onLocationSelect && typeof onLocationSelect === 'function') {
       onLocationSelect(locationData);
+      // Clear search results after selection
+      setSearchResults([]);
+      // Clear search term
+      setSearchTerm('');
     } else {
       devLog('LocationSearch', 'onLocationSelect is not a function or not provided', { error: true });
     }

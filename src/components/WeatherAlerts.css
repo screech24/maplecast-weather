@@ -27,6 +27,15 @@
   border-bottom-right-radius: 0;
 }
 
+.alerts-header.no-alerts {
+  background-color: #4caf50;
+  cursor: default;
+}
+
+.alerts-header.no-alerts:hover {
+  background-color: #4caf50;
+}
+
 .alerts-header-content {
   display: flex;
   align-items: center;

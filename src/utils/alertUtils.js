@@ -20,6 +20,7 @@ const PROVINCE_TO_REGION_CODE = {
 // CORS proxies to try when fetching alerts
 const CORS_PROXIES = [
   '', // Try direct access first
+  'https://thingproxy.freeboard.io/fetch/',
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
   'https://cors-anywhere.herokuapp.com/'

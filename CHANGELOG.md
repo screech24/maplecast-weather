@@ -5,6 +5,15 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2025-05-20
+
+### Fixed
+- Fixed weather alerts not showing for Canadian locations with active alerts
+- Added thingproxy.freeboard.io as a CORS proxy for more reliable alert fetching
+- Updated CORS proxy list with more reliable options
+- Fixed search selection box not disappearing after location selection
+- Added "No active alerts" banner when there are no weather alerts for the user's location
+
 ## [1.11.0] - 2025-05-19
 
 ### Added

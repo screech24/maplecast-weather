@@ -143,9 +143,23 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
     }
   };
 
-  // If no alerts or not in Canada, don't render anything
-  if (!isInCanada || alerts.length === 0) {
+  // If not in Canada, don't render anything
+  if (!isInCanada) {
     return null;
+  }
+
+  // If no alerts, show a "No active alerts" banner
+  if (alerts.length === 0) {
+    return (
+      <div className="weather-alerts-container">
+        <div className="alerts-header no-alerts">
+          <div className="alerts-header-content">
+            <i className="fa-solid fa-check-circle"></i>
+            <span>No active weather alerts</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
