@@ -38,7 +38,18 @@ const CORS_PROXIES = [
 let alertsCache = {
   data: null,
   timestamp: null,
-  lastRequestTime: null
+  lastRequestTime: null,
+  locationKey: null // Add location key to track location changes
+};
+
+// Function to clear alerts cache
+export const clearAlertsCache = () => {
+  alertsCache = {
+    data: null,
+    timestamp: null,
+    lastRequestTime: null,
+    locationKey: null
+  };
 };
 
 /**
@@ -227,8 +238,13 @@ const shouldMakeRequest = () => {
  * Check if cached data is still valid
  * @returns {boolean}
  */
-const isCacheValid = () => {
-  if (!alertsCache.data || !alertsCache.timestamp) return false;
+const isCacheValid = (locationInfo) => {
+  if (!alertsCache.data || !alertsCache.timestamp || !alertsCache.locationKey) return false;
+  
+  // Check if location has changed
+  const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
+  if (locationKey !== alertsCache.locationKey) return false;
+  
   const cacheAge = Date.now() - alertsCache.timestamp;
   return cacheAge < ALERT_CACHE_DURATION;
 };
@@ -244,8 +260,10 @@ export async function fetchWeatherAlerts(locationInfo) {
     return [];
   }
 
+  const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
+
   // Check cache first
-  if (isCacheValid()) {
+  if (isCacheValid(locationInfo)) {
     console.log('Returning cached alerts');
     return alertsCache.data;
   }
@@ -266,10 +284,11 @@ export async function fetchWeatherAlerts(locationInfo) {
         .map(alert => formatAlertData(alert))
         .filter(alert => alert !== null);
       
-      // Update cache
+      // Update cache with new location key
       alertsCache.data = formattedAlerts;
       alertsCache.timestamp = Date.now();
       alertsCache.lastRequestTime = Date.now();
+      alertsCache.locationKey = locationKey;
       
       return formattedAlerts;
     }
@@ -277,7 +296,7 @@ export async function fetchWeatherAlerts(locationInfo) {
     return [];
   } catch (error) {
     console.error('Error fetching weather alerts:', error);
-    return alertsCache.data || [];
+    return [];
   }
 }
 

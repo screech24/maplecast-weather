@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchWeatherAlerts, checkForNewAlerts } from '../utils/alertUtils';
+import { fetchWeatherAlerts, checkForNewAlerts, clearAlertsCache } from '../utils/alertUtils';
 import './WeatherAlerts.css';
 
-const WeatherAlerts = ({ locationInfo }) => {
+const WeatherAlerts = ({ locationInfo, currentPage }) => {
   const [alerts, setAlerts] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedAlertId, setExpandedAlertId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [prevLocationKey, setPrevLocationKey] = useState(null);
 
   // Function to fetch alerts
   const fetchAlerts = useCallback(async () => {
     if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
       console.log('Missing coordinates:', locationInfo);
+      setAlerts([]); // Clear alerts when no coordinates
       return;
     }
     
@@ -24,17 +26,18 @@ const WeatherAlerts = ({ locationInfo }) => {
       console.log('Fetched alerts:', fetchedAlerts);
       setAlerts(fetchedAlerts);
       
-      // Auto-expand if there are alerts
-      if (fetchedAlerts.length > 0) {
+      // Auto-expand only if there are alerts and we're on the first page
+      if (fetchedAlerts.length > 0 && currentPage === 0) {
         setIsExpanded(true);
       }
     } catch (err) {
       console.error('Error fetching alerts:', err);
       setError('Failed to fetch weather alerts');
+      setAlerts([]); // Clear alerts on error
     } finally {
       setLoading(false);
     }
-  }, [locationInfo]);
+  }, [locationInfo, currentPage]);
 
   // Function to check for new alerts from service worker
   const checkForNewAlertsFromServiceWorker = useCallback(async () => {
@@ -55,24 +58,45 @@ const WeatherAlerts = ({ locationInfo }) => {
           return [...filteredNewAlerts, ...prevAlerts];
         });
         
-        // Auto-expand if there are new alerts
-        if (newAlerts.length > 0) {
+        // Auto-expand only if we're on the first page
+        if (newAlerts.length > 0 && currentPage === 0) {
           setIsExpanded(true);
         }
       }
     } catch (err) {
       console.error('Error checking for new alerts:', err);
     }
-  }, [locationInfo]);
+  }, [locationInfo, currentPage]);
 
-  // Fetch alerts when location changes
+  // Handle location changes
   useEffect(() => {
     if (locationInfo && locationInfo.lat && locationInfo.lon) {
-      fetchAlerts();
+      const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
+      
+      // Check if location has changed
+      if (locationKey !== prevLocationKey) {
+        console.log('Location changed, clearing cache and fetching new alerts');
+        clearAlertsCache(); // Clear the cache when location changes
+        setAlerts([]); // Clear current alerts
+        setIsExpanded(false); // Collapse the alert panel
+        setExpandedAlertId(null); // Clear expanded alert
+        setPrevLocationKey(locationKey); // Update previous location key
+        fetchAlerts(); // Fetch new alerts
+      }
     } else {
-      setAlerts([]);
+      setAlerts([]); // Clear alerts when no location info
+      setIsExpanded(false);
+      setExpandedAlertId(null);
     }
-  }, [locationInfo, fetchAlerts]);
+  }, [locationInfo, prevLocationKey, fetchAlerts]);
+
+  // Handle page changes
+  useEffect(() => {
+    // Collapse alerts when changing pages
+    if (currentPage !== 0) {
+      setIsExpanded(false);
+    }
+  }, [currentPage]);
 
   // Set up service worker message listener for new alerts
   useEffect(() => {
@@ -87,8 +111,8 @@ const WeatherAlerts = ({ locationInfo }) => {
           return [...newAlerts, ...prevAlerts];
         });
         
-        // Auto-expand if there are new alerts
-        if (event.data.alerts.length > 0) {
+        // Auto-expand only if we're on the first page
+        if (event.data.alerts.length > 0 && currentPage === 0) {
           setIsExpanded(true);
         }
       }
@@ -113,7 +137,7 @@ const WeatherAlerts = ({ locationInfo }) => {
       }
       clearInterval(checkInterval);
     };
-  }, [locationInfo, checkForNewAlertsFromServiceWorker]);
+  }, [locationInfo, checkForNewAlertsFromServiceWorker, currentPage]);
 
   // Toggle expanded state for the entire alerts container
   const toggleExpanded = () => {

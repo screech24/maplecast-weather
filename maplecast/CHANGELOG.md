@@ -5,6 +5,17 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.6] - 2024-03-18
+
+### Fixed
+- Fixed alert data not updating when changing locations
+- Fixed refresh alert button not working properly
+- Fixed alert bar opening when changing pages
+- Added automatic location update when app comes from background state
+- Added location change detection with 1km threshold
+- Improved alert caching system with location tracking
+- Fixed alerts persisting after location change
+
 ## [1.11.5] - 2024-03-18
 
 ### Fixed

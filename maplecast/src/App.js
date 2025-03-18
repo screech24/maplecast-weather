@@ -378,21 +378,67 @@ function App() {
     loadLastUsedLocation();
   }, [getLocationAndWeatherData]);
 
-  // Add a useEffect to update weather data when the app is resumed
+  // Handle visibility change (app coming from background)
   useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && lastUsedLocation) {
-        console.log('App resumed, updating weather data');
-        await getLocationAndWeatherData(lastUsedLocation);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App became visible, checking location...');
+        // Get current position and update if needed
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const newPosition = {
+                lat: position.coords.latitude,
+                lon: position.coords.longitude
+              };
+              
+              // Check if location has changed significantly (more than 1km)
+              const hasLocationChanged = coordinates ? 
+                calculateDistance(
+                  coordinates.lat, 
+                  coordinates.lon, 
+                  newPosition.lat, 
+                  newPosition.lon
+                ) > 1 : true;
+              
+              if (hasLocationChanged) {
+                console.log('Location has changed, updating...');
+                handleLocationSelect(newPosition);
+              }
+            },
+            (error) => {
+              console.warn('Error getting current position:', error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+        }
       }
     };
-    
+
+    // Add visibility change listener
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
+    // Clean up
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [lastUsedLocation, getLocationAndWeatherData]);
+  }, [coordinates]);
+
+  // Helper function to calculate distance between two points using Haversine formula
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+             Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
   // Add a useEffect to initialize API key and mark core functionality as available
   useEffect(() => {
@@ -498,6 +544,7 @@ function App() {
               lon: coordinates?.lon
             }}
             isInCanada={isInCanada}
+            currentPage={currentPage}
           />
         )}
         
