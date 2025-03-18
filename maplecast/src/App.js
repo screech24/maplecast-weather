@@ -545,7 +545,7 @@ function App() {
             }}
             isInCanada={isInCanada}
             currentPage={currentPage}
-            isSearching={!!searchTerm}
+            isSearching={isLoading || (!!searchTerm && !coordinates)}
           />
         )}
         

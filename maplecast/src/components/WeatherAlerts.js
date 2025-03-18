@@ -82,14 +82,23 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
         setIsExpanded(false); // Collapse the alert panel
         setExpandedAlertId(null); // Clear expanded alert
         setPrevLocationKey(locationKey); // Update previous location key
-        fetchAlerts(); // Fetch new alerts
+        
+        // Only fetch alerts if we're not in the middle of a search
+        if (!isSearching) {
+          console.log('Location selected, fetching alerts');
+          fetchAlerts();
+        }
+      } else if (!alerts.length && !isSearching) {
+        // If we have a location but no alerts and we're not searching, fetch alerts
+        console.log('No alerts present for current location, fetching alerts');
+        fetchAlerts();
       }
     } else {
       setAlerts([]); // Clear alerts when no location info
       setIsExpanded(false);
       setExpandedAlertId(null);
     }
-  }, [locationInfo, prevLocationKey, fetchAlerts]);
+  }, [locationInfo, prevLocationKey, fetchAlerts, isSearching, alerts.length]);
 
   // Handle page changes
   useEffect(() => {
