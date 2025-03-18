@@ -1,5 +1,5 @@
 // Service Worker for Weather App with Alerts Notification Support
-const APP_VERSION = '1.10.0'; // Match this with package.json version
+const APP_VERSION = '1.11.4'; // Match this with package.json version
 const CACHE_NAME = `weather-app-cache-v${APP_VERSION}`;
 const ALERTS_CACHE_NAME = `weather-alerts-cache-v${APP_VERSION}`;
 const ALERTS_SYNC_KEY = 'weather-alerts-periodic';
