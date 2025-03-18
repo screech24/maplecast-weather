@@ -9,12 +9,20 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [prevLocationKey, setPrevLocationKey] = useState(null);
+  const [fetchAttempted, setFetchAttempted] = useState(false);
 
   // Function to fetch alerts
   const fetchAlerts = useCallback(async () => {
-    // Don't fetch alerts if we're in the middle of a search
+    // Skip if we're in the middle of a search or don't have coordinates
     if (isSearching || !locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Skipping alert fetch during search or missing coordinates');
+      console.log('Skipping alert fetch: searching or missing coordinates');
+      return;
+    }
+
+    // Skip if we've already attempted a fetch for this location
+    const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
+    if (fetchAttempted && locationKey === prevLocationKey) {
+      console.log('Skipping alert fetch: already attempted for this location');
       return;
     }
     
@@ -22,9 +30,11 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     setError(null);
     
     try {
+      console.log('Fetching alerts for location:', locationKey);
       const fetchedAlerts = await fetchWeatherAlerts(locationInfo);
       console.log('Fetched alerts:', fetchedAlerts);
       setAlerts(fetchedAlerts);
+      setFetchAttempted(true);
       
       // Auto-expand only if there are alerts and we're on the first page
       if (fetchedAlerts.length > 0 && currentPage === 0) {
@@ -37,7 +47,7 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     } finally {
       setLoading(false);
     }
-  }, [locationInfo, currentPage, isSearching]);
+  }, [locationInfo, currentPage, isSearching, prevLocationKey, fetchAttempted]);
 
   // Function to check for new alerts from service worker
   const checkForNewAlertsFromServiceWorker = useCallback(async () => {
@@ -76,29 +86,29 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
       
       // Check if location has changed
       if (locationKey !== prevLocationKey) {
-        console.log('Location changed, clearing cache and fetching new alerts');
+        console.log('Location changed, clearing cache and preparing to fetch new alerts');
         clearAlertsCache(); // Clear the cache when location changes
         setAlerts([]); // Clear current alerts
         setIsExpanded(false); // Collapse the alert panel
         setExpandedAlertId(null); // Clear expanded alert
+        setFetchAttempted(false); // Reset fetch attempt flag
         setPrevLocationKey(locationKey); // Update previous location key
-        
-        // Only fetch alerts if we're not in the middle of a search
-        if (!isSearching) {
-          console.log('Location selected, fetching alerts');
-          fetchAlerts();
-        }
-      } else if (!alerts.length && !isSearching) {
-        // If we have a location but no alerts and we're not searching, fetch alerts
-        console.log('No alerts present for current location, fetching alerts');
-        fetchAlerts();
       }
     } else {
       setAlerts([]); // Clear alerts when no location info
       setIsExpanded(false);
       setExpandedAlertId(null);
+      setFetchAttempted(false);
     }
-  }, [locationInfo, prevLocationKey, fetchAlerts, isSearching, alerts.length]);
+  }, [locationInfo]);
+
+  // Fetch alerts when conditions are right
+  useEffect(() => {
+    if (locationInfo && locationInfo.lat && locationInfo.lon && !isSearching && !fetchAttempted) {
+      console.log('Conditions met for fetching alerts');
+      fetchAlerts();
+    }
+  }, [locationInfo, isSearching, fetchAttempted, fetchAlerts]);
 
   // Handle page changes
   useEffect(() => {
