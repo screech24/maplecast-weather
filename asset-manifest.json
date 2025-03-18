@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/maplecast-weather/static/css/main.c4ff7cc2.css",
-    "main.js": "/maplecast-weather/static/js/main.cbb50cfc.js",
+    "main.js": "/maplecast-weather/static/js/main.d1002ac9.js",
     "static/js/787.dcdb0f2e.chunk.js": "/maplecast-weather/static/js/787.dcdb0f2e.chunk.js",
     "index.html": "/maplecast-weather/index.html",
     "static/media/maple-leaf.svg": "/maplecast-weather/static/media/maple-leaf.e644460ead278b74e67550dc93bbf148.svg",
     "main.c4ff7cc2.css.map": "/maplecast-weather/static/css/main.c4ff7cc2.css.map",
-    "main.cbb50cfc.js.map": "/maplecast-weather/static/js/main.cbb50cfc.js.map",
+    "main.d1002ac9.js.map": "/maplecast-weather/static/js/main.d1002ac9.js.map",
     "787.dcdb0f2e.chunk.js.map": "/maplecast-weather/static/js/787.dcdb0f2e.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.c4ff7cc2.css",
-    "static/js/main.cbb50cfc.js"
+    "static/js/main.d1002ac9.js"
   ]
 }
