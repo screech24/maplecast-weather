@@ -137,7 +137,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border-radius: 8px;
   margin-top: 8px;
-  z-index: 10;
+  z-index: 1000;
   list-style-type: none;
   padding: 0;
 }

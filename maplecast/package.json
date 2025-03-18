@@ -1,6 +1,6 @@
 {
   "name": "maplecast-weather",
-  "version": "1.11.4",
+  "version": "1.11.5",
   "private": true,
   "homepage": "https://screech24.github.io/maplecast-weather",
   "dependencies": {

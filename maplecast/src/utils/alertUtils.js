@@ -191,6 +191,13 @@ const getSeverityLevel = (title = '') => {
  * @returns {Object} Formatted alert data
  */
 const formatAlertData = (alert) => {
+  // Skip French alerts (they usually contain "en vigueur", "vigilance", or "avertissement")
+  if (alert.title.toLowerCase().includes('en vigueur') || 
+      alert.title.toLowerCase().includes('vigilance') || 
+      alert.title.toLowerCase().includes('avertissement')) {
+    return null;
+  }
+
   return {
     id: alert.alertid || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     title: alert.title,
@@ -250,42 +257,26 @@ export async function fetchWeatherAlerts(locationInfo) {
   }
 
   try {
-    console.log(`Fetching weather alerts for coordinates: ${locationInfo.lat}, ${locationInfo.lon}`);
-
-    const response = await axios.get(`${WEATHERBIT_BASE_URL}/alerts`, {
-      params: {
-        lat: locationInfo.lat,
-        lon: locationInfo.lon,
-        key: WEATHERBIT_API_KEY
-      },
-      headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-      }
-    });
-
-    // Update last request time for rate limiting
-    alertsCache.lastRequestTime = Date.now();
-
-    if (!response.data || !response.data.alerts) {
-      console.log('No alerts found');
-      alertsCache.data = [];
+    const url = `${WEATHERBIT_BASE_URL}/alerts?lat=${locationInfo.lat}&lon=${locationInfo.lon}&key=${WEATHERBIT_API_KEY}`;
+    const response = await axios.get(url);
+    
+    if (response.data && Array.isArray(response.data.alerts)) {
+      // Filter out null values (French alerts) and format the alerts
+      const formattedAlerts = response.data.alerts
+        .map(alert => formatAlertData(alert))
+        .filter(alert => alert !== null);
+      
+      // Update cache
+      alertsCache.data = formattedAlerts;
       alertsCache.timestamp = Date.now();
-      return [];
+      alertsCache.lastRequestTime = Date.now();
+      
+      return formattedAlerts;
     }
-
-    // Format alerts
-    const formattedAlerts = response.data.alerts.map(formatAlertData);
-
-    // Update cache
-    alertsCache.data = formattedAlerts;
-    alertsCache.timestamp = Date.now();
-
-    console.log(`Successfully fetched ${formattedAlerts.length} alerts`);
-    return formattedAlerts;
+    
+    return [];
   } catch (error) {
-    console.error('Error fetching alerts from Weatherbit:', error);
-    // Return cached data if available, otherwise empty array
+    console.error('Error fetching weather alerts:', error);
     return alertsCache.data || [];
   }
 }

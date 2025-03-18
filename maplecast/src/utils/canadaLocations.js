@@ -18,14 +18,10 @@ export const CANADIAN_PROVINCES = {
   'NU': 'Nunavut'
 };
 
-// Environment Canada MSC GeoMet API endpoints
-const MSC_GEOMET_BASE_URL = 'https://geo.weather.gc.ca/geomet';
-const MSC_GEOMET_WFS_URL = `${MSC_GEOMET_BASE_URL}?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json`;
-
-// Cache for location data to reduce API calls
+// Cache for location data
 const locationCache = new Map();
 
-// Fallback data for major Canadian cities in case the API fails
+// Fallback data for major Canadian cities
 const FALLBACK_CANADIAN_CITIES = [
   { name: 'Toronto', province: 'Ontario', provinceCode: 'ON', country: 'Canada', countryCode: 'CA', lat: 43.6532, lon: -79.3832, type: 'city', source: 'fallback' },
   { name: 'Montreal', province: 'Quebec', provinceCode: 'QC', country: 'Canada', countryCode: 'CA', lat: 45.5017, lon: -73.5673, type: 'city', source: 'fallback' },
@@ -59,132 +55,35 @@ const FALLBACK_WEATHER_STATIONS = [
 ];
 
 /**
- * Fetch Canadian cities from Environment Canada's MSC GeoMet service
+ * Get Canadian cities
  * @returns {Promise<Array>} Array of Canadian cities with coordinates
  */
 export const fetchCanadianCities = async () => {
-  try {
-    // Check if we have cached data
-    if (locationCache.has('cities')) {
-      debugLog('CanadaLocations', 'Using cached cities data');
-      return locationCache.get('cities');
-    }
-
-    try {
-      // Fetch cities from MSC GeoMet WFS service
-      // Using the CITIES layer which contains major Canadian cities
-      const response = await axios.get(`${MSC_GEOMET_WFS_URL}&typeName=CITIES&srsName=EPSG:4326`, {
-        timeout: 5000 // 5 second timeout
-      });
-      
-      if (!response.data || !response.data.features) {
-        throw new Error('Invalid response from Environment Canada API');
-      }
-
-      // Format the cities data
-      const cities = response.data.features.map(feature => {
-        const { properties, geometry } = feature;
-        // Extract coordinates (WFS returns [longitude, latitude])
-        const [lon, lat] = geometry.coordinates;
-        
-        return {
-          name: properties.NAME_E || properties.NAME, // English name or fallback to default
-          province: properties.PROV_TERR_STATE_LOC,
-          provinceCode: properties.PROV_TERR_STATE_LOC,
-          country: 'Canada',
-          countryCode: 'CA',
-          lat,
-          lon,
-          type: 'city',
-          source: 'environment-canada'
-        };
-      });
-
-      // Cache the results
-      locationCache.set('cities', cities);
-      devLog('CanadaLocations', `Fetched ${cities.length} Canadian cities`);
-      
-      return cities;
-    } catch (apiError) {
-      // If API call fails, use fallback data
-      console.warn('Environment Canada API failed, using fallback city data:', apiError.message);
-      devLog('CanadaLocations', 'Using fallback Canadian cities data');
-      
-      // Cache the fallback data
-      locationCache.set('cities', FALLBACK_CANADIAN_CITIES);
-      
-      return FALLBACK_CANADIAN_CITIES;
-    }
-  } catch (error) {
-    console.error('Error fetching Canadian cities:', error);
-    return FALLBACK_CANADIAN_CITIES; // Return fallback data in case of any error
+  // Check if we have cached data
+  if (locationCache.has('cities')) {
+    debugLog('CanadaLocations', 'Using cached cities data');
+    return locationCache.get('cities');
   }
+
+  // Cache and return the fallback data
+  locationCache.set('cities', FALLBACK_CANADIAN_CITIES);
+  return FALLBACK_CANADIAN_CITIES;
 };
 
 /**
- * Fetch Canadian weather stations from Environment Canada's MSC GeoMet service
+ * Get Canadian weather stations
  * @returns {Promise<Array>} Array of Canadian weather stations with coordinates
  */
 export const fetchCanadianWeatherStations = async () => {
-  try {
-    // Check if we have cached data
-    if (locationCache.has('stations')) {
-      debugLog('CanadaLocations', 'Using cached weather stations data');
-      return locationCache.get('stations');
-    }
-
-    try {
-      // Fetch weather stations from MSC GeoMet WFS service
-      const response = await axios.get(`${MSC_GEOMET_WFS_URL}&typeName=CURRENT_CONDITIONS&srsName=EPSG:4326`, {
-        timeout: 5000 // 5 second timeout
-      });
-      
-      if (!response.data || !response.data.features) {
-        throw new Error('Invalid response from Environment Canada API');
-      }
-
-      // Format the weather stations data
-      const stations = response.data.features.map(feature => {
-        const { properties, geometry } = feature;
-        // Extract coordinates (WFS returns [longitude, latitude])
-        const [lon, lat] = geometry.coordinates;
-        
-        // Get province code from station ID (first two characters)
-        const provinceCode = properties.PROV_TERR_STATE_LOC || '';
-        
-        return {
-          name: properties.STATION_NAME_EN || properties.STATION_NAME, // English name or fallback
-          province: CANADIAN_PROVINCES[provinceCode] || provinceCode,
-          provinceCode,
-          country: 'Canada',
-          countryCode: 'CA',
-          lat,
-          lon,
-          type: 'weather_station',
-          stationId: properties.STATION_ID,
-          source: 'environment-canada'
-        };
-      });
-
-      // Cache the results
-      locationCache.set('stations', stations);
-      devLog('CanadaLocations', `Fetched ${stations.length} Canadian weather stations`);
-      
-      return stations;
-    } catch (apiError) {
-      // If API call fails, use fallback data
-      console.warn('Environment Canada API failed, using fallback weather station data:', apiError.message);
-      devLog('CanadaLocations', 'Using fallback Canadian weather stations data');
-      
-      // Cache the fallback data
-      locationCache.set('stations', FALLBACK_WEATHER_STATIONS);
-      
-      return FALLBACK_WEATHER_STATIONS;
-    }
-  } catch (error) {
-    console.error('Error fetching Canadian weather stations:', error);
-    return FALLBACK_WEATHER_STATIONS; // Return fallback data in case of any error
+  // Check if we have cached data
+  if (locationCache.has('stations')) {
+    debugLog('CanadaLocations', 'Using cached weather stations data');
+    return locationCache.get('stations');
   }
+
+  // Cache and return the fallback data
+  locationCache.set('stations', FALLBACK_WEATHER_STATIONS);
+  return FALLBACK_WEATHER_STATIONS;
 };
 
 /**
@@ -193,140 +92,93 @@ export const fetchCanadianWeatherStations = async () => {
  * @returns {Promise<Array>} Array of matching locations
  */
 export const searchCanadianLocations = async (query) => {
-  try {
-    if (!query || query.trim().length < 2) {
-      return [];
-    }
-
-    // Normalize the query
-    const normalizedQuery = query.toLowerCase().trim();
-    
-    // Fetch cities and weather stations if not already cached
-    const [cities, stations] = await Promise.all([
-      fetchCanadianCities(),
-      fetchCanadianWeatherStations()
-    ]);
-
-    // Combine all locations
-    const allLocations = [...cities, ...stations];
-    
-    // Filter locations based on the query
-    const results = allLocations.filter(location => {
-      const locationName = location.name.toLowerCase();
-      const provinceName = location.province ? location.province.toLowerCase() : '';
-      
-      return locationName.includes(normalizedQuery) || 
-             provinceName.includes(normalizedQuery) ||
-             (location.provinceCode && location.provinceCode.toLowerCase().includes(normalizedQuery));
-    });
-
-    // Sort results by relevance (exact matches first, then partial matches)
-    results.sort((a, b) => {
-      const aNameLower = a.name.toLowerCase();
-      const bNameLower = b.name.toLowerCase();
-      
-      // Exact matches first
-      if (aNameLower === normalizedQuery && bNameLower !== normalizedQuery) return -1;
-      if (bNameLower === normalizedQuery && aNameLower !== normalizedQuery) return 1;
-      
-      // Then starts with query
-      if (aNameLower.startsWith(normalizedQuery) && !bNameLower.startsWith(normalizedQuery)) return -1;
-      if (bNameLower.startsWith(normalizedQuery) && !aNameLower.startsWith(normalizedQuery)) return 1;
-      
-      // Then alphabetical
-      return aNameLower.localeCompare(bNameLower);
-    });
-
-    devLog('CanadaLocations', `Found ${results.length} matches for query "${query}"`);
-    return results;
-  } catch (error) {
-    console.error('Error searching Canadian locations:', error);
-    
-    // If search fails, try to search in the fallback data
-    try {
-      const normalizedQuery = query.toLowerCase().trim();
-      const allLocations = [...FALLBACK_CANADIAN_CITIES, ...FALLBACK_WEATHER_STATIONS];
-      
-      const results = allLocations.filter(location => {
-        const locationName = location.name.toLowerCase();
-        const provinceName = location.province ? location.province.toLowerCase() : '';
-        
-        return locationName.includes(normalizedQuery) || 
-               provinceName.includes(normalizedQuery) ||
-               (location.provinceCode && location.provinceCode.toLowerCase().includes(normalizedQuery));
-      });
-      
-      results.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-      
-      devLog('CanadaLocations', `Found ${results.length} matches in fallback data for query "${query}"`);
-      return results;
-    } catch (fallbackError) {
-      console.error('Error searching fallback Canadian locations:', fallbackError);
-      return [];
-    }
+  if (!query || query.trim().length < 2) {
+    return [];
   }
+
+  // Normalize the query
+  const normalizedQuery = query.toLowerCase().trim();
+  
+  // Get all locations from cache or fallback data
+  const cities = await fetchCanadianCities();
+  const stations = await fetchCanadianWeatherStations();
+  const allLocations = [...cities, ...stations];
+  
+  // Filter locations based on the query
+  const results = allLocations.filter(location => {
+    const locationName = location.name.toLowerCase();
+    const provinceName = location.province ? location.province.toLowerCase() : '';
+    
+    return locationName.includes(normalizedQuery) || 
+           provinceName.includes(normalizedQuery) ||
+           (location.provinceCode && location.provinceCode.toLowerCase().includes(normalizedQuery));
+  });
+
+  // Sort results by relevance
+  results.sort((a, b) => {
+    const aNameLower = a.name.toLowerCase();
+    const bNameLower = b.name.toLowerCase();
+    
+    // Exact matches first
+    if (aNameLower === normalizedQuery && bNameLower !== normalizedQuery) return -1;
+    if (bNameLower === normalizedQuery && aNameLower !== normalizedQuery) return 1;
+    
+    // Then starts with query
+    if (aNameLower.startsWith(normalizedQuery) && !bNameLower.startsWith(normalizedQuery)) return -1;
+    if (bNameLower.startsWith(normalizedQuery) && !aNameLower.startsWith(normalizedQuery)) return 1;
+    
+    // Then alphabetical
+    return aNameLower.localeCompare(bNameLower);
+  });
+
+  devLog('CanadaLocations', `Found ${results.length} matches for query "${query}"`);
+  return results;
 };
 
 /**
- * Get location details by coordinates
+ * Get location by coordinates
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
- * @returns {Promise<Object|null>} Location details or null if not found
+ * @returns {Promise<Object|null>} Location object or null if not found
  */
 export const getLocationByCoordinates = async (lat, lon) => {
-  try {
-    // Fetch cities and weather stations if not already cached
-    const [cities, stations] = await Promise.all([
-      fetchCanadianCities(),
-      fetchCanadianWeatherStations()
-    ]);
-
-    // Combine all locations
-    const allLocations = [...cities, ...stations];
-    
-    // Find the closest location
-    let closestLocation = null;
-    let minDistance = Infinity;
-    
-    for (const location of allLocations) {
-      const distance = calculateDistance(lat, lon, location.lat, location.lon);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestLocation = location;
-      }
+  // Get all locations
+  const cities = await fetchCanadianCities();
+  const stations = await fetchCanadianWeatherStations();
+  const allLocations = [...cities, ...stations];
+  
+  // Find the closest location
+  let closestLocation = null;
+  let minDistance = Infinity;
+  
+  for (const location of allLocations) {
+    const distance = calculateDistance(lat, lon, location.lat, location.lon);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestLocation = location;
     }
-    
-    // If the closest location is too far (more than 50km), return null
-    if (minDistance > 50) {
-      return null;
-    }
-    
-    return closestLocation;
-  } catch (error) {
-    console.error('Error getting location by coordinates:', error);
-    return null;
   }
+  
+  return closestLocation;
 };
 
 /**
- * Calculate distance between two points using the Haversine formula
- * @param {number} lat1 - Latitude of point 1
- * @param {number} lon1 - Longitude of point 1
- * @param {number} lat2 - Latitude of point 2
- * @param {number} lon2 - Longitude of point 2
+ * Calculate distance between two points using Haversine formula
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
  * @returns {number} Distance in kilometers
  */
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of the Earth in km
+  const R = 6371; // Earth's radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+           Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+           Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const distance = R * c;
-  return distance;
+  return R * c;
 };
 
 /**

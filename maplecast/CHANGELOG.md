@@ -5,6 +5,14 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.5] - 2024-03-18
+
+### Fixed
+- Removed French weather alerts to show only English alerts
+- Fixed search dropdown being hidden behind the alert bar by increasing its z-index
+- Removed Environment Canada API calls and switched to using only OpenWeatherMap and Weatherbit for data
+- Improved location search reliability by using local fallback data
+
 ## [1.11.4] - 2024-03-18
 
 ### Fixed
