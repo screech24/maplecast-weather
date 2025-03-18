@@ -545,6 +545,7 @@ function App() {
             }}
             isInCanada={isInCanada}
             currentPage={currentPage}
+            isSearching={!!searchTerm}
           />
         )}
         
@@ -589,8 +590,18 @@ function App() {
       
       <footer className="footer">
         <div className="container">
-          <p><i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap</p>
-          <p className="footer-text">© 2024 MapleCast Weather | <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" className="version">v1.11.4</a></p>
+          <p>
+            <i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | 
+            <i className="fa-solid fa-triangle-exclamation"></i> Weather alerts powered by Weatherbit
+          </p>
+          <p className="footer-text">
+            © 2024 MapleCast Weather | 
+            <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               className="version">v1.11.7</a> |
+            Written with Cursor AI using Claude Sonnet 3.7 and Grok 3 beta
+          </p>
         </div>
       </footer>
 

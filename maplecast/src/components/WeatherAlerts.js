@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { fetchWeatherAlerts, checkForNewAlerts, clearAlertsCache } from '../utils/alertUtils';
 import './WeatherAlerts.css';
 
-const WeatherAlerts = ({ locationInfo, currentPage }) => {
+const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   const [alerts, setAlerts] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedAlertId, setExpandedAlertId] = useState(null);
@@ -12,9 +12,9 @@ const WeatherAlerts = ({ locationInfo, currentPage }) => {
 
   // Function to fetch alerts
   const fetchAlerts = useCallback(async () => {
-    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Missing coordinates:', locationInfo);
-      setAlerts([]); // Clear alerts when no coordinates
+    // Don't fetch alerts if we're in the middle of a search
+    if (isSearching || !locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Skipping alert fetch during search or missing coordinates');
       return;
     }
     
@@ -37,12 +37,13 @@ const WeatherAlerts = ({ locationInfo, currentPage }) => {
     } finally {
       setLoading(false);
     }
-  }, [locationInfo, currentPage]);
+  }, [locationInfo, currentPage, isSearching]);
 
   // Function to check for new alerts from service worker
   const checkForNewAlertsFromServiceWorker = useCallback(async () => {
-    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Missing coordinates for alert check:', locationInfo);
+    // Don't check for alerts if we're in the middle of a search
+    if (isSearching || !locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Skipping alert check during search');
       return;
     }
 
@@ -66,7 +67,7 @@ const WeatherAlerts = ({ locationInfo, currentPage }) => {
     } catch (err) {
       console.error('Error checking for new alerts:', err);
     }
-  }, [locationInfo, currentPage]);
+  }, [locationInfo, currentPage, isSearching]);
 
   // Handle location changes
   useEffect(() => {
