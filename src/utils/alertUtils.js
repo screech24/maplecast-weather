@@ -20,13 +20,11 @@ const PROVINCE_TO_REGION_CODE = {
 // CORS proxies to try when fetching alerts
 const CORS_PROXIES = [
   '', // Try direct access first
-  'https://cors.x2u.in/', // New reliable proxy that works globally
-  'https://corsproxy.io/?', // Updated corsproxy.io service
-  'https://api.codetabs.com/v1/proxy?quest=', // Another reliable proxy
-  'https://corsproxy.org/?', // Another alternative
-  'https://thingproxy.freeboard.io/fetch/', // Keep as a fallback
-  'https://api.allorigins.win/raw?url=', // Lower priority due to header issues
-  'https://cors-anywhere.herokuapp.com/' // Lowest priority due to 403 errors
+  'https://thingproxy.freeboard.io/fetch/', // Most reliable based on logs
+  'https://corsproxy.io/?', // Good reliability
+  'https://api.codetabs.com/v1/proxy?quest=', // Decent reliability
+  'https://api.allorigins.win/raw?url=', // Backup option
+  'https://cors.x2u.in/', // Last resort
 ];
 
 /**
@@ -65,18 +63,97 @@ export function getRegionCodeForProvince(province) {
 
 /**
  * Get an array of region codes to try based on the user's location
- * @param {string} province - The province name
+ * @param {Object} locationInfo - Object containing city and region information
  * @returns {string[]} Array of region codes to try
  */
-export function getRegionCodes(province) {
-  const primaryCode = getRegionCodeForProvince(province);
-  const codes = [primaryCode];
-  
-  // Add 'ca' (all of Canada) as a fallback
-  if (primaryCode !== 'ca') {
-    codes.push('ca');
+export function getRegionCodes(locationInfo) {
+  if (!locationInfo || !locationInfo.region) {
+    return ['ca']; // Default to all of Canada if no location info
   }
-  
+
+  const province = locationInfo.region.trim().toLowerCase();
+  const city = locationInfo.city ? locationInfo.city.trim().toLowerCase() : '';
+
+  // Map of provinces to their primary region codes
+  const PROVINCE_TO_REGION_CODE = {
+    'alberta': ['abrm'],
+    'british columbia': ['bcrm'],
+    'manitoba': ['mbrm'],
+    'new brunswick': ['nb'],
+    'newfoundland and labrador': ['nl'],
+    'northwest territories': ['nt'],
+    'nova scotia': ['ns'],
+    'nunavut': ['nu'],
+    'ontario': ['onrm'],
+    'prince edward island': ['pei'],
+    'quebec': ['qc'],
+    'saskatchewan': ['skrm'],
+    'yukon': ['yt']
+  };
+
+  // City-specific region codes
+  const CITY_REGION_CODES = {
+    'toronto': ['onrm96'],
+    'ottawa': ['onrm97'],
+    'hamilton': ['onrm96'],
+    'london': ['onrm96'],
+    'kingston': ['onrm95'],
+    'windsor': ['onrm96'],
+    'sudbury': ['onrm94'],
+    'thunder bay': ['onrm93'],
+    'montreal': ['qcrm1'],
+    'quebec city': ['qcrm2'],
+    'gatineau': ['qcrm3'],
+    'vancouver': ['bcrm30'],
+    'victoria': ['bcrm32'],
+    'kelowna': ['bcrm3'],
+    'calgary': ['abrm32'],
+    'edmonton': ['abrm31'],
+    'red deer': ['abrm33'],
+    'lethbridge': ['abrm34'],
+    'regina': ['skrm2'],
+    'saskatoon': ['skrm1'],
+    'winnipeg': ['mbrm9'],
+    'halifax': ['ns1'],
+    'fredericton': ['nb2'],
+    'moncton': ['nb3'],
+    "st. john's": ['nl3'],
+    'charlottetown': ['pei2'],
+    'yellowknife': ['nt1'],
+    'whitehorse': ['yt10'],
+    'iqaluit': ['nu1']
+  };
+
+  let codes = [];
+
+  // Add city-specific code if available
+  if (city) {
+    for (const [cityName, cityCodes] of Object.entries(CITY_REGION_CODES)) {
+      if (city.includes(cityName) || cityName.includes(city)) {
+        codes.push(...cityCodes);
+        break;
+      }
+    }
+  }
+
+  // Add province codes
+  for (const [provinceName, provinceCodes] of Object.entries(PROVINCE_TO_REGION_CODE)) {
+    if (province.includes(provinceName) || provinceName.includes(province)) {
+      codes.push(...provinceCodes);
+      break;
+    }
+  }
+
+  // Add general codes
+  if (!codes.includes('ca')) {
+    codes.push('ca'); // Add Canada-wide alerts as fallback
+  }
+
+  // If no specific codes found, use defaults
+  if (codes.length === 1 && codes[0] === 'ca') {
+    codes.unshift('onrm96'); // Default to Southern Ontario
+  }
+
   return codes;
 }
 
@@ -119,6 +196,99 @@ export function getUrgencyFromTitle(title) {
 }
 
 /**
+ * Parse XML response from Environment Canada
+ * @param {string} xmlText - The XML text to parse
+ * @param {string} regionCode - The region code being used
+ * @returns {Array} Array of parsed alert objects
+ */
+function parseAlertXml(xmlText, regionCode) {
+  if (!xmlText || xmlText.trim() === '') {
+    console.log('Empty XML response');
+    return [];
+  }
+
+  try {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+
+    // Check for parsing errors
+    const parseError = xmlDoc.getElementsByTagName('parsererror')[0];
+    if (parseError) {
+      console.log('XML parsing error:', parseError.textContent);
+      return [];
+    }
+
+    // Try to get items from both RSS and Atom formats
+    let items = xmlDoc.getElementsByTagName('item'); // RSS format
+    if (items.length === 0) {
+      items = xmlDoc.getElementsByTagName('entry'); // Atom format
+    }
+
+    if (items.length === 0) {
+      console.log('No alert items found in XML');
+      return [];
+    }
+
+    console.log(`Found ${items.length} alert items`);
+
+    const alerts = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      try {
+        // Try both RSS and Atom tag names
+        const title = item.getElementsByTagName('title')[0]?.textContent ||
+                     item.querySelector('title')?.textContent || '';
+                     
+        const description = item.getElementsByTagName('description')[0]?.textContent ||
+                          item.querySelector('content')?.textContent ||
+                          item.querySelector('summary')?.textContent || '';
+                          
+        const link = item.getElementsByTagName('link')[0]?.textContent ||
+                    item.querySelector('link')?.getAttribute('href') || '';
+                    
+        const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent ||
+                       item.getElementsByTagName('published')[0]?.textContent ||
+                       item.getElementsByTagName('updated')[0]?.textContent || '';
+                       
+        const guid = item.getElementsByTagName('guid')[0]?.textContent ||
+                    item.getElementsByTagName('id')[0]?.textContent || '';
+
+        // Skip if no title or description
+        if (!title || !description) {
+          console.log(`Skipping item ${i} due to missing title or description`);
+          continue;
+        }
+
+        // Create an alert object
+        const alert = {
+          id: guid || `${regionCode}-${Date.now()}-${i}`,
+          title: title.trim(),
+          description: description.trim(),
+          summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
+          link: link.trim(),
+          sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+          expires: null, // Not available in RSS/Atom
+          severity: getSeverityFromTitle(title),
+          urgency: getUrgencyFromTitle(title),
+          certainty: 'Observed', // Default value
+          sourceUrl: link.trim()
+        };
+
+        alerts.push(alert);
+      } catch (itemError) {
+        console.log(`Error processing alert item ${i}:`, itemError);
+        continue;
+      }
+    }
+
+    return alerts;
+  } catch (error) {
+    console.log('Error parsing XML:', error);
+    return [];
+  }
+}
+
+/**
  * Fetch weather alerts from Environment Canada
  * @param {Object} locationInfo - Object containing city and region
  * @returns {Promise<Array>} Array of alert objects
@@ -128,94 +298,44 @@ export async function fetchWeatherAlerts(locationInfo) {
     console.warn('No location info provided for fetching alerts');
     return [];
   }
-  
+
   console.log(`Fetching weather alerts for ${locationInfo.city}, ${locationInfo.region}`);
-  
+
   // Get region codes to try
-  const regionCodes = getRegionCodes(locationInfo.region);
+  const regionCodes = getRegionCodes(locationInfo);
   let alerts = [];
   let fetchSucceeded = false;
   let allProxyErrors = []; // Track all proxy errors for better diagnostics
-  
+
   // Try each region code with each proxy
   for (const regionCode of regionCodes) {
     if (fetchSucceeded) break;
-    
+
     const alertsUrl = `https://weather.gc.ca/rss/battleboard/${regionCode}_e.xml`;
     console.log(`Trying to fetch alerts from: ${alertsUrl}`);
-    
+
     for (const proxy of CORS_PROXIES) {
       try {
         const proxyUrl = proxy ? `${proxy}${encodeURIComponent(alertsUrl)}` : alertsUrl;
         console.log(`Trying proxy: ${proxy ? proxy : 'direct access'}`);
-        
+
         const response = await axios.get(proxyUrl, {
           headers: {
             'Accept': 'application/xml, text/xml, */*',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
           },
-          timeout: 8000 // Increase timeout to 8 seconds for better reliability
+          timeout: 10000 // Increase timeout to 10 seconds
         });
-        
-        if (!response.data || response.data.trim() === '') {
+
+        if (!response.data) {
           console.log(`Empty response from ${proxy}`);
           continue;
         }
-        
-        // Parse the XML
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-        
-        // Check if it's a valid XML document
-        if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-          console.log(`XML parsing error from ${proxy}`);
-          continue;
-        }
-        
-        // Extract alerts from the XML
-        const items = xmlDoc.getElementsByTagName('item');
-        
-        if (items.length === 0) {
-          console.log(`No alert items found in XML from ${proxy}`);
-          continue;
-        }
-        
-        console.log(`Found ${items.length} alert items from ${proxy}`);
-        
-        // Process each alert item
-        const fetchedAlerts = [];
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          
-          const title = item.getElementsByTagName('title')[0]?.textContent || '';
-          const description = item.getElementsByTagName('description')[0]?.textContent || '';
-          const link = item.getElementsByTagName('link')[0]?.textContent || '';
-          const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-          const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
-          
-          // Skip if no title or description
-          if (!title || !description) {
-            continue;
-          }
-          
-          // Create an alert object
-          const alert = {
-            id: guid || `${regionCode}-${Date.now()}-${i}`,
-            title,
-            description,
-            summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
-            link,
-            sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-            expires: null, // Not available in RSS
-            severity: getSeverityFromTitle(title),
-            urgency: getUrgencyFromTitle(title),
-            certainty: 'Observed', // Default value
-            sourceUrl: link
-          };
-          
-          fetchedAlerts.push(alert);
-        }
-        
+
+        // Parse the XML response
+        const fetchedAlerts = parseAlertXml(response.data, regionCode);
+
         if (fetchedAlerts.length > 0) {
           alerts = fetchedAlerts;
           fetchSucceeded = true;
@@ -225,186 +345,16 @@ export async function fetchWeatherAlerts(locationInfo) {
       } catch (error) {
         const errorMsg = `Error fetching from ${proxy}: ${error.message}`;
         console.log(errorMsg);
-        allProxyErrors.push(errorMsg); // Store error message for diagnostics
+        allProxyErrors.push(errorMsg);
       }
     }
   }
-  
-  // Try the local development proxy if other methods failed
-  if (!fetchSucceeded && window.location.hostname === 'localhost') {
-    try {
-      console.log('Trying local development proxy for alerts');
-      
-      for (const regionCode of regionCodes) {
-        // First try the general proxy
-        const proxyUrl = `/proxy-api/weather-alerts?url=${encodeURIComponent(`https://weather.gc.ca/rss/battleboard/${regionCode}_e.xml`)}`;
-        
-        try {
-          const response = await axios.get(proxyUrl, {
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'Cache-Control': 'no-cache'
-            },
-            timeout: 8000 // Increase timeout here too
-          });
-          
-          if (!response.data || response.data.trim() === '') {
-            continue;
-          }
-          
-          // Parse the XML
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-          
-          // Check if it's a valid XML document
-          if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-            continue;
-          }
-          
-          // Extract alerts from the XML
-          const items = xmlDoc.getElementsByTagName('item');
-          
-          if (items.length === 0) {
-            continue;
-          }
-          
-          console.log(`Found ${items.length} alert items from local proxy`);
-          
-          // Process each alert item
-          const fetchedAlerts = [];
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            
-            const title = item.getElementsByTagName('title')[0]?.textContent || '';
-            const description = item.getElementsByTagName('description')[0]?.textContent || '';
-            const link = item.getElementsByTagName('link')[0]?.textContent || '';
-            const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-            const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
-            
-            // Skip if no title or description
-            if (!title || !description) {
-              continue;
-            }
-            
-            // Create an alert object
-            const alert = {
-              id: guid || `${regionCode}-${Date.now()}-${i}`,
-              title,
-              description,
-              summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
-              link,
-              sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-              expires: null, // Not available in RSS
-              severity: getSeverityFromTitle(title),
-              urgency: getUrgencyFromTitle(title),
-              certainty: 'Observed', // Default value
-              sourceUrl: link
-            };
-            
-            fetchedAlerts.push(alert);
-          }
-          
-          if (fetchedAlerts.length > 0) {
-            alerts = fetchedAlerts;
-            fetchSucceeded = true;
-            console.log(`Successfully fetched ${alerts.length} alerts from local proxy`);
-            break;
-          }
-        } catch (proxyError) {
-          console.log(`Error with general proxy: ${proxyError.message}`);
-        }
-        
-        // Try the direct battleboard proxy if general proxy failed
-        try {
-          console.log('Trying direct battleboard proxy');
-          const battleboardUrl = `/proxy-api/battleboard?province=${regionCode}`;
-          
-          const response = await axios.get(battleboardUrl, {
-            headers: {
-              'Accept': 'application/xml, text/xml, */*',
-              'Cache-Control': 'no-cache'
-            },
-            timeout: 8000
-          });
-          
-          if (!response.data || response.data.trim() === '') {
-            continue;
-          }
-          
-          // Parse the XML
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-          
-          // Check if it's a valid XML document
-          if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-            continue;
-          }
-          
-          // Extract alerts from the XML
-          const items = xmlDoc.getElementsByTagName('item');
-          
-          if (items.length === 0) {
-            continue;
-          }
-          
-          console.log(`Found ${items.length} alert items from battleboard proxy`);
-          
-          // Process each alert item
-          const fetchedAlerts = [];
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            
-            const title = item.getElementsByTagName('title')[0]?.textContent || '';
-            const description = item.getElementsByTagName('description')[0]?.textContent || '';
-            const link = item.getElementsByTagName('link')[0]?.textContent || '';
-            const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-            const guid = item.getElementsByTagName('guid')[0]?.textContent || '';
-            
-            // Skip if no title or description
-            if (!title || !description) {
-              continue;
-            }
-            
-            // Create an alert object
-            const alert = {
-              id: guid || `${regionCode}-${Date.now()}-${i}`,
-              title,
-              description,
-              summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
-              link,
-              sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-              expires: null, // Not available in RSS
-              severity: getSeverityFromTitle(title),
-              urgency: getUrgencyFromTitle(title),
-              certainty: 'Observed', // Default value
-              sourceUrl: link
-            };
-            
-            fetchedAlerts.push(alert);
-          }
-          
-          if (fetchedAlerts.length > 0) {
-            alerts = fetchedAlerts;
-            fetchSucceeded = true;
-            console.log(`Successfully fetched ${alerts.length} alerts from battleboard proxy`);
-            break;
-          }
-        } catch (battleboardError) {
-          console.log(`Error with battleboard proxy: ${battleboardError.message}`);
-        }
-      }
-    } catch (error) {
-      const errorMsg = `Error fetching from local proxy: ${error.message}`;
-      console.log(errorMsg);
-      allProxyErrors.push(errorMsg);
-    }
-  }
-  
+
   // Log all errors if no proxy succeeded
   if (!fetchSucceeded && allProxyErrors.length > 0) {
     console.error('All proxies failed with the following errors:', allProxyErrors);
   }
-  
+
   // Filter alerts by relevance to the user's location
   return filterAlertsByLocation(alerts, locationInfo);
 }
@@ -419,10 +369,71 @@ function filterAlertsByLocation(alerts, locationInfo) {
   if (!alerts || !locationInfo) {
     return [];
   }
-  
-  // For now, return all alerts since we don't have precise location filtering
-  // In a real implementation, you would use geospatial calculations to filter alerts
-  return alerts;
+
+  const city = locationInfo.city?.toLowerCase() || '';
+  const region = locationInfo.region?.toLowerCase() || '';
+  const lat = locationInfo.lat;
+  const lon = locationInfo.lon;
+
+  // Helper function to check if a location string contains a place name
+  const containsPlace = (text, place) => {
+    if (!text || !place) return false;
+    const words = text.toLowerCase().split(/[\s,-]+/);
+    return words.some(word => 
+      place.includes(word) || 
+      word.includes(place) ||
+      // Check for common variations
+      (word.endsWith('s') && place.includes(word.slice(0, -1))) ||
+      (place.endsWith('s') && word.includes(place.slice(0, -1)))
+    );
+  };
+
+  // Helper function to calculate distance between two points
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+    
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  return alerts.filter(alert => {
+    const title = alert.title?.toLowerCase() || '';
+    const description = alert.description?.toLowerCase() || '';
+    const combinedText = `${title} ${description}`;
+
+    // Check for exact city match
+    if (city && containsPlace(combinedText, city)) {
+      return true;
+    }
+
+    // Check for region/province match
+    if (region && containsPlace(combinedText, region)) {
+      return true;
+    }
+
+    // Check for nearby locations if coordinates are available
+    if (lat && lon && alert.coordinates) {
+      const distance = getDistance(lat, lon, alert.coordinates.lat, alert.coordinates.lon);
+      // Consider alerts within 100km radius
+      if (distance <= 100) {
+        return true;
+      }
+    }
+
+    // Include alerts that don't specify a location (likely region-wide)
+    const hasLocationMention = /\b(in|at|near|around|area|region|vicinity)\b/i.test(combinedText);
+    if (!hasLocationMention) {
+      return true;
+    }
+
+    return false;
+  });
 }
 
 /**

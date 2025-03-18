@@ -5,6 +5,21 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.4] - 2024-03-18
+
+### Fixed
+- Fixed weather alerts functionality by updating CORS proxies and improving reliability
+- Improved region code mapping for more accurate alert fetching
+- Enhanced XML parsing to handle different response formats
+- Added better location-based alert filtering
+- Added User-Agent header to prevent blocking
+- Increased request timeout for better reliability
+
+### Changed
+- Reordered CORS proxies by reliability
+- Improved error handling and logging
+- Removed redundant local development proxy code
+
 ## [1.11.3] - 2025-05-22
 
 ### Fixed

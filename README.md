@@ -1,8 +1,15 @@
-# MapleCast Weather App
+# MapleCast Weather App v1.11.4
 
-A React-based weather application that displays local weather data with enhanced radar visualization. This app uses OpenWeatherMap for weather information and Windy.com for interactive radar data. It functions as a Progressive Web App (PWA) with push notifications.
+A modern weather application for Canadian users featuring real-time weather data, forecasts, and Environment Canada weather alerts.
 
-[![Version](https://img.shields.io/badge/version-1.11.3-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+## Latest Updates (2024-03-18)
+- Fixed weather alerts functionality
+- Improved CORS proxy reliability
+- Enhanced location-based alert filtering
+- Updated XML parsing and error handling
+- Added better region code mapping
+
+[![Version](https://img.shields.io/badge/version-1.11.4-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features
