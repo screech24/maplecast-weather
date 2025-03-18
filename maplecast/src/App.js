@@ -492,7 +492,11 @@ function App() {
         {/* Add WeatherAlerts component here */}
         {initialLoadComplete && !isLoading && (
           <WeatherAlerts 
-            locationInfo={locationInfo}
+            locationInfo={{
+              ...locationInfo,
+              lat: coordinates?.lat,
+              lon: coordinates?.lon
+            }}
             isInCanada={isInCanada}
           />
         )}

@@ -292,9 +292,10 @@ export async function fetchWeatherAlerts(locationInfo) {
 
 /**
  * Check for new alerts
+ * @param {Object} locationInfo - Object containing lat and lon coordinates
  * @returns {Promise<Array>} Array of new alert objects
  */
-export async function checkForNewAlerts() {
+export async function checkForNewAlerts(locationInfo) {
   // Only check if the app is active (document is visible)
   if (document.hidden) {
     console.log('App is not active, skipping alert check');
@@ -302,13 +303,12 @@ export async function checkForNewAlerts() {
   }
 
   try {
-    const currentLocation = JSON.parse(localStorage.getItem('lastLocation'));
-    if (!currentLocation) {
-      console.log('No location information available');
+    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('No location coordinates available');
       return [];
     }
 
-    const newAlerts = await fetchWeatherAlerts(currentLocation);
+    const newAlerts = await fetchWeatherAlerts(locationInfo);
     const currentAlerts = alertsCache.data || [];
 
     // Find alerts that aren't in the current set

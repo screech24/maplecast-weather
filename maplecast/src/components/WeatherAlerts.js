@@ -11,12 +11,12 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
 
   // Fetch alerts when location changes
   useEffect(() => {
-    if (isInCanada && locationInfo && locationInfo.city) {
+    if (locationInfo && locationInfo.lat && locationInfo.lon) {
       fetchAlerts();
     } else {
       setAlerts([]);
     }
-  }, [locationInfo, isInCanada]);
+  }, [locationInfo]);
 
   // Set up service worker message listener for new alerts
   useEffect(() => {
@@ -45,7 +45,7 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
 
     // Set up periodic check for new alerts (every 5 minutes)
     const checkInterval = setInterval(() => {
-      if (isInCanada && locationInfo && locationInfo.city) {
+      if (locationInfo && locationInfo.lat && locationInfo.lon) {
         checkForNewAlertsFromServiceWorker();
       }
     }, 5 * 60 * 1000); // 5 minutes
@@ -57,11 +57,14 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
       }
       clearInterval(checkInterval);
     };
-  }, [locationInfo, isInCanada]);
+  }, [locationInfo, checkForNewAlertsFromServiceWorker]);
 
   // Function to fetch alerts
   const fetchAlerts = async () => {
-    if (!locationInfo || !locationInfo.city) return;
+    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Missing coordinates:', locationInfo);
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -85,8 +88,13 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
 
   // Function to check for new alerts from service worker
   const checkForNewAlertsFromServiceWorker = useCallback(async () => {
+    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Missing coordinates for alert check:', locationInfo);
+      return;
+    }
+
     try {
-      const newAlerts = await checkForNewAlerts();
+      const newAlerts = await checkForNewAlerts(locationInfo);
       if (newAlerts && newAlerts.length > 0) {
         console.log('Found new alerts:', newAlerts);
         setAlerts(prevAlerts => {
@@ -105,7 +113,7 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
     } catch (err) {
       console.error('Error checking for new alerts:', err);
     }
-  }, []);
+  }, [locationInfo]);
 
   // Toggle expanded state for the entire alerts container
   const toggleExpanded = () => {
@@ -143,8 +151,8 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
     }
   };
 
-  // If not in Canada, don't render anything
-  if (!isInCanada) {
+  // If no coordinates, don't render anything
+  if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
     return null;
   }
 
