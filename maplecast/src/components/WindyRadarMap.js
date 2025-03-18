@@ -19,7 +19,7 @@ const WindyRadarMap = ({ coordinates, isDarkMode }) => {
             lat: coordinates.lat,
             lon: coordinates.lon
           };
-          iframeRef.current.contentWindow.postMessage(message, 'https://embed.windy.com');
+          iframeRef.current.contentWindow.postMessage(message, '*');
         } catch (error) {
           console.error('Error sending message to Windy iframe:', error);
         }
@@ -28,7 +28,7 @@ const WindyRadarMap = ({ coordinates, isDarkMode }) => {
   }, [coordinates]);
   
   // Build the iframe src URL with the current coordinates and additional parameters
-  const iframeSrc = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=7&overlay=radar&product=radar&level=surface&lat=${mapCenter[0]}&lon=${mapCenter[1]}&message=true&marker=true&calendar=now&pressure=true&type=map&location=coordinates&detail=true&detailLat=${mapCenter[0]}&detailLon=${mapCenter[1]}&geolocation=off&width=800&height=600`;
+  const iframeSrc = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=7&overlay=radar&product=radar&level=surface&lat=${mapCenter[0]}&lon=${mapCenter[1]}&marker=true&calendar=now&type=map&location=coordinates&detail=&detailLat=${mapCenter[0]}&detailLon=${mapCenter[1]}&geolocation=off&width=800&height=600&fullscreen=true&showmenu=false&menu=false&search=false&widget=false&showdata=false&message=false&pressure=false&forecast=false`;
   
   return (
     <div className={`windy-radar-container ${isDarkMode ? 'dark-mode' : ''}`}>
@@ -47,6 +47,7 @@ const WindyRadarMap = ({ coordinates, isDarkMode }) => {
           className="windy-iframe"
           allow="fullscreen"
           loading="lazy"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         ></iframe>
       </div>
       
