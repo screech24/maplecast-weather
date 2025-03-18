@@ -1,4 +1,11 @@
 import axios from 'axios';
+import {
+  WEATHERBIT_API_KEY,
+  WEATHERBIT_BASE_URL,
+  SEVERITY_MAPPINGS,
+  ALERT_CACHE_DURATION,
+  REQUEST_INTERVAL
+} from '../config/weatherbit';
 
 // Map of Canadian province names to Environment Canada region codes
 const PROVINCE_TO_REGION_CODE = {
@@ -26,6 +33,13 @@ const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=', // Backup option
   'https://cors.x2u.in/', // Last resort
 ];
+
+// Cache for storing alerts
+let alertsCache = {
+  data: null,
+  timestamp: null,
+  lastRequestTime: null
+};
 
 /**
  * Get the Environment Canada region code for a province
@@ -158,282 +172,159 @@ export function getRegionCodes(locationInfo) {
 }
 
 /**
- * Extract severity from alert title
- * @param {string} title - The alert title
- * @returns {string} The severity level
+ * Get severity level from alert title
+ * @param {string} title - Alert title
+ * @returns {string} Severity level
  */
-export function getSeverityFromTitle(title) {
-  if (!title) return 'Unknown';
-  
-  const lowerTitle = title.toLowerCase();
-  
-  if (lowerTitle.includes('warning')) return 'Severe';
-  if (lowerTitle.includes('watch')) return 'Moderate';
-  if (lowerTitle.includes('statement')) return 'Minor';
-  if (lowerTitle.includes('advisory')) return 'Minor';
-  if (lowerTitle.includes('ended')) return 'Past';
-  
-  return 'Unknown';
+const getSeverityLevel = (title = '') => {
+  for (const [key, value] of Object.entries(SEVERITY_MAPPINGS)) {
+    if (title.includes(key)) {
+      return value;
+    }
+  }
+  return 'Minor';
+};
+
+/**
+ * Format alert data from Weatherbit API
+ * @param {Object} alert - Raw alert data from Weatherbit
+ * @returns {Object} Formatted alert data
+ */
+const formatAlertData = (alert) => {
+  return {
+    id: alert.alertid || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    title: alert.title,
+    description: alert.description,
+    summary: alert.description.substring(0, 200) + (alert.description.length > 200 ? '...' : ''),
+    link: `https://weather.gc.ca/warnings/index_e.html`,
+    sent: new Date(alert.effective_local).toISOString(),
+    expires: new Date(alert.expires_local).toISOString(),
+    severity: getSeverityLevel(alert.title),
+    urgency: alert.urgency || 'Expected',
+    certainty: alert.certainty || 'Likely',
+    sourceUrl: `https://weather.gc.ca/warnings/index_e.html`
+  };
+};
+
+/**
+ * Check if we should make a new API request based on rate limiting
+ * @returns {boolean}
+ */
+const shouldMakeRequest = () => {
+  if (!alertsCache.lastRequestTime) return true;
+  const timeSinceLastRequest = Date.now() - alertsCache.lastRequestTime;
+  return timeSinceLastRequest >= REQUEST_INTERVAL;
+};
+
+/**
+ * Check if cached data is still valid
+ * @returns {boolean}
+ */
+const isCacheValid = () => {
+  if (!alertsCache.data || !alertsCache.timestamp) return false;
+  const cacheAge = Date.now() - alertsCache.timestamp;
+  return cacheAge < ALERT_CACHE_DURATION;
+};
+
+/**
+ * Fetch weather alerts from Weatherbit API
+ * @param {Object} locationInfo - Object containing lat and lon
+ * @returns {Promise<Array>} Array of alert objects
+ */
+export async function fetchWeatherAlerts(locationInfo) {
+  if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+    console.warn('No location coordinates provided for fetching alerts');
+    return [];
+  }
+
+  // Check cache first
+  if (isCacheValid()) {
+    console.log('Returning cached alerts');
+    return alertsCache.data;
+  }
+
+  // Check rate limiting
+  if (!shouldMakeRequest()) {
+    console.log('Rate limit reached, returning cached data or empty array');
+    return alertsCache.data || [];
+  }
+
+  try {
+    console.log(`Fetching weather alerts for coordinates: ${locationInfo.lat}, ${locationInfo.lon}`);
+
+    const response = await axios.get(`${WEATHERBIT_BASE_URL}/alerts`, {
+      params: {
+        lat: locationInfo.lat,
+        lon: locationInfo.lon,
+        key: WEATHERBIT_API_KEY
+      },
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+
+    // Update last request time for rate limiting
+    alertsCache.lastRequestTime = Date.now();
+
+    if (!response.data || !response.data.alerts) {
+      console.log('No alerts found');
+      alertsCache.data = [];
+      alertsCache.timestamp = Date.now();
+      return [];
+    }
+
+    // Format alerts
+    const formattedAlerts = response.data.alerts.map(formatAlertData);
+
+    // Update cache
+    alertsCache.data = formattedAlerts;
+    alertsCache.timestamp = Date.now();
+
+    console.log(`Successfully fetched ${formattedAlerts.length} alerts`);
+    return formattedAlerts;
+  } catch (error) {
+    console.error('Error fetching alerts from Weatherbit:', error);
+    // Return cached data if available, otherwise empty array
+    return alertsCache.data || [];
+  }
 }
 
 /**
- * Extract urgency from alert title
- * @param {string} title - The alert title
- * @returns {string} The urgency level
+ * Check for new alerts
+ * @returns {Promise<Array>} Array of new alert objects
  */
-export function getUrgencyFromTitle(title) {
-  if (!title) return 'Unknown';
-  
-  const lowerTitle = title.toLowerCase();
-  
-  if (lowerTitle.includes('warning')) return 'Immediate';
-  if (lowerTitle.includes('watch')) return 'Expected';
-  if (lowerTitle.includes('statement')) return 'Future';
-  if (lowerTitle.includes('advisory')) return 'Expected';
-  if (lowerTitle.includes('ended')) return 'Past';
-  
-  return 'Unknown';
-}
-
-/**
- * Parse XML response from Environment Canada
- * @param {string} xmlText - The XML text to parse
- * @param {string} regionCode - The region code being used
- * @returns {Array} Array of parsed alert objects
- */
-function parseAlertXml(xmlText, regionCode) {
-  if (!xmlText || xmlText.trim() === '') {
-    console.log('Empty XML response');
+export async function checkForNewAlerts() {
+  // Only check if the app is active (document is visible)
+  if (document.hidden) {
+    console.log('App is not active, skipping alert check');
     return [];
   }
 
   try {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-
-    // Check for parsing errors
-    const parseError = xmlDoc.getElementsByTagName('parsererror')[0];
-    if (parseError) {
-      console.log('XML parsing error:', parseError.textContent);
+    const currentLocation = JSON.parse(localStorage.getItem('lastLocation'));
+    if (!currentLocation) {
+      console.log('No location information available');
       return [];
     }
 
-    // Try to get items from both RSS and Atom formats
-    let items = xmlDoc.getElementsByTagName('item'); // RSS format
-    if (items.length === 0) {
-      items = xmlDoc.getElementsByTagName('entry'); // Atom format
-    }
+    const newAlerts = await fetchWeatherAlerts(currentLocation);
+    const currentAlerts = alertsCache.data || [];
 
-    if (items.length === 0) {
-      console.log('No alert items found in XML');
-      return [];
-    }
-
-    console.log(`Found ${items.length} alert items`);
-
-    const alerts = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      try {
-        // Try both RSS and Atom tag names
-        const title = item.getElementsByTagName('title')[0]?.textContent ||
-                     item.querySelector('title')?.textContent || '';
-                     
-        const description = item.getElementsByTagName('description')[0]?.textContent ||
-                          item.querySelector('content')?.textContent ||
-                          item.querySelector('summary')?.textContent || '';
-                          
-        const link = item.getElementsByTagName('link')[0]?.textContent ||
-                    item.querySelector('link')?.getAttribute('href') || '';
-                    
-        const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent ||
-                       item.getElementsByTagName('published')[0]?.textContent ||
-                       item.getElementsByTagName('updated')[0]?.textContent || '';
-                       
-        const guid = item.getElementsByTagName('guid')[0]?.textContent ||
-                    item.getElementsByTagName('id')[0]?.textContent || '';
-
-        // Skip if no title or description
-        if (!title || !description) {
-          console.log(`Skipping item ${i} due to missing title or description`);
-          continue;
-        }
-
-        // Create an alert object
-        const alert = {
-          id: guid || `${regionCode}-${Date.now()}-${i}`,
-          title: title.trim(),
-          description: description.trim(),
-          summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
-          link: link.trim(),
-          sent: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-          expires: null, // Not available in RSS/Atom
-          severity: getSeverityFromTitle(title),
-          urgency: getUrgencyFromTitle(title),
-          certainty: 'Observed', // Default value
-          sourceUrl: link.trim()
-        };
-
-        alerts.push(alert);
-      } catch (itemError) {
-        console.log(`Error processing alert item ${i}:`, itemError);
-        continue;
-      }
-    }
-
-    return alerts;
-  } catch (error) {
-    console.log('Error parsing XML:', error);
-    return [];
-  }
-}
-
-/**
- * Fetch weather alerts from Environment Canada
- * @param {Object} locationInfo - Object containing city and region
- * @returns {Promise<Array>} Array of alert objects
- */
-export async function fetchWeatherAlerts(locationInfo) {
-  if (!locationInfo || !locationInfo.region) {
-    console.warn('No location info provided for fetching alerts');
-    return [];
-  }
-
-  console.log(`Fetching weather alerts for ${locationInfo.city}, ${locationInfo.region}`);
-
-  // Get region codes to try
-  const regionCodes = getRegionCodes(locationInfo);
-  let alerts = [];
-  let fetchSucceeded = false;
-  let allProxyErrors = []; // Track all proxy errors for better diagnostics
-
-  // Try each region code with each proxy
-  for (const regionCode of regionCodes) {
-    if (fetchSucceeded) break;
-
-    const alertsUrl = `https://weather.gc.ca/rss/battleboard/${regionCode}_e.xml`;
-    console.log(`Trying to fetch alerts from: ${alertsUrl}`);
-
-    for (const proxy of CORS_PROXIES) {
-      try {
-        const proxyUrl = proxy ? `${proxy}${encodeURIComponent(alertsUrl)}` : alertsUrl;
-        console.log(`Trying proxy: ${proxy ? proxy : 'direct access'}`);
-
-        const response = await axios.get(proxyUrl, {
-          headers: {
-            'Accept': 'application/xml, text/xml, */*',
-            'Cache-Control': 'no-cache',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-          },
-          timeout: 10000 // Increase timeout to 10 seconds
-        });
-
-        if (!response.data) {
-          console.log(`Empty response from ${proxy}`);
-          continue;
-        }
-
-        // Parse the XML response
-        const fetchedAlerts = parseAlertXml(response.data, regionCode);
-
-        if (fetchedAlerts.length > 0) {
-          alerts = fetchedAlerts;
-          fetchSucceeded = true;
-          console.log(`Successfully fetched ${alerts.length} alerts from ${proxy}`);
-          break;
-        }
-      } catch (error) {
-        const errorMsg = `Error fetching from ${proxy}: ${error.message}`;
-        console.log(errorMsg);
-        allProxyErrors.push(errorMsg);
-      }
-    }
-  }
-
-  // Log all errors if no proxy succeeded
-  if (!fetchSucceeded && allProxyErrors.length > 0) {
-    console.error('All proxies failed with the following errors:', allProxyErrors);
-  }
-
-  // Filter alerts by relevance to the user's location
-  return filterAlertsByLocation(alerts, locationInfo);
-}
-
-/**
- * Filter alerts by relevance to the user's location
- * @param {Array} alerts - Array of alert objects
- * @param {Object} locationInfo - Object containing city and region
- * @returns {Array} Filtered array of alert objects
- */
-function filterAlertsByLocation(alerts, locationInfo) {
-  if (!alerts || !locationInfo) {
-    return [];
-  }
-
-  const city = locationInfo.city?.toLowerCase() || '';
-  const region = locationInfo.region?.toLowerCase() || '';
-  const lat = locationInfo.lat;
-  const lon = locationInfo.lon;
-
-  // Helper function to check if a location string contains a place name
-  const containsPlace = (text, place) => {
-    if (!text || !place) return false;
-    const words = text.toLowerCase().split(/[\s,-]+/);
-    return words.some(word => 
-      place.includes(word) || 
-      word.includes(place) ||
-      // Check for common variations
-      (word.endsWith('s') && place.includes(word.slice(0, -1))) ||
-      (place.endsWith('s') && word.includes(place.slice(0, -1)))
+    // Find alerts that aren't in the current set
+    const brandNewAlerts = newAlerts.filter(newAlert => 
+      !currentAlerts.some(currentAlert => currentAlert.id === newAlert.id)
     );
-  };
 
-  // Helper function to calculate distance between two points
-  const getDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
-    
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  return alerts.filter(alert => {
-    const title = alert.title?.toLowerCase() || '';
-    const description = alert.description?.toLowerCase() || '';
-    const combinedText = `${title} ${description}`;
-
-    // Check for exact city match
-    if (city && containsPlace(combinedText, city)) {
-      return true;
+    if (brandNewAlerts.length > 0) {
+      console.log(`Found ${brandNewAlerts.length} new alerts`);
     }
 
-    // Check for region/province match
-    if (region && containsPlace(combinedText, region)) {
-      return true;
-    }
-
-    // Check for nearby locations if coordinates are available
-    if (lat && lon && alert.coordinates) {
-      const distance = getDistance(lat, lon, alert.coordinates.lat, alert.coordinates.lon);
-      // Consider alerts within 100km radius
-      if (distance <= 100) {
-        return true;
-      }
-    }
-
-    // Include alerts that don't specify a location (likely region-wide)
-    const hasLocationMention = /\b(in|at|near|around|area|region|vicinity)\b/i.test(combinedText);
-    if (!hasLocationMention) {
-      return true;
-    }
-
-    return false;
-  });
+    return brandNewAlerts;
+  } catch (error) {
+    console.error('Error checking for new alerts:', error);
+    return [];
+  }
 }
 
 /**
@@ -479,51 +370,5 @@ export async function registerAlertBackgroundSync() {
   } catch (error) {
     console.error('Error registering for background sync:', error);
     return false;
-  }
-}
-
-/**
- * Manually trigger a check for new alerts
- * @returns {Promise<Array>} Array of new alerts
- */
-export async function checkForNewAlerts() {
-  if (!('serviceWorker' in navigator)) {
-    console.log('Service worker not supported');
-    return [];
-  }
-  
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    
-    // Create a promise that will resolve when we get a message from the service worker
-    const messagePromise = new Promise((resolve) => {
-      const messageHandler = (event) => {
-        if (event.data && event.data.type === 'NEW_ALERTS') {
-          navigator.serviceWorker.removeEventListener('message', messageHandler);
-          resolve(event.data.alerts);
-        }
-      };
-      
-      navigator.serviceWorker.addEventListener('message', messageHandler);
-      
-      // Set a timeout to remove the listener if we don't get a response
-      setTimeout(() => {
-        navigator.serviceWorker.removeEventListener('message', messageHandler);
-        resolve([]);
-      }, 10000); // 10 second timeout
-    });
-    
-    // Send a message to the service worker to check for alerts
-    if (navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CHECK_ALERTS'
-      });
-    }
-    
-    // Wait for the response
-    return await messagePromise;
-  } catch (error) {
-    console.error('Error checking for new alerts:', error);
-    return [];
   }
 } 
