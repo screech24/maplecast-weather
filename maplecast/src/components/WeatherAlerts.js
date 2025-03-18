@@ -2,12 +2,68 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { fetchWeatherAlerts, checkForNewAlerts } from '../utils/alertUtils';
 import './WeatherAlerts.css';
 
-const WeatherAlerts = ({ locationInfo, isInCanada }) => {
+const WeatherAlerts = ({ locationInfo }) => {
   const [alerts, setAlerts] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedAlertId, setExpandedAlertId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Function to fetch alerts
+  const fetchAlerts = useCallback(async () => {
+    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Missing coordinates:', locationInfo);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const fetchedAlerts = await fetchWeatherAlerts(locationInfo);
+      console.log('Fetched alerts:', fetchedAlerts);
+      setAlerts(fetchedAlerts);
+      
+      // Auto-expand if there are alerts
+      if (fetchedAlerts.length > 0) {
+        setIsExpanded(true);
+      }
+    } catch (err) {
+      console.error('Error fetching alerts:', err);
+      setError('Failed to fetch weather alerts');
+    } finally {
+      setLoading(false);
+    }
+  }, [locationInfo]);
+
+  // Function to check for new alerts from service worker
+  const checkForNewAlertsFromServiceWorker = useCallback(async () => {
+    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
+      console.log('Missing coordinates for alert check:', locationInfo);
+      return;
+    }
+
+    try {
+      const newAlerts = await checkForNewAlerts(locationInfo);
+      if (newAlerts && newAlerts.length > 0) {
+        console.log('Found new alerts:', newAlerts);
+        setAlerts(prevAlerts => {
+          // Merge new alerts with existing ones, avoiding duplicates
+          const filteredNewAlerts = newAlerts.filter(
+            newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
+          );
+          return [...filteredNewAlerts, ...prevAlerts];
+        });
+        
+        // Auto-expand if there are new alerts
+        if (newAlerts.length > 0) {
+          setIsExpanded(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error checking for new alerts:', err);
+    }
+  }, [locationInfo]);
 
   // Fetch alerts when location changes
   useEffect(() => {
@@ -16,7 +72,7 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
     } else {
       setAlerts([]);
     }
-  }, [locationInfo]);
+  }, [locationInfo, fetchAlerts]);
 
   // Set up service worker message listener for new alerts
   useEffect(() => {
@@ -58,62 +114,6 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
       clearInterval(checkInterval);
     };
   }, [locationInfo, checkForNewAlertsFromServiceWorker]);
-
-  // Function to fetch alerts
-  const fetchAlerts = async () => {
-    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Missing coordinates:', locationInfo);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const fetchedAlerts = await fetchWeatherAlerts(locationInfo);
-      console.log('Fetched alerts:', fetchedAlerts);
-      setAlerts(fetchedAlerts);
-      
-      // Auto-expand if there are alerts
-      if (fetchedAlerts.length > 0) {
-        setIsExpanded(true);
-      }
-    } catch (err) {
-      console.error('Error fetching alerts:', err);
-      setError('Failed to fetch weather alerts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Function to check for new alerts from service worker
-  const checkForNewAlertsFromServiceWorker = useCallback(async () => {
-    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Missing coordinates for alert check:', locationInfo);
-      return;
-    }
-
-    try {
-      const newAlerts = await checkForNewAlerts(locationInfo);
-      if (newAlerts && newAlerts.length > 0) {
-        console.log('Found new alerts:', newAlerts);
-        setAlerts(prevAlerts => {
-          // Merge new alerts with existing ones, avoiding duplicates
-          const filteredNewAlerts = newAlerts.filter(
-            newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
-          );
-          return [...filteredNewAlerts, ...prevAlerts];
-        });
-        
-        // Auto-expand if there are new alerts
-        if (newAlerts.length > 0) {
-          setIsExpanded(true);
-        }
-      }
-    } catch (err) {
-      console.error('Error checking for new alerts:', err);
-    }
-  }, [locationInfo]);
 
   // Toggle expanded state for the entire alerts container
   const toggleExpanded = () => {
@@ -237,7 +237,7 @@ const WeatherAlerts = ({ locationInfo, isInCanada }) => {
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        View on Environment Canada <i className="fa-solid fa-external-link"></i>
+                        View Details <i className="fa-solid fa-external-link"></i>
                       </a>
                     </div>
                   )}
