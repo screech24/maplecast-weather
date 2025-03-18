@@ -10,25 +10,11 @@ const WindyRadarMap = ({ coordinates, isDarkMode }) => {
     if (coordinates && coordinates.lat && coordinates.lon) {
       const newCenter = [coordinates.lat, coordinates.lon];
       setMapCenter(newCenter);
-      
-      // If the iframe exists, send a message to update the location
-      if (iframeRef.current) {
-        try {
-          const message = {
-            type: 'updateLocation',
-            lat: coordinates.lat,
-            lon: coordinates.lon
-          };
-          iframeRef.current.contentWindow.postMessage(message, '*');
-        } catch (error) {
-          console.error('Error sending message to Windy iframe:', error);
-        }
-      }
     }
   }, [coordinates]);
   
   // Build the iframe src URL with the current coordinates and additional parameters
-  const iframeSrc = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=7&overlay=radar&product=radar&level=surface&lat=${mapCenter[0]}&lon=${mapCenter[1]}&marker=true&calendar=now&type=map&location=coordinates&detail=&detailLat=${mapCenter[0]}&detailLon=${mapCenter[1]}&geolocation=off&width=800&height=600&fullscreen=true&showmenu=false&menu=false&search=false&widget=false&showdata=false&message=false&pressure=false&forecast=false`;
+  const iframeSrc = `https://embed.windy.com/embed.html?lat=${mapCenter[0]}&lon=${mapCenter[1]}&zoom=7&level=surface&overlay=radar&menu=&message=false&marker=false&calendar=false&pressure=false&type=map&location=coordinates&detail=false&metricWind=km/h&metricTemp=°C&radarRange=-1&timestamp=${Date.now()}&detailLat=false&detailLon=false&geolocation=off&width=800&height=600&fullscreen=true&showmenu=false&search=false&widget=false&showdata=false&forecast=false`;
   
   return (
     <div className={`windy-radar-container ${isDarkMode ? 'dark-mode' : ''}`}>
@@ -47,7 +33,8 @@ const WindyRadarMap = ({ coordinates, isDarkMode }) => {
           className="windy-iframe"
           allow="fullscreen"
           loading="lazy"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
+          importance="high"
         ></iframe>
       </div>
       
