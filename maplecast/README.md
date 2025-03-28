@@ -1,4 +1,4 @@
-# MapleCast Weather App v1.12.0
+# MapleCast Weather App v1.12.1
 
 A modern weather application for Canadian users featuring real-time weather data, forecasts, and Environment Canada weather alerts.
 
@@ -8,7 +8,7 @@ A modern weather application for Canadian users featuring real-time weather data
 - Improved code maintainability
 - Removed unused code and imports
 
-[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-1.12.1-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 
 ## Features

@@ -599,7 +599,7 @@ function App() {
             <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" 
                target="_blank" 
                rel="noopener noreferrer" 
-               className="version">v1.12.0</a> |
+               className="version">v1.12.1</a> |
             Written with Cursor AI using Claude Sonnet 3.7 and Grok 3 beta
           </p>
         </div>

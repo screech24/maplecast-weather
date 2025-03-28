@@ -11,6 +11,16 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   const [prevLocationKey, setPrevLocationKey] = useState(null);
   const [fetchAttempted, setFetchAttempted] = useState(false);
 
+  // Function to filter out expired alerts
+  const filterExpiredAlerts = useCallback((alertsList) => {
+    const now = new Date();
+    return alertsList.filter(alert => {
+      if (!alert.expires) return true;
+      const expiryDate = new Date(alert.expires);
+      return expiryDate > now;
+    });
+  }, []);
+
   // Function to fetch alerts
   const fetchAlerts = useCallback(async () => {
     // Skip if we're in the middle of a search or don't have coordinates
@@ -33,11 +43,16 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
       console.log('Fetching alerts for location:', locationKey);
       const fetchedAlerts = await fetchWeatherAlerts(locationInfo);
       console.log('Fetched alerts:', fetchedAlerts);
-      setAlerts(fetchedAlerts);
+      
+      // Filter out expired alerts before setting state
+      const activeAlerts = filterExpiredAlerts(fetchedAlerts);
+      console.log('Active alerts after filtering expired ones:', activeAlerts);
+      
+      setAlerts(activeAlerts);
       setFetchAttempted(true);
       
       // Auto-expand only if there are alerts and we're on the first page
-      if (fetchedAlerts.length > 0 && currentPage === 0) {
+      if (activeAlerts.length > 0 && currentPage === 0) {
         setIsExpanded(true);
       }
     } catch (err) {
@@ -47,7 +62,7 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     } finally {
       setLoading(false);
     }
-  }, [locationInfo, currentPage, isSearching, prevLocationKey, fetchAttempted]);
+  }, [locationInfo, currentPage, isSearching, prevLocationKey, fetchAttempted, filterExpiredAlerts]);
 
   // Function to check for new alerts from service worker
   const checkForNewAlertsFromServiceWorker = useCallback(async () => {
@@ -61,23 +76,27 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
       const newAlerts = await checkForNewAlerts(locationInfo);
       if (newAlerts && newAlerts.length > 0) {
         console.log('Found new alerts:', newAlerts);
+        
+        // Filter out expired alerts
+        const activeNewAlerts = filterExpiredAlerts(newAlerts);
+        
         setAlerts(prevAlerts => {
           // Merge new alerts with existing ones, avoiding duplicates
-          const filteredNewAlerts = newAlerts.filter(
+          const filteredNewAlerts = activeNewAlerts.filter(
             newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
           );
           return [...filteredNewAlerts, ...prevAlerts];
         });
         
         // Auto-expand only if we're on the first page
-        if (newAlerts.length > 0 && currentPage === 0) {
+        if (activeNewAlerts.length > 0 && currentPage === 0) {
           setIsExpanded(true);
         }
       }
     } catch (err) {
       console.error('Error checking for new alerts:', err);
     }
-  }, [locationInfo, currentPage, isSearching]);
+  }, [locationInfo, currentPage, isSearching, filterExpiredAlerts]);
 
   // Handle location changes
   useEffect(() => {
@@ -123,16 +142,20 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     const handleServiceWorkerMessage = (event) => {
       if (event.data && event.data.type === 'NEW_ALERTS' && event.data.alerts) {
         console.log('Received new alerts from service worker:', event.data.alerts);
+        
+        // Filter out expired alerts
+        const activeNewAlerts = filterExpiredAlerts(event.data.alerts);
+        
         setAlerts(prevAlerts => {
           // Merge new alerts with existing ones, avoiding duplicates
-          const newAlerts = event.data.alerts.filter(
+          const newAlerts = activeNewAlerts.filter(
             newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
           );
           return [...newAlerts, ...prevAlerts];
         });
         
         // Auto-expand only if we're on the first page
-        if (event.data.alerts.length > 0 && currentPage === 0) {
+        if (activeNewAlerts.length > 0 && currentPage === 0) {
           setIsExpanded(true);
         }
       }
@@ -157,7 +180,25 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
       }
       clearInterval(checkInterval);
     };
-  }, [locationInfo, checkForNewAlertsFromServiceWorker, currentPage]);
+  }, [locationInfo, checkForNewAlertsFromServiceWorker, currentPage, filterExpiredAlerts]);
+
+  // Regularly filter alerts to remove expired ones
+  useEffect(() => {
+    // Check for expired alerts every minute
+    const expiryCheckInterval = setInterval(() => {
+      setAlerts(prevAlerts => {
+        const activeAlerts = filterExpiredAlerts(prevAlerts);
+        // Only update state if there's a change
+        if (activeAlerts.length !== prevAlerts.length) {
+          console.log('Removing expired alerts, remaining:', activeAlerts.length);
+          return activeAlerts;
+        }
+        return prevAlerts;
+      });
+    }, 60 * 1000); // Check every minute
+    
+    return () => clearInterval(expiryCheckInterval);
+  }, [filterExpiredAlerts]);
 
   // Toggle expanded state for the entire alerts container
   const toggleExpanded = () => {

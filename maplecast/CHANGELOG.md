@@ -5,6 +5,13 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.1] - 2024-03-28
+
+### Fixed
+- Fixed issue where expired weather alerts were still being displayed in the alerts panel
+- Added filtering for expired alerts in multiple places to ensure only active alerts are shown
+- Implemented a regular check that runs every minute to remove any alerts that have expired while the app is open
+
 ## [1.12.0] - 2024-03-20
 
 ### Fixed
