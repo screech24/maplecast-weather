@@ -426,7 +426,7 @@ function App() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [coordinates]);
+  }, [coordinates, handleLocationSelect]);
 
   // Helper function to calculate distance between two points using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -599,7 +599,7 @@ function App() {
             <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" 
                target="_blank" 
                rel="noopener noreferrer" 
-               className="version">v1.11.7</a> |
+               className="version">v1.12.0</a> |
             Written with Cursor AI using Claude Sonnet 3.7 and Grok 3 beta
           </p>
         </div>

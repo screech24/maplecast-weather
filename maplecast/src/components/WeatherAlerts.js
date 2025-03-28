@@ -100,7 +100,7 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
       setExpandedAlertId(null);
       setFetchAttempted(false);
     }
-  }, [locationInfo]);
+  }, [locationInfo, prevLocationKey]);
 
   // Fetch alerts when conditions are right
   useEffect(() => {

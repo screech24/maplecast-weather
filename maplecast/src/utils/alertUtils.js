@@ -25,6 +25,7 @@ const PROVINCE_TO_REGION_CODE = {
 };
 
 // CORS proxies to try when fetching alerts
+// eslint-disable-next-line no-unused-vars
 const CORS_PROXIES = [
   '', // Try direct access first
   'https://thingproxy.freeboard.io/fetch/', // Most reliable based on logs

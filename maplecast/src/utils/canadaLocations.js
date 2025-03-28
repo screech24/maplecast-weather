@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { devLog, debugLog } from './devMode';
 
 // Canadian provinces mapping
