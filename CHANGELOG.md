@@ -5,6 +5,29 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-02-05
+
+### Added
+- **Open-Meteo Geocoding API** for location search - free, no API key, no rate limits
+- **Photon Reverse Geocoding** for getting city names from coordinates - free, no rate limits
+- **Coordinate-based Province Detection** as fallback when geocoding APIs unavailable
+- **Far Northern Ontario Forecast Regions** - Sandy Lake, Pickle Lake, Pikangikum, Moosonee, Big Trout Lake, Peawanuck regions for proper alert filtering
+
+### Changed
+- Replaced Nominatim API (was returning 403 errors) with Open-Meteo Geocoding for location search
+- Improved location info handling to set city/region BEFORE fetching alerts (fixes wrong province alerts)
+- Enhanced cache validation to reject invalid data (province names as city, "Unknown Location", etc.)
+- Removed overly strict coordinate-based province validation that blocked valid border locations
+
+### Fixed
+- **Location Search**: Switched to Open-Meteo Geocoding API which works reliably without rate limits
+- **Reverse Geocoding**: Fixed 403 errors from Nominatim by switching to Photon API
+- **Alert Province Mismatch**: Fixed race condition where alerts fetched with old location data when switching locations
+- **Wrong Province Alerts**: Added check to wait for valid city name before fetching alerts
+- **Alert Filtering**: Alerts now correctly filter by specific location within a province, not just province-wide
+- **Cache Issues**: Fixed alerts showing for old location after switching; bad cache data now auto-cleared
+- **Border Locations**: Removed province mismatch check that incorrectly blocked locations near provincial borders (e.g., Sandy Lake, ON)
+
 ## [2.1.0] - 2026-02-04
 
 ### Added

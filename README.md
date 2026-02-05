@@ -1,8 +1,8 @@
-# MapleCast Weather App v2.0.0
+# MapleCast Weather App v2.2.0
 
 A modern, free weather application for Canadian users featuring real-time weather data, forecasts, interactive radar, and Environment Canada weather alerts. **No API key required!**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react)](https://reactjs.org/)
 [![PWA](https://img.shields.io/badge/PWA-enabled-5A0FC8.svg)](https://web.dev/progressive-web-apps/)
@@ -10,9 +10,22 @@ A modern, free weather application for Canadian users featuring real-time weathe
 
 ## Latest Updates (February 2026)
 
+**Version 2.2.0** - Location & Alert System Overhaul!
+- **New Location Search** - Switched to Open-Meteo Geocoding API (free, no rate limits, works reliably)
+- **Improved Reverse Geocoding** - Now uses Photon API to get city names from coordinates
+- **Fixed Alert Filtering** - Alerts now correctly filter by your specific city, not just province
+- **Enhanced Location Handling** - Fixed race conditions when switching locations
+- **Far Northern Ontario Support** - Added Sandy Lake, Pickle Lake, and other remote regions
+- **Better Cache Management** - Invalid cached data is now automatically cleared
+
+**Version 2.1.0** - Weather Alerts System Update!
+- **Updated to CAP (Common Alerting Protocol)** - Migrated from deprecated RSS battleboard feeds to modern CAP format
+- **Improved Alert Reliability** - New direct access to Environment Canada MSC Datamart CAP data
+- **Enhanced Error Handling** - Robust fallback mechanisms for alert fetching
+- **Better Alert Parsing** - More accurate severity classification and area coverage
+
 **Version 2.0.0** - Major update with free weather data!
 - Switched to Open-Meteo API - no API key required
-- Improved geocoding with OpenStreetMap Nominatim
 - Enhanced mobile experience with swipe navigation
 - Dynamic weather backgrounds based on conditions and time of day
 
@@ -22,7 +35,7 @@ A modern, free weather application for Canadian users featuring real-time weathe
 - **Current Weather Conditions**: Temperature, humidity, wind speed, and more
 - **7-Day Forecast**: Daily forecasts with high/low temperatures and precipitation chances
 - **Hourly Forecast**: Detailed hourly predictions for the next 24 hours
-- **Interactive Radar**: Windy.com radar integration with multiple weather layers
+- **Interactive Radar**: Precipitation radar with wind layer overlay
 - **Environment Canada Weather Alerts**: Real-time alerts with push notifications
 - **Dynamic Weather Backgrounds**: Background images that change based on weather conditions and time of day
 - **Day/Night Visualization**: Different backgrounds for day and night across all weather conditions
@@ -38,23 +51,27 @@ A modern, free weather application for Canadian users featuring real-time weathe
 
 The weather alerts system provides:
 
+- **CAP-Based Alerts**: Uses modern Common Alerting Protocol format from Environment Canada MSC Datamart
 - **Real-time Environment Canada Alerts**: Official weather warnings, watches, and advisories
 - **Dropdown Alert Banner**: Easily visible at the top of the app
 - **Multiple Alert Support**: View all active alerts for your location
-- **Severity Indicators**: Color-coded alerts based on urgency and severity
-- **Detailed Information**: Expand alerts to view complete details
+- **EC Color Coding**: Proper Environment Canada color scheme (RED/YELLOW/ORANGE/GREY)
+- **Detailed Information**: Expand alerts to view complete details with What/When/Where
 - **Push Notifications**: Receive alerts even when the app is closed
 - **Background Checking**: Automatic periodic checking for new alerts
+- **Robust Fallbacks**: Multiple fallback mechanisms for reliable alert delivery
 - **Direct Links**: Access the full alert on Environment Canada's website
 
 ## Radar Map Features
 
 The radar map page provides:
 
-- **Interactive Windy.com Radar**: High-resolution radar data with detailed precipitation visualization
-- **Multiple Weather Layers**: Access to various weather data layers provided by Windy.com
-- **Interactive Controls**: Zoom, pan, and explore different regions with intuitive controls
-- **Real-time Updates**: Regularly updated radar data from Windy.com's weather service
+- **RainViewer Precipitation Radar**: Animated precipitation data with 6-frame history
+- **Wind Layer Overlay**: Real-time wind speed and direction arrows from Open-Meteo
+- **Layer Toggle Controls**: Enable/disable precipitation and wind layers independently
+- **Interactive Controls**: Play/pause animation, step through frames, zoom and pan
+- **Wind Information Popups**: Click wind arrows to see speed and direction details
+- **Color-Coded Intensity**: Legend shows precipitation and wind speed intensity levels
 - **Dark Mode Support**: Radar map adapts to the app's dark mode setting
 - **Responsive Design**: Optimized for both desktop and mobile viewing
 - **Location Synchronization**: Automatically centers on your selected location
@@ -115,17 +132,20 @@ This application is a Progressive Web App, which means you can:
 ## Data Sources
 
 - **Weather Data**: [Open-Meteo API](https://open-meteo.com/) - Free, no API key required
-- **Radar Data**: [Windy.com](https://www.windy.com/)
-- **Weather Alerts**: [Environment Canada](https://weather.gc.ca/warnings/index_e.html)
-- **Geocoding**: [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)
+- **Radar Data**: [RainViewer](https://www.rainviewer.com/) - Free precipitation radar
+- **Wind Data**: [Open-Meteo API](https://open-meteo.com/) - Free wind velocity data
+- **Weather Alerts**: [Environment Canada MSC Datamart](https://dd.weather.gc.ca/) - CAP format alerts
+- **Location Search**: [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api) - Free, no rate limits
+- **Reverse Geocoding**: [Photon](https://photon.komoot.io/) - Free OpenStreetMap-based geocoding
 
 ## Technologies Used
 
 - React.js 18
-- Open-Meteo API (weather data)
-- Windy.com (radar visualization)
-- Environment Canada API (weather alerts)
-- OpenStreetMap Nominatim (geocoding)
+- Open-Meteo API (weather data, wind layer, and location search)
+- RainViewer (precipitation radar)
+- Leaflet (interactive maps)
+- Environment Canada MSC Datamart (CAP weather alerts)
+- Photon API (reverse geocoding)
 - react-swipeable (mobile navigation)
 - Axios (API requests)
 - Service Workers (PWA functionality)
@@ -181,6 +201,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Weather data provided by [Open-Meteo](https://open-meteo.com/)
-- Radar visualization by [Windy.com](https://www.windy.com/)
-- Weather alerts from [Environment Canada](https://weather.gc.ca/)
+- Precipitation radar by [RainViewer](https://www.rainviewer.com/)
+- Weather alerts from [Environment Canada MSC Datamart](https://dd.weather.gc.ca/)
 - Geocoding by [OpenStreetMap](https://www.openstreetmap.org/)
