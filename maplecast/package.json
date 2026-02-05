@@ -1,6 +1,7 @@
 {
   "name": "maplecast-weather",
   "version": "2.2.0",
+  "homepage": "https://screech24.github.io/maplecast-weather",
   "private": true,
   "dependencies": {
     "@react-leaflet/core": "^3.0.0",
