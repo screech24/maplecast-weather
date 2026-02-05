@@ -2,11 +2,21 @@ import React from 'react';
 import './LocationInfo.css';
 
 const LocationInfo = ({ isInCanada, cityName, regionName }) => {
+  // Build display string - handle missing city name
+  let displayLocation = '';
+  if (cityName && cityName !== regionName) {
+    displayLocation = regionName ? `${cityName}, ${regionName}` : cityName;
+  } else if (regionName) {
+    displayLocation = regionName;
+  } else {
+    displayLocation = 'Loading location...';
+  }
+
   return (
     <div className="location-info">
       <div className="location-details">
         <i className="location-icon"></i>
-        <span>{cityName}{regionName ? `, ${regionName}` : ''}</span>
+        <span>{displayLocation}</span>
       </div>
       
       {!isInCanada && (

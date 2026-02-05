@@ -28,7 +28,13 @@ const CurrentWeather = ({ data }) => {
     backgroundImage: `url(${getWeatherBackground(weatherId, isDay)})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
     position: 'relative',
+    minWidth: '100%',
+    minHeight: '100%',
+    filter: 'none',
+    imageRendering: '-webkit-optimize-contrast',
+    WebkitImageRendering: '-webkit-optimize-contrast'
   };
 
   // Format visibility from meters to kilometers
@@ -142,53 +148,201 @@ const CurrentWeather = ({ data }) => {
 
 // Function to get the appropriate weather background image based on weather ID and day/night
 const getWeatherBackground = (weatherId, isDay) => {
-  // Background image mapping based on weather ID
-  // Using direct URLs to weather-related images from Unsplash
+  // High-quality image collections for each weather condition
+  const weatherImages = {
+thunderstorm: {
+      day: [
+        'https://images.unsplash.com/photo-1594760467013-64ac2b80b7d3?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1605725394436-47a35e6c1cfa?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531251145477-0233a0d7b5a1?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1472145246862-b24cf25c4a36?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1605725394436-47a35e6c1cfa?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531251145477-0233a0d7b5a1?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    drizzle: {
+      day: [
+        'https://images.unsplash.com/photo-1541919329513-35f7af297129?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1438449805896-28a666819a20?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1521931692833-a6b4ebb22f73?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1501999635878-71cb5379c2d8?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1519692933481-e162a57d6721?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531150868943-846cb7c14ab6?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    rain: {
+      day: [
+        'https://images.unsplash.com/photo-1438449805896-28a666819a20?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1521931692833-a6b4ebb22f73?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531150868943-846cb7c14ab6?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1428592953211-07ab40b7201b?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1519692933481-e162a57d6721?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1523799350464-07ab40b72017?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    snow: {
+      day: [
+        'https://images.unsplash.com/photo-1548777123-e216912df7d8?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1483664852095-d6cc69856594?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1516924960106-92d0d842ffca?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1516609178455-208c4ab4b51f?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1477956880953-d5a64149bb4c?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    atmosphere: {
+      day: [
+        'https://images.unsplash.com/photo-1485236715568-ddc5ee6ca227?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1510375590505-9ede1ac4a33d?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    drizzle: {
+      day: [
+        'https://images.unsplash.com/photo-1541919329513-35f7af297129?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1438449805896-28a666819a20?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1521931692833-a6b4ebb22f73?q=95&w=1920&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1501999635878-71cb5379c2d8?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1519692933481-e162a57d6721?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531150868943-846cb7c14ab6?q=95&w=1920&auto=format&fit=crop'
+      ]
+    },
+    rain: {
+      day: [
+        'https://images.unsplash.com/photo-1438449805896-28a666819a20?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1521931692833-a6b4ebb22f73?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1531150868943-846cb7c14ab6?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1428592953211-077101b2021b?q=95&w=1920&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1519692933481-e162a57d6721?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1523799350464-07ab40b72017?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=95&w=1920&auto=format&fit=crop'
+      ]
+    },
+    snow: {
+      day: [
+        'https://images.unsplash.com/photo-1548777123-e216912df7d8?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1483664852095-d6cc69856594?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1516924960106-92d0d842ffca?q=95&w=1920&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1516609178455-208c4ab4b51f?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1477956880953-d5a64149bb4c?q=95&w=1920&auto=format&fit=crop'
+      ]
+    },
+    atmosphere: {
+      day: [
+        'https://images.unsplash.com/photo-1485236715568-ddc5ee6ca227?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=95&w=1920&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=95&w=1920&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1510375590505-9ede1ac4a33d?q=95&w=1920&auto=format&fit=crop'
+      ]
+    },
+clear: {
+      day: [
+        'https://images.unsplash.com/photo-1528872042734-8f50f9d3c59b?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-0MkPt0z8Swo?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1510375590505-9ede1ac4a33d?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1444703686981-a3abbc410ed2?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1502136969935-8d8eef54d77b?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1532372576222-f3b91057244b?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    fewClouds: {
+      day: [
+        'https://images.unsplash.com/photo-1601297183305-6df142704ea2?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1510375590505-9ede1ac4a33d?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1444703686981-a3abbc410ed2?q=100&w=2560&auto=format&fit=crop'
+      ]
+    },
+    clouds: {
+      day: [
+        'https://images.unsplash.com/photo-1513002749550-c59d786b8e6c?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1534271499810-4851b6f4b958?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1516116216624-53e697fedbea?q=100&w=2560&auto=format&fit=crop'
+      ],
+      night: [
+        'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1510375590505-9ede1ac4a33d?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1444703686981-a3abbc410ed2?q=100&w=2560&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=100&w=2560&auto=format&fit=crop'
+      ]
+    }
+  };
+
+  // Helper function to get random image from array
+  const getRandomImage = (imageArray) => {
+    return imageArray[Math.floor(Math.random() * imageArray.length)];
+  };
+
+  // Background image mapping based on weather ID with randomization
   if (weatherId >= 200 && weatherId < 300) {
     // Thunderstorm
-    return isDay
-      ? 'https://images.unsplash.com/photo-1594760467013-64ac2b80b7d3?q=80&w=1000&auto=format&fit=crop' // Daytime thunderstorm
-      : 'https://images.unsplash.com/photo-1472145246862-b24cf25c4a36?q=80&w=1000&auto=format&fit=crop'; // Night thunderstorm
+    return getRandomImage(isDay ? weatherImages.thunderstorm.day : weatherImages.thunderstorm.night);
   } else if (weatherId >= 300 && weatherId < 400) {
     // Drizzle
-    return isDay
-      ? 'https://images.unsplash.com/photo-1541919329513-35f7af297129?q=80&w=1000&auto=format&fit=crop' // Daytime drizzle
-      : 'https://images.unsplash.com/photo-1501999635878-71cb5379c2d8?q=80&w=1000&auto=format&fit=crop'; // Night drizzle
+    return getRandomImage(isDay ? weatherImages.drizzle.day : weatherImages.drizzle.night);
   } else if (weatherId >= 500 && weatherId < 600) {
     // Rain
-    return isDay
-      ? 'https://images.unsplash.com/photo-1438449805896-28a666819a20?q=80&w=1000&auto=format&fit=crop' // Daytime rain
-      : 'https://images.unsplash.com/photo-1519692933481-e162a57d6721?q=80&w=1000&auto=format&fit=crop'; // Night rain
+    return getRandomImage(isDay ? weatherImages.rain.day : weatherImages.rain.night);
   } else if (weatherId >= 600 && weatherId < 700) {
     // Snow
-    return isDay
-      ? 'https://images.unsplash.com/photo-1548777123-e216912df7d8?q=80&w=1000&auto=format&fit=crop' // Daytime snow falling
-      : 'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=80&w=1000&auto=format&fit=crop'; // Night snow falling
+    return getRandomImage(isDay ? weatherImages.snow.day : weatherImages.snow.night);
   } else if (weatherId >= 700 && weatherId < 800) {
     // Atmosphere (fog, mist, etc.)
-    return isDay
-      ? 'https://images.unsplash.com/photo-1485236715568-ddc5ee6ca227?q=80&w=1000&auto=format&fit=crop' // Daytime fog
-      : 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?q=80&w=1000&auto=format&fit=crop'; // Night fog
+    return getRandomImage(isDay ? weatherImages.atmosphere.day : weatherImages.atmosphere.night);
   } else if (weatherId === 800) {
     // Clear sky
-    return isDay 
-      ? 'https://images.unsplash.com/photo-1528872042734-8f50f9d3c59b?q=80&w=1000&auto=format&fit=crop' // Pure blue sky, absolutely no clouds
-      : 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?q=80&w=1000&auto=format&fit=crop'; // Clear night sky with stars
+    return getRandomImage(isDay ? weatherImages.clear.day : weatherImages.clear.night);
   } else if (weatherId === 801) {
     // Few clouds
-    return isDay 
-      ? 'https://images.unsplash.com/photo-1601297183305-6df142704ea2?q=80&w=1000&auto=format&fit=crop' // Few clouds in blue sky
-      : 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=80&w=1000&auto=format&fit=crop'; // Few clouds at night
+    return getRandomImage(isDay ? weatherImages.fewClouds.day : weatherImages.fewClouds.night);
   } else if (weatherId >= 802 && weatherId < 900) {
     // Clouds
-    return isDay
-      ? 'https://images.unsplash.com/photo-1513002749550-c59d786b8e6c?q=80&w=1000&auto=format&fit=crop' // Daytime clouds
-      : 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=80&w=1000&auto=format&fit=crop'; // Night clouds - replacing broken URL with a working one
+    return getRandomImage(isDay ? weatherImages.clouds.day : weatherImages.clouds.night);
   } else {
     // Default
-    return isDay
-      ? 'https://images.unsplash.com/photo-1528872042734-8f50f9d3c59b?q=80&w=1000&auto=format&fit=crop' // Default pure blue sky
-      : 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?q=80&w=1000&auto=format&fit=crop'; // Default night sky
+    return getRandomImage(isDay ? weatherImages.clear.day : weatherImages.clear.night);
   }
 };
 

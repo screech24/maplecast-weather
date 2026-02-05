@@ -1,13 +1,11 @@
-import axios from 'axios';
-import {
-  WEATHERBIT_API_KEY,
-  WEATHERBIT_BASE_URL,
-  SEVERITY_MAPPINGS,
-  ALERT_CACHE_DURATION,
-  REQUEST_INTERVAL
-} from '../config/weatherbit';
+/**
+ * Weather Alerts Utility
+ * Fetches and manages weather alerts from Environment Canada
+ */
 
-// Map of Canadian province names to Environment Canada region codes
+import { fetchWeatherAlerts as fetchECAlerts } from './environmentCanadaApi';
+
+// Map of Canadian province names to region codes
 const PROVINCE_TO_REGION_CODE = {
   'Alberta': 'ab',
   'British Columbia': 'bc',
@@ -24,206 +22,69 @@ const PROVINCE_TO_REGION_CODE = {
   'Yukon': 'yt'
 };
 
-// CORS proxies to try when fetching alerts
-// eslint-disable-next-line no-unused-vars
-const CORS_PROXIES = [
-  '', // Try direct access first
-  'https://thingproxy.freeboard.io/fetch/', // Most reliable based on logs
-  'https://corsproxy.io/?', // Good reliability
-  'https://api.codetabs.com/v1/proxy?quest=', // Decent reliability
-  'https://api.allorigins.win/raw?url=', // Backup option
-  'https://cors.x2u.in/', // Last resort
-];
-
 // Cache for storing alerts
 let alertsCache = {
   data: null,
   timestamp: null,
   lastRequestTime: null,
-  locationKey: null // Add location key to track location changes
+  locationKey: null,
+  alertHashes: new Set() // Track alert IDs to detect changes
 };
 
-// Function to clear alerts cache
+// Cache duration: 1 minute (refresh alerts frequently)
+const ALERT_CACHE_DURATION = 1 * 60 * 1000;
+
+// Request interval: 30 seconds minimum between requests (more responsive)
+const REQUEST_INTERVAL = 30 * 1000;
+
+/**
+ * Clear the alerts cache
+ */
 export const clearAlertsCache = () => {
+  const oldCache = { ...alertsCache };
   alertsCache = {
     data: null,
     timestamp: null,
     lastRequestTime: null,
-    locationKey: null
+    locationKey: null,
+    alertHashes: new Set()
   };
+  console.log('🗑️ ALERTS CACHE CLEARED. Previous cache:', oldCache);
 };
 
 /**
- * Get the Environment Canada region code for a province
- * @param {string} province - The province name
- * @returns {string} The region code or a default
+ * Get region code from province name
+ * @param {string} province - Province name or abbreviation
+ * @returns {string} Region code
  */
 export function getRegionCodeForProvince(province) {
-  if (!province) return 'on'; // Default to Ontario if no province provided
-  
-  // Normalize the province name by removing case sensitivity and extra spaces
+  if (!province) return 'ca'; // Default to all of Canada
+
+  // Normalize the province name
   const normalizedProvince = province.trim().toLowerCase();
-  
+
   // Check for exact matches
   for (const [key, value] of Object.entries(PROVINCE_TO_REGION_CODE)) {
     if (key.toLowerCase() === normalizedProvince) {
       return value;
     }
   }
-  
+
   // Check for partial matches
   for (const [key, value] of Object.entries(PROVINCE_TO_REGION_CODE)) {
     if (normalizedProvince.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedProvince)) {
       return value;
     }
   }
-  
+
   // Check for abbreviations
   const abbr = normalizedProvince.substring(0, 2);
   if (Object.values(PROVINCE_TO_REGION_CODE).includes(abbr)) {
     return abbr;
   }
-  
-  return 'on'; // Default to Ontario if no match found
+
+  return 'ca'; // Default to all of Canada
 }
-
-/**
- * Get an array of region codes to try based on the user's location
- * @param {Object} locationInfo - Object containing city and region information
- * @returns {string[]} Array of region codes to try
- */
-export function getRegionCodes(locationInfo) {
-  if (!locationInfo || !locationInfo.region) {
-    return ['ca']; // Default to all of Canada if no location info
-  }
-
-  const province = locationInfo.region.trim().toLowerCase();
-  const city = locationInfo.city ? locationInfo.city.trim().toLowerCase() : '';
-
-  // Map of provinces to their primary region codes
-  const PROVINCE_TO_REGION_CODE = {
-    'alberta': ['abrm'],
-    'british columbia': ['bcrm'],
-    'manitoba': ['mbrm'],
-    'new brunswick': ['nb'],
-    'newfoundland and labrador': ['nl'],
-    'northwest territories': ['nt'],
-    'nova scotia': ['ns'],
-    'nunavut': ['nu'],
-    'ontario': ['onrm'],
-    'prince edward island': ['pei'],
-    'quebec': ['qc'],
-    'saskatchewan': ['skrm'],
-    'yukon': ['yt']
-  };
-
-  // City-specific region codes
-  const CITY_REGION_CODES = {
-    'toronto': ['onrm96'],
-    'ottawa': ['onrm97'],
-    'hamilton': ['onrm96'],
-    'london': ['onrm96'],
-    'kingston': ['onrm95'],
-    'windsor': ['onrm96'],
-    'sudbury': ['onrm94'],
-    'thunder bay': ['onrm93'],
-    'montreal': ['qcrm1'],
-    'quebec city': ['qcrm2'],
-    'gatineau': ['qcrm3'],
-    'vancouver': ['bcrm30'],
-    'victoria': ['bcrm32'],
-    'kelowna': ['bcrm3'],
-    'calgary': ['abrm32'],
-    'edmonton': ['abrm31'],
-    'red deer': ['abrm33'],
-    'lethbridge': ['abrm34'],
-    'regina': ['skrm2'],
-    'saskatoon': ['skrm1'],
-    'winnipeg': ['mbrm9'],
-    'halifax': ['ns1'],
-    'fredericton': ['nb2'],
-    'moncton': ['nb3'],
-    "st. john's": ['nl3'],
-    'charlottetown': ['pei2'],
-    'yellowknife': ['nt1'],
-    'whitehorse': ['yt10'],
-    'iqaluit': ['nu1']
-  };
-
-  let codes = [];
-
-  // Add city-specific code if available
-  if (city) {
-    for (const [cityName, cityCodes] of Object.entries(CITY_REGION_CODES)) {
-      if (city.includes(cityName) || cityName.includes(city)) {
-        codes.push(...cityCodes);
-        break;
-      }
-    }
-  }
-
-  // Add province codes
-  for (const [provinceName, provinceCodes] of Object.entries(PROVINCE_TO_REGION_CODE)) {
-    if (province.includes(provinceName) || provinceName.includes(province)) {
-      codes.push(...provinceCodes);
-      break;
-    }
-  }
-
-  // Add general codes
-  if (!codes.includes('ca')) {
-    codes.push('ca'); // Add Canada-wide alerts as fallback
-  }
-
-  // If no specific codes found, use defaults
-  if (codes.length === 1 && codes[0] === 'ca') {
-    codes.unshift('onrm96'); // Default to Southern Ontario
-  }
-
-  return codes;
-}
-
-/**
- * Get severity level from alert title
- * @param {string} title - Alert title
- * @returns {string} Severity level
- */
-const getSeverityLevel = (title = '') => {
-  for (const [key, value] of Object.entries(SEVERITY_MAPPINGS)) {
-    if (title.includes(key)) {
-      return value;
-    }
-  }
-  return 'Minor';
-};
-
-/**
- * Format alert data from Weatherbit API
- * @param {Object} alert - Raw alert data from Weatherbit
- * @returns {Object} Formatted alert data
- */
-const formatAlertData = (alert) => {
-  // Skip French alerts (they usually contain "en vigueur", "vigilance", or "avertissement")
-  if (alert.title.toLowerCase().includes('en vigueur') || 
-      alert.title.toLowerCase().includes('vigilance') || 
-      alert.title.toLowerCase().includes('avertissement')) {
-    return null;
-  }
-
-  return {
-    id: alert.alertid || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    title: alert.title,
-    description: alert.description,
-    summary: alert.description.substring(0, 200) + (alert.description.length > 200 ? '...' : ''),
-    link: `https://weather.gc.ca/warnings/index_e.html`,
-    sent: new Date(alert.effective_local).toISOString(),
-    expires: new Date(alert.expires_local).toISOString(),
-    severity: getSeverityLevel(alert.title),
-    urgency: alert.urgency || 'Expected',
-    certainty: alert.certainty || 'Likely',
-    sourceUrl: `https://weather.gc.ca/warnings/index_e.html`
-  };
-};
 
 /**
  * Check if we should make a new API request based on rate limiting
@@ -232,36 +93,68 @@ const formatAlertData = (alert) => {
 const shouldMakeRequest = () => {
   if (!alertsCache.lastRequestTime) return true;
   const timeSinceLastRequest = Date.now() - alertsCache.lastRequestTime;
-  return timeSinceLastRequest >= REQUEST_INTERVAL;
+  const shouldRequest = timeSinceLastRequest >= REQUEST_INTERVAL;
+  console.log(`Rate limiting check: time since last request ${Math.round(timeSinceLastRequest/1000)}s, should request: ${shouldRequest}`);
+  return shouldRequest;
 };
 
 /**
  * Check if cached data is still valid
+ * @param {Object} locationInfo - Location information
  * @returns {boolean}
  */
 const isCacheValid = (locationInfo) => {
-  if (!alertsCache.data || !alertsCache.timestamp || !alertsCache.locationKey) return false;
-  
-  // Check if location has changed
-  const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
-  if (locationKey !== alertsCache.locationKey) return false;
-  
+  if (!alertsCache.data || !alertsCache.timestamp || !alertsCache.locationKey) {
+    return false;
+  }
+
+  // Check if location has changed (use consistent key format)
+  const locationKey = locationInfo.lat && locationInfo.lon
+    ? `${locationInfo.lat},${locationInfo.lon}`
+    : 'unknown';
+
+  console.log(`🔍 Cache check - current key: ${locationKey}, cached key: ${alertsCache.locationKey}`);
+
+  if (locationKey !== alertsCache.locationKey) {
+    console.log('📍 Location changed, cache invalid');
+    return false;
+  }
+
+  // Check cache age
   const cacheAge = Date.now() - alertsCache.timestamp;
-  return cacheAge < ALERT_CACHE_DURATION;
+  const isValid = cacheAge < ALERT_CACHE_DURATION;
+
+  if (!isValid) {
+    console.log(`Cache expired (age: ${Math.round(cacheAge / 1000)}s)`);
+  }
+
+  return isValid;
 };
 
 /**
- * Fetch weather alerts from Weatherbit API
- * @param {Object} locationInfo - Object containing lat and lon
+ * Generate a hash for an alert to detect changes
+ */
+function generateAlertHash(alert) {
+  return `${alert.title}_${alert.sent}_${alert.severity}`;
+}
+
+/**
+ * Fetch weather alerts from Environment Canada
+ * @param {Object} locationInfo - Location info with lat/lon and region/province
  * @returns {Promise<Array>} Array of alert objects
  */
 export async function fetchWeatherAlerts(locationInfo) {
-  if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-    console.warn('No location coordinates provided for fetching alerts');
+  if (!locationInfo) {
+    console.warn('No location info provided for fetching alerts');
     return [];
   }
 
-  const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
+  // Determine location key for caching
+  const locationKey = locationInfo.lat && locationInfo.lon
+    ? `${locationInfo.lat},${locationInfo.lon}`
+    : 'unknown';
+
+  console.log(`🚨 FETCHING ALERTS for location: ${locationKey}`, locationInfo);
 
   // Check cache first
   if (isCacheValid(locationInfo)) {
@@ -276,65 +169,151 @@ export async function fetchWeatherAlerts(locationInfo) {
   }
 
   try {
-    const url = `${WEATHERBIT_BASE_URL}/alerts?lat=${locationInfo.lat}&lon=${locationInfo.lon}&key=${WEATHERBIT_API_KEY}`;
-    const response = await axios.get(url);
-    
-    if (response.data && Array.isArray(response.data.alerts)) {
-      // Filter out null values (French alerts) and format the alerts
-      const formattedAlerts = response.data.alerts
-        .map(alert => formatAlertData(alert))
-        .filter(alert => alert !== null);
-      
-      // Update cache with new location key
-      alertsCache.data = formattedAlerts;
-      alertsCache.timestamp = Date.now();
-      alertsCache.lastRequestTime = Date.now();
-      alertsCache.locationKey = locationKey;
-      
-      return formattedAlerts;
+    let allAlerts = [];
+
+    // Get province code
+    const provinceCode = locationInfo.state || locationInfo.region
+      ? getRegionCodeForProvince(locationInfo.state || locationInfo.region)
+      : 'ca';
+
+    // Get location name for filtering
+    const locationName = locationInfo.name || locationInfo.city || null;
+
+    console.log(`Fetching EC alerts for province: ${provinceCode}, location: ${locationName}`);
+
+    // Fetch alerts from Environment Canada
+    if (locationInfo.lat && locationInfo.lon && provinceCode !== 'ca') {
+      try {
+        const weatherAlerts = await fetchECAlerts(
+          provinceCode,
+          locationInfo.lat,
+          locationInfo.lon,
+          locationName  // Pass location name for area filtering
+        );
+        allAlerts = allAlerts.concat(weatherAlerts);
+        console.log(`EC API returned ${weatherAlerts.length} alerts for ${locationName}`);
+      } catch (error) {
+        console.log('Weather alerts failed:', error.message);
+      }
+    } else if (provinceCode === 'ca') {
+      console.log('Province not detected, skipping alert fetch');
     }
-    
-    return [];
+
+    // No fallback alerts - only show real Environment Canada alerts
+    if (allAlerts.length === 0) {
+      console.log('No active weather alerts for this area');
+    }
+
+    // Remove duplicates based on title
+    const uniqueAlerts = allAlerts.filter((alert, index, self) =>
+      index === self.findIndex((a) => a.title === alert.title)
+    );
+
+    // Filter out expired alerts
+    const activeAlerts = uniqueAlerts.filter(alert => {
+      if (!alert.expires) return true;
+      return new Date(alert.expires) > new Date();
+    });
+
+    // Sort by severity (Severe first)
+    const severityOrder = { 'Severe': 0, 'Moderate': 1, 'Minor': 2 };
+    activeAlerts.sort((a, b) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2));
+
+    console.log(`Returning ${activeAlerts.length} active alerts for ${locationKey}`);
+
+    // Update cache
+    alertsCache.data = activeAlerts;
+    alertsCache.timestamp = Date.now();
+    alertsCache.lastRequestTime = Date.now();
+    alertsCache.locationKey = locationKey;
+
+    // Update alert hashes
+    alertsCache.alertHashes = new Set(activeAlerts.map(generateAlertHash));
+
+    console.log(`✅ ALERTS CACHED: ${activeAlerts.length} alerts for ${locationKey}`);
+
+    return activeAlerts;
+
   } catch (error) {
-    console.error('Error fetching weather alerts:', error);
+    console.error('Error fetching weather alerts from all sources:', error);
+
+    // Return cached data if available, otherwise empty array
+    if (alertsCache.data && alertsCache.data.length > 0) {
+      console.log('Returning cached alerts due to error');
+      return alertsCache.data;
+    }
+
     return [];
   }
 }
 
 /**
- * Check for new alerts
- * @param {Object} locationInfo - Object containing lat and lon coordinates
- * @returns {Promise<Array>} Array of new alert objects
+ * Check for new alerts and return only new or updated ones
+ * @param {Object} locationInfo - Location information
+ * @returns {Promise<Object>} Object with newAlerts and updatedAlerts arrays
  */
 export async function checkForNewAlerts(locationInfo) {
   // Only check if the app is active (document is visible)
   if (document.hidden) {
     console.log('App is not active, skipping alert check');
-    return [];
+    return { newAlerts: [], updatedAlerts: [], removedAlerts: [] };
   }
 
   try {
-    if (!locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('No location coordinates available');
-      return [];
+    if (!locationInfo) {
+      console.log('No location info available');
+      return { newAlerts: [], updatedAlerts: [], removedAlerts: [] };
     }
 
-    const newAlerts = await fetchWeatherAlerts(locationInfo);
-    const currentAlerts = alertsCache.data || [];
+    // Store previous alert hashes
+    const previousHashes = new Set(alertsCache.alertHashes);
+    const previousAlerts = alertsCache.data || [];
 
-    // Find alerts that aren't in the current set
-    const brandNewAlerts = newAlerts.filter(newAlert => 
-      !currentAlerts.some(currentAlert => currentAlert.id === newAlert.id)
-    );
+    // Force a fresh fetch
+    alertsCache.timestamp = null;
 
-    if (brandNewAlerts.length > 0) {
-      console.log(`Found ${brandNewAlerts.length} new alerts`);
+    const freshAlerts = await fetchWeatherAlerts(locationInfo);
+
+    const newAlerts = [];
+    const updatedAlerts = [];
+    const removedAlerts = [];
+
+    // Check for new alerts
+    for (const alert of freshAlerts) {
+      const hash = generateAlertHash(alert);
+      if (!previousHashes.has(hash)) {
+        // Check if there was an alert with the same title (updated)
+        const existingAlert = previousAlerts.find(a => a.title === alert.title);
+        if (existingAlert) {
+          updatedAlerts.push(alert);
+        } else {
+          newAlerts.push(alert);
+        }
+      }
     }
 
-    return brandNewAlerts;
+    // Check for removed alerts
+    const currentTitles = new Set(freshAlerts.map(a => a.title));
+    for (const prevAlert of previousAlerts) {
+      if (!currentTitles.has(prevAlert.title)) {
+        removedAlerts.push(prevAlert);
+      }
+    }
+
+    if (newAlerts.length > 0) {
+      console.log(`Found ${newAlerts.length} new alerts`);
+    }
+    if (updatedAlerts.length > 0) {
+      console.log(`Found ${updatedAlerts.length} updated alerts`);
+    }
+    if (removedAlerts.length > 0) {
+      console.log(`Found ${removedAlerts.length} removed alerts`);
+    }
+
+    return { newAlerts, updatedAlerts, removedAlerts };
   } catch (error) {
     console.error('Error checking for new alerts:', error);
-    return [];
+    return { newAlerts: [], updatedAlerts: [], removedAlerts: [] };
   }
 }
 
@@ -347,14 +326,14 @@ export async function registerAlertBackgroundSync() {
     console.log('Background sync not supported');
     return false;
   }
-  
+
   try {
     const registration = await navigator.serviceWorker.ready;
-    
+
     // Register for background sync
     await registration.sync.register('weather-alerts-sync');
     console.log('Registered for background sync');
-    
+
     // Register for periodic sync if supported
     if ('periodicSync' in registration) {
       try {
@@ -362,11 +341,11 @@ export async function registerAlertBackgroundSync() {
         const status = await navigator.permissions.query({
           name: 'periodic-background-sync',
         });
-        
+
         if (status.state === 'granted') {
-          // Register for periodic sync every 15 minutes (minimum allowed is usually 15 minutes)
+          // Register for periodic sync every 5 minutes
           await registration.periodicSync.register('weather-alerts-periodic', {
-            minInterval: 15 * 60 * 1000, // 15 minutes in milliseconds
+            minInterval: 5 * 60 * 1000,
           });
           console.log('Registered for periodic background sync');
         } else {
@@ -376,10 +355,35 @@ export async function registerAlertBackgroundSync() {
         console.error('Error registering for periodic background sync:', error);
       }
     }
-    
+
     return true;
   } catch (error) {
     console.error('Error registering for background sync:', error);
     return false;
   }
-} 
+}
+
+/**
+ * Get region codes to try based on location
+ * @param {Object} locationInfo - Location information
+ * @returns {string[]} Array of region codes to try
+ */
+export function getRegionCodes(locationInfo) {
+  if (!locationInfo || !locationInfo.region) {
+    return ['ca']; // Default to all of Canada
+  }
+
+  const regionCode = getRegionCodeForProvince(locationInfo.region);
+  return [regionCode, 'ca']; // Try specific region first, then all of Canada
+}
+
+const alertUtils = {
+  fetchWeatherAlerts,
+  checkForNewAlerts,
+  registerAlertBackgroundSync,
+  getRegionCodeForProvince,
+  getRegionCodes,
+  clearAlertsCache
+};
+
+export default alertUtils;

@@ -5,6 +5,60 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-02-05
+
+### Added
+- **Open-Meteo Geocoding API** for location search - free, no API key, no rate limits
+- **Photon Reverse Geocoding** for getting city names from coordinates - free, no rate limits
+- **Coordinate-based Province Detection** as fallback when geocoding APIs unavailable
+- **Far Northern Ontario Forecast Regions** - Sandy Lake, Pickle Lake, Pikangikum, Moosonee, Big Trout Lake, Peawanuck regions for proper alert filtering
+
+### Changed
+- Replaced Nominatim API (was returning 403 errors) with Open-Meteo Geocoding for location search
+- Improved location info handling to set city/region BEFORE fetching alerts (fixes wrong province alerts)
+- Enhanced cache validation to reject invalid data (province names as city, "Unknown Location", etc.)
+- Removed overly strict coordinate-based province validation that blocked valid border locations
+
+### Fixed
+- **Location Search**: Switched to Open-Meteo Geocoding API which works reliably without rate limits
+- **Reverse Geocoding**: Fixed 403 errors from Nominatim by switching to Photon API
+- **Alert Province Mismatch**: Fixed race condition where alerts fetched with old location data when switching locations
+- **Wrong Province Alerts**: Added check to wait for valid city name before fetching alerts
+- **Alert Filtering**: Alerts now correctly filter by specific location within a province, not just province-wide
+- **Cache Issues**: Fixed alerts showing for old location after switching; bad cache data now auto-cleared
+- **Border Locations**: Removed province mismatch check that incorrectly blocked locations near provincial borders (e.g., Sandy Lake, ON)
+
+## [2.1.0] - 2026-02-04
+
+### Added
+- Wind velocity layer on radar map using Open-Meteo data
+- Layer toggle controls for precipitation and wind
+- Full Environment Canada alert details with intro summary display
+- Alert intro summary extraction showing headline content (e.g., "Rain, at times heavy, continues.")
+- Improved "In Effect For" regions parsing as proper lists
+- Wind speed color coding (light, moderate, strong, very strong, extreme)
+- Click-to-view wind popups showing speed and direction details
+
+### Changed
+- Replaced Windy.com radar with RainViewer (free, no API key required)
+- Enhanced alert HTML parsing with 8 different extraction patterns
+- Improved alert page parsing for Impact Level and Forecast Confidence
+- Updated radar legend to show active layer information
+- README updated with RainViewer and wind layer documentation
+
+### Removed
+- Unused DevTools and DiagnosticTest components
+- Unused utility files (cityCodeMapper.js, radarSiteMapper.js)
+- Orphaned WindyRadarMap.css file
+- Dead code from App.js (enableNotifications, retryFetchWeather, updateServiceWorkerData, dismissNotificationPrompt, showBrowserNotification)
+- Unused functions from devMode.js (measurePerformance, addDevUI)
+- Duplicate getRegionCodeForProvince function from api.js
+- test-location-search.js test file
+
+### Fixed
+- Weather alerts now show complete EC content including intro summary
+- Proper extraction of What/When/Where/Additional Info sections with multiple HTML format support
+
 ## [1.12.1] - 2024-03-28
 
 ### Fixed

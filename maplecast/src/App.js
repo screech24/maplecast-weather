@@ -8,10 +8,12 @@ import PageNavigation from './components/PageNavigation';
 import WeatherAlerts from './components/WeatherAlerts';
 import { getCurrentPosition, fetchWeatherData, isLocationInCanada } from './utils/api';
 import { registerAlertBackgroundSync } from './utils/alertUtils';
+import { getProvinceFromCoordinates } from './utils/canadaLocations';
 import axios from 'axios';
 
-// Import API key from utils/api.js to maintain consistency
-import { API_KEY } from './utils/api';
+// PWA Install Detection and Enhancement
+let deferredPrompt = null;
+let installButtonShown = false;
 
 function App() {
   // eslint-disable-next-line no-unused-vars
@@ -34,10 +36,13 @@ function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  // Add state for last used location
-  const [lastUsedLocation, setLastUsedLocation] = useState(null);
+
   // Add state for current page
   const [currentPage, setCurrentPage] = useState(0);
+  
+  // PWA Enhancement States
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
 
   // Update body class and localStorage when dark mode changes
   useEffect(() => {
@@ -64,59 +69,49 @@ function App() {
     }
   };
 
-  // eslint-disable-next-line no-unused-vars
-  const enableNotifications = () => {
-    // Enable notifications
-    setNotificationsEnabled(true);
-    localStorage.setItem('notificationsEnabled', 'true');
-    setShowNotificationPrompt(false);
+  // PWA Install Handler
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
     
-    // Here you would typically request notification permissions
-    if ('Notification' in window) {
-      Notification.requestPermission();
-    }
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const retryFetchWeather = async () => {
-    setIsLoading(true);
-    setError(null);
+    // Show the install prompt
+    deferredPrompt.prompt();
     
-    try {
-      if (coordinates) {
-        const data = await fetchWeatherData(coordinates.lat, coordinates.lon);
-        setWeatherData(data);
-        setIsLoading(false);
-      } else {
-        // If no coordinates, try to get current position again
-        await handleUseMyLocation();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+      // Trigger haptic feedback
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
       }
-    } catch (err) {
-      setError('Failed to fetch weather data. Please try again.');
-      setIsLoading(false);
-      console.error('Error retrying weather fetch:', err);
-    }
-  };
-
-  // Update service worker data
-  // eslint-disable-next-line no-unused-vars
-  const updateServiceWorkerData = useCallback((data, locationData) => {
-    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
-      console.log('Service worker not available or not controlling the page');
-      return;
+    } else {
+      console.log('User dismissed the install prompt');
     }
     
-    try {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'UPDATE_DATA',
-        data: data,
-        location: locationData
-      });
-      console.log('Sent data update to service worker');
-    } catch (error) {
-      console.error('Error sending message to service worker:', error);
-    }
-  }, []);
+    // Clear the deferred prompt
+    deferredPrompt = null;
+    setShowInstallPrompt(false);
+  };
+
+  // App Update Handler
+  const handleUpdateClick = () => {
+    // Reload the page to get the new version
+    window.location.reload();
+  };
+
+  // Dismiss Install Prompt
+  const dismissInstallPrompt = () => {
+    setShowInstallPrompt(false);
+    // Don't show again for 24 hours
+    localStorage.setItem('installPromptDismissed', Date.now().toString());
+  };
+
+  // Dismiss Update Prompt
+  const dismissUpdatePrompt = () => {
+    setShowUpdatePrompt(false);
+  };
+
 
   // Browser notifications
   // eslint-disable-next-line no-unused-vars
@@ -158,85 +153,71 @@ function App() {
     setShowNotificationPrompt(false);
   }, []);
   
-  // eslint-disable-next-line no-unused-vars
-  const dismissNotificationPrompt = useCallback(() => {
-    setShowNotificationPrompt(false);
-  }, []);
-  
-  // eslint-disable-next-line no-unused-vars
-  const showBrowserNotification = useCallback((title, options) => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-      return;
-    }
-    
-    try {
-      const notification = new Notification(title, options);
-      console.log('Browser notification shown:', title);
-      
-      notification.onclick = () => {
-        console.log('Notification clicked');
-        window.focus();
-        notification.close();
-      };
-    } catch (error) {
-      console.error('Error showing notification:', error);
-    }
-  }, []);
 
   // Function to get location and weather data based on coordinates
-  const getLocationAndWeatherData = useCallback(async (position) => {
+  const getLocationAndWeatherData = useCallback(async (position, cachedLocationInfo = null) => {
     console.log('Getting weather data for position:', position);
     try {
       setIsLoading(true);
       setError(null);
       setCoordinates(position);
-      
-      // Save the position to lastUsedLocation state and localStorage
-      setLastUsedLocation(position);
+
+      // Save position to localStorage
       localStorage.setItem('lastUsedLocation', JSON.stringify(position));
-      
+
       // Check if location is in Canada
       const inCanada = await isLocationInCanada(position.lat, position.lon);
       console.log('Is location in Canada:', inCanada);
       setIsInCanada(inCanada);
-      
-      // Get location name
-      console.log('Getting location name...');
-      try {
-        const response = await axios.get(
-          `https://api.openweathermap.org/geo/1.0/reverse?lat=${position.lat}&lon=${position.lon}&limit=1&appid=${API_KEY}`
-        );
-        
-        if (response.data && response.data.length > 0) {
-          const locationData = {
-            city: response.data[0].name,
-            region: response.data[0].state || ''
-          };
-          console.log('Location data retrieved:', locationData);
-          setLocationInfo(locationData);
-          
-          // Save location info to localStorage
-          localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
-          
-          // Fetch weather alerts if in Canada
-          if (inCanada) {
-            // Weather alerts functionality removed and will be reimplemented later
-          } else {
-            // Weather alerts functionality removed and will be reimplemented later
+
+      // Use cached location info only if city is a real city name (not province name)
+      const hasValidCache = cachedLocationInfo &&
+        cachedLocationInfo.city &&
+        cachedLocationInfo.region &&
+        cachedLocationInfo.city !== 'Unknown Location' &&
+        cachedLocationInfo.city !== cachedLocationInfo.region &&
+        !cachedLocationInfo.city.includes('Unknown') &&
+        !['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan',
+          'Nova Scotia', 'New Brunswick', 'Newfoundland', 'Prince Edward Island',
+          'Yukon', 'Northwest Territories', 'Nunavut'].includes(cachedLocationInfo.city);
+
+      if (hasValidCache) {
+        console.log('Using cached location info, skipping reverse geocoding');
+        setLocationInfo(cachedLocationInfo);
+      } else {
+        // Clear bad cache
+        localStorage.removeItem('lastUsedLocationInfo');
+        // Get province from coordinates as fallback
+        const provinceInfo = getProvinceFromCoordinates(position.lat, position.lon);
+        let locationData = {
+          city: '',
+          region: provinceInfo ? provinceInfo.name : ''
+        };
+
+        // Use Photon reverse geocoding (free, no API key, no rate limits)
+        console.log('Getting city name from Photon...');
+        try {
+          const response = await axios.get(
+            `https://photon.komoot.io/reverse?lon=${position.lon}&lat=${position.lat}&limit=1`,
+            { timeout: 8000 }
+          );
+
+          if (response.data?.features?.length > 0) {
+            const props = response.data.features[0].properties;
+            locationData = {
+              city: props.city || props.town || props.village || props.name || props.county || '',
+              region: props.state || (provinceInfo ? provinceInfo.name : '')
+            };
+            console.log('Location from Photon:', locationData);
           }
-        } else {
-          console.warn('No location data found in reverse geocoding response');
-          setLocationInfo({
-            city: 'Unknown Location',
-            region: ''
-          });
+        } catch (error) {
+          console.log('Photon reverse geocoding failed:', error.message);
         }
-      } catch (locationError) {
-        console.error('Error getting location name:', locationError);
-        setLocationInfo({
-          city: 'Unknown Location',
-          region: ''
-        });
+
+        setLocationInfo(locationData);
+        if (locationData.city) {
+          localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
+        }
       }
       
       // Get weather data
@@ -278,14 +259,24 @@ function App() {
       setError(null);
       setUsingFallbackLocation(false);
       setIsLoading(true);
-      
+
       // Get user's location with fallback mechanisms
       console.log('Getting current position...');
       const position = await getCurrentPosition();
       console.log('Current position retrieved:', position);
-      
+
+      // Set location info with province from coordinates FIRST
+      // This ensures alerts use the correct province while we fetch the city name
+      const provinceInfo = getProvinceFromCoordinates(position.lat, position.lon);
+      const tempLocationData = {
+        city: '', // Will be filled by Photon
+        region: provinceInfo ? provinceInfo.name : ''
+      };
+      console.log('Setting temporary location info from coordinates:', tempLocationData);
+      setLocationInfo(tempLocationData);
+
       const success = await getLocationAndWeatherData(position);
-      
+
       // Only explicitly set initialLoadComplete if not already set in getLocationAndWeatherData
       if (success && !initialLoadComplete) {
         console.log('Setting initialLoadComplete to true in handleUseMyLocation');
@@ -306,56 +297,73 @@ function App() {
     }
   }, [getLocationAndWeatherData, initialLoadComplete]);
 
-  const handleLocationSelect = async (location) => {
+  const handleLocationSelect = useCallback(async (location) => {
     console.log('Location selected in App component:', location);
     try {
       setIsLoading(true); // Show loading state while fetching weather data
-      
+
+      // Set location info FIRST so alerts use correct region
+      const locationData = {
+        city: location.name,
+        region: location.state || location.province || ''
+      };
+      console.log('Setting location info BEFORE weather fetch:', locationData);
+      setLocationInfo(locationData);
+      localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
+
       const position = {
         lat: location.lat,
         lon: location.lon
       };
-      
-      const success = await getLocationAndWeatherData(position);
-      
-      if (success) {
-        const locationData = {
-          city: location.name,
-          region: location.state || ''
-        };
-        
-        console.log('Setting location info after successful data fetch:', locationData);
-        setLocationInfo(locationData);
-        
-        // Save location info to localStorage
-        localStorage.setItem('lastUsedLocationInfo', JSON.stringify(locationData));
-      } else {
+
+      // Pass the location data so getLocationAndWeatherData doesn't overwrite it
+      const success = await getLocationAndWeatherData(position, locationData);
+
+      if (!success) {
         console.warn('Failed to get weather data for location');
       }
-      
+
       // No need to set initialLoadComplete here anymore, as it's handled in getLocationAndWeatherData
     } catch (error) {
       console.error('Error handling location selection:', error);
       setError('Failed to load weather data for the selected location. Please try again.');
       setIsLoading(false);
     }
-  };
+  }, [getLocationAndWeatherData]);
 
   // Add a useEffect to load the last used location from localStorage
   useEffect(() => {
     const loadLastUsedLocation = async () => {
       const savedLocation = localStorage.getItem('lastUsedLocation');
       const savedLocationInfo = localStorage.getItem('lastUsedLocationInfo');
-      
+
+      // Load cached location info FIRST (before making API calls)
+      let cachedLocationInfo = null;
+      if (savedLocationInfo) {
+        try {
+          const parsed = JSON.parse(savedLocationInfo);
+          // Only use cached info if it has both city and region
+          if (parsed && parsed.city && parsed.region) {
+            cachedLocationInfo = parsed;
+            console.log('Using cached location info:', cachedLocationInfo);
+            setLocationInfo(cachedLocationInfo);
+          } else {
+            console.log('Cached location info incomplete, will fetch fresh:', parsed);
+          }
+        } catch (error) {
+          console.error('Error parsing saved location info:', error);
+        }
+      }
+
       if (savedLocation) {
         try {
           const position = JSON.parse(savedLocation);
-          setLastUsedLocation(position);
-          
+
           // Only load weather data if we have a valid position
           if (position && position.lat && position.lon) {
             console.log('Loading weather data for last used location:', position);
-            await getLocationAndWeatherData(position);
+            // Pass cached location info to avoid unnecessary reverse geocoding
+            await getLocationAndWeatherData(position, cachedLocationInfo);
           }
         } catch (error) {
           console.error('Error parsing saved location:', error);
@@ -364,17 +372,8 @@ function App() {
         // If no saved location, set loading to false
         setIsLoading(false);
       }
-      
-      if (savedLocationInfo) {
-        try {
-          const locationData = JSON.parse(savedLocationInfo);
-          setLocationInfo(locationData);
-        } catch (error) {
-          console.error('Error parsing saved location info:', error);
-        }
-      }
     };
-    
+
     loadLastUsedLocation();
   }, [getLocationAndWeatherData]);
 
@@ -440,21 +439,151 @@ function App() {
     return R * c;
   };
 
-  // Add a useEffect to initialize API key and mark core functionality as available
+  // Enhanced PWA Install Experience
   useEffect(() => {
-    // Log the API key being used (first 4 chars for debugging)
-    console.log('Weather App initializing with API key: ' + 
-      (API_KEY ? API_KEY.substring(0, 4) + '...' : 'missing!'));
-    
-    // Initialize API key and mark search functionality as available even before location is selected
-    if (API_KEY) {
-      // We don't need to change initialLoadComplete here, but we ensure
-      // the app is ready to search for locations even before getting current location
-      setIsLoading(false);
-    } else {
-      setError('API key not available. Please check your configuration.');
-    }
+    const handleBeforeInstallPrompt = (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      deferredPrompt = e;
+      // Show install banner if not already shown
+      if (!installButtonShown) {
+        setShowInstallPrompt(true);
+        installButtonShown = true;
+      }
+    };
+
+    const handleAppInstalled = () => {
+      console.log('PWA installed successfully');
+      setShowInstallPrompt(false);
+      deferredPrompt = null;
+      // Trigger haptic feedback if available
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
+      }
+    };
+
+    // Listen for install prompt
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
+
+  // Service Worker Update Handler
+  useEffect(() => {
+    const handleSWUpdate = (event) => {
+      if (event.data.type === 'SW_UPDATED') {
+        console.log('Service Worker updated:', event.data.version);
+        setShowUpdatePrompt(true);
+        // Trigger haptic feedback
+        if ('vibrate' in navigator) {
+          navigator.vibrate([50, 30, 50]);
+        }
+      }
+    };
+
+    const handleNewAlerts = (event) => {
+      if (event.data.type === 'NEW_ALERTS') {
+        console.log('New alerts received:', event.data.alerts);
+        // Trigger haptic feedback for alerts
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSWUpdate);
+      navigator.serviceWorker.addEventListener('message', handleNewAlerts);
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSWUpdate);
+        navigator.serviceWorker.removeEventListener('message', handleNewAlerts);
+      }
+    };
+  }, []);
+
+  // Pull-to-Refresh functionality
+  const [pullToRefresh, setPullToRefresh] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [currentY, setCurrentY] = useState(0);
+
+  const handleTouchStart = (e) => {
+    // Only enable pull-to-refresh at the top of the page
+    if (window.scrollY === 0) {
+      setStartY(e.touches[0].clientY);
+      setPullToRefresh(true);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!pullToRefresh) return;
+    
+    const y = e.touches[0].clientY;
+    setCurrentY(y);
+    
+    // Add visual feedback for pull distance
+    const pullDistance = y - startY;
+    if (pullDistance > 0 && pullDistance < 150 && e.currentTarget && e.currentTarget.style) {
+      e.currentTarget.style.transform = `translateY(${pullDistance * 0.5}px)`;
+    }
+  };
+
+  const handleTouchEnd = async (e) => {
+    if (!pullToRefresh) return;
+    
+    const pullDistance = currentY - startY;
+    
+    // Safely reset transform if currentTarget exists
+    if (e.currentTarget && e.currentTarget.style) {
+      e.currentTarget.style.transform = 'translateY(0)';
+    }
+    
+    if (pullDistance > 80) {
+      // Trigger refresh
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
+      
+      setPullToRefresh(false);
+      setCurrentY(0);
+      setStartY(0);
+      
+      // Refresh weather data
+      if (coordinates) {
+        await getLocationAndWeatherData(coordinates);
+      }
+    } else {
+      // Reset position without refresh
+      setPullToRefresh(false);
+      setCurrentY(0);
+      setStartY(0);
+    }
+  };
+
+  // Initialize the app (no API key needed for Environment Canada!)
+  useEffect(() => {
+    console.log('MapleCast Weather 3.0 initializing with enhanced PWA features...');
+    // App is ready to search for locations even before getting current location
+    setIsLoading(false);
+    
+    // Add pull-to-refresh listeners
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd);
+    
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [coordinates, getLocationAndWeatherData]);
 
   // IMPORTANT: Add a useEffect to mark initial loading state as complete and turn off loader
   useEffect(() => {
@@ -520,10 +649,9 @@ function App() {
             />
           )}
           
-          <LocationSearch 
-            apiKey={API_KEY} 
-            onLocationSelect={handleLocationSelect} 
-            onUseMyLocation={handleUseMyLocation} 
+          <LocationSearch
+            onLocationSelect={handleLocationSelect}
+            onUseMyLocation={handleUseMyLocation}
             onSearchTermChange={setSearchTerm}
           />
         </div>
@@ -541,7 +669,8 @@ function App() {
             locationInfo={{
               ...locationInfo,
               lat: coordinates?.lat,
-              lon: coordinates?.lon
+              lon: coordinates?.lon,
+              name: locationInfo.city
             }}
             isInCanada={isInCanada}
             currentPage={currentPage}
@@ -591,16 +720,15 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p>
-            <i className="fa-solid fa-cloud"></i> Weather data provided by OpenWeatherMap | 
-            <i className="fa-solid fa-triangle-exclamation"></i> Weather alerts powered by Weatherbit
+            <i className="fa-solid fa-cloud"></i> Weather data provided by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
           </p>
           <p className="footer-text">
-            © 2024 MapleCast Weather | 
-            <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md" 
-               target="_blank" 
-               rel="noopener noreferrer" 
-               className="version">v1.12.1</a> |
-            Written with Cursor AI using Claude Sonnet 3.7 and Grok 3 beta
+            © 2026 MapleCast Weather |
+            <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="version">v2.2.0</a> |
+            Written with Claude Code Opus 4.5 - February 4, 2026
           </p>
         </div>
       </footer>
@@ -634,6 +762,78 @@ function App() {
                 Not Now
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PWA Install Prompt */}
+      {showInstallPrompt && (
+        <div className="pwa-install-prompt">
+          <div className="pwa-install-content">
+            <div className="pwa-install-icon">
+              <i className="fa-solid fa-download"></i>
+            </div>
+            <div className="pwa-install-text">
+              <h3>Install MapleCast</h3>
+              <p>Get quick access to weather on your home screen</p>
+            </div>
+            <div className="pwa-install-actions">
+              <button 
+                onClick={handleInstallClick}
+                className="install-button primary-button"
+              >
+                <i className="fa-solid fa-plus"></i>
+                Install
+              </button>
+              <button 
+                onClick={dismissInstallPrompt}
+                className="dismiss-button secondary-button"
+              >
+                Not Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* App Update Prompt */}
+      {showUpdatePrompt && (
+        <div className="app-update-prompt">
+          <div className="update-content">
+            <div className="update-icon">
+              <i className="fa-solid fa-arrow-rotate"></i>
+            </div>
+            <div className="update-text">
+              <h3>Update Available</h3>
+              <p>A new version of MapleCast is ready to install</p>
+            </div>
+            <div className="update-actions">
+              <button 
+                onClick={handleUpdateClick}
+                className="update-button primary-button"
+              >
+                <i className="fa-solid fa-download"></i>
+                Update Now
+              </button>
+              <button 
+                onClick={dismissUpdatePrompt}
+                className="dismiss-button secondary-button"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pull-to-Refresh Indicator */}
+      {pullToRefresh && (
+        <div className="pull-to-refresh-indicator">
+          <div className="refresh-icon">
+            <i className="fa-solid fa-arrow-down"></i>
+          </div>
+          <div className="refresh-text">
+            {currentY - startY > 80 ? 'Release to refresh' : 'Pull to refresh'}
           </div>
         </div>
       )}

@@ -1,0 +1,507 @@
+.weather-radar-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--space-4);
+  box-sizing: border-box;
+  background: var(--card-bg);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.weather-radar-container.dark-mode {
+  background: var(--card-bg-solid);
+  color: var(--text-primary);
+}
+
+.radar-header {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+.radar-header h3 {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.radar-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.dark-mode .radar-header h3 {
+  color: var(--text-primary);
+}
+
+.dark-mode .radar-header p {
+  color: var(--text-secondary);
+}
+
+/* Modern Layer Toggle Controls */
+.layer-toggles {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-hover);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  transition: var(--transition-fast);
+  color: var(--text-secondary);
+  box-shadow: 
+    inset 1px 1px 3px rgba(255, 255, 255, 0.3),
+    inset -1px -1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.layer-toggle:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: 
+    inset 1px 1px 3px rgba(255, 255, 255, 0.3),
+    inset -1px -1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.layer-toggle.active {
+  background: var(--gradient-primary);
+  border-color: var(--primary-color);
+  color: var(--text-inverse);
+  box-shadow: 
+    inset 1px 1px 3px rgba(255, 255, 255, 0.2);
+}
+
+.layer-toggle.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    inset 1px 1px 3px rgba(255, 255, 255, 0.2);
+}
+
+.layer-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.layer-toggle i {
+  font-size: var(--text-base);
+}
+
+.dark-mode .layer-toggle {
+  background: var(--surface-hover);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.dark-mode .layer-toggle:hover {
+  background: var(--surface-active);
+  border-color: var(--primary-color);
+}
+
+.dark-mode .layer-toggle.active {
+  background: var(--gradient-primary);
+  border-color: var(--primary-color);
+  color: var(--text-inverse);
+}
+
+/* Wind Arrow Styles */
+.wind-arrow-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.wind-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
+}
+
+.wind-popup {
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.wind-popup strong {
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.radar-status {
+  margin-bottom: 15px;
+  min-height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.radar-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3498db;
+  font-weight: 500;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ecf0f1;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.radar-error {
+  text-align: center;
+  color: #e74c3c;
+  padding: 10px;
+  background: rgba(231, 76, 60, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.radar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.radar-btn {
+  padding: var(--space-2) var(--space-4);
+  background: var(--gradient-primary);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.radar-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.dark-mode .radar-btn {
+  background: var(--gradient-primary);
+}
+
+.dark-mode .radar-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.retry-btn {
+  padding: 6px 12px;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-left: 10px;
+}
+
+.retry-btn:hover {
+  background: #c0392b;
+}
+
+.frame-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.frame-btn {
+  padding: 6px 12px;
+  background: #ecf0f1;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.frame-btn:hover {
+  background: #d5dbdb;
+}
+
+.dark-mode .frame-btn {
+  background: #444;
+  border-color: #555;
+  color: #ecf0f1;
+}
+
+.dark-mode .frame-btn:hover {
+  background: #555;
+}
+
+.frame-indicator {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  background: rgba(127, 140, 141, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.dark-mode .frame-indicator {
+  color: #95a5a6;
+  background: rgba(149, 165, 166, 0.1);
+}
+
+.radar-timestamp {
+  text-align: center;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+.dark-mode .radar-timestamp {
+  background: rgba(255, 255, 255, 0.05);
+  color: #95a5a6;
+}
+
+.map-container {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-4);
+  position: relative;
+  background: var(--surface-color);
+}
+
+.radar-map {
+  width: 100%;
+  height: 400px;
+  border: none;
+  border-radius: var(--radius-lg);
+}
+
+.radar-legend {
+  text-align: center;
+  padding: 15px;
+  background: rgba(52, 152, 219, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+.dark-mode .radar-legend {
+  background: rgba(52, 152, 219, 0.1);
+  border-color: rgba(52, 152, 219, 0.3);
+}
+
+.radar-legend h4 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.dark-mode .radar-legend h4 {
+  color: #ecf0f1;
+}
+
+.legend-scale {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.legend-light,
+.legend-heavy {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.dark-mode .legend-light,
+.dark-mode .legend-heavy {
+  color: #95a5a6;
+}
+
+.legend-gradient {
+  width: 100px;
+  height: 10px;
+  background: linear-gradient(to right, 
+    rgba(255, 255, 255, 0.8),
+    rgba(135, 206, 235, 0.8),
+    rgba(30, 144, 255, 0.8),
+    rgba(0, 0, 139, 0.8),
+    rgba(128, 0, 128, 0.8)
+  );
+  border: 1px solid #ddd;
+  border-radius: 2px;
+}
+
+.dark-mode .legend-gradient {
+  border-color: #555;
+}
+
+/* Legend Section Styling */
+.legend-section {
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+.legend-section:last-of-type {
+  margin-bottom: 10px;
+  border-bottom: none;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.dark-mode .legend-item {
+  color: #aaa;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.2);
+}
+
+/* Precipitation colors */
+.legend-color.light-rain {
+  background: rgba(135, 206, 235, 0.8);
+}
+
+.legend-color.moderate-rain {
+  background: rgba(30, 144, 255, 0.8);
+}
+
+.legend-color.heavy-rain {
+  background: rgba(128, 0, 128, 0.8);
+}
+
+/* Wind speed colors */
+.legend-color.wind-light {
+  background: #3498db;
+}
+
+.legend-color.wind-moderate {
+  background: #2ecc71;
+}
+
+.legend-color.wind-strong {
+  background: #f1c40f;
+}
+
+.legend-color.wind-very-strong {
+  background: #e67e22;
+}
+
+.legend-color.wind-extreme {
+  background: #e74c3c;
+}
+
+.radar-disclaimer {
+  margin: 10px 0 0 0;
+  font-size: 0.75rem;
+  color: #95a5a6;
+  line-height: 1.4;
+}
+
+.dark-mode .radar-disclaimer {
+  color: #7f8c8d;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .weather-radar-container {
+    padding: 15px;
+  }
+
+  .radar-map {
+    height: 400px;
+  }
+
+  .radar-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .layer-toggles {
+    gap: 8px;
+  }
+
+  .layer-toggle {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+
+  .legend-scale {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .legend-gradient {
+    width: 80px;
+  }
+
+  .legend-items {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .weather-radar-container {
+    padding: 10px;
+  }
+  
+  .radar-map {
+    height: 350px;
+  }
+  
+  .radar-header h3 {
+    font-size: 1.3rem;
+  }
+}

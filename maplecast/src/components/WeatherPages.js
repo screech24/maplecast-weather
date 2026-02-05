@@ -3,7 +3,7 @@ import { useSwipeable } from 'react-swipeable';
 import CurrentWeather from './CurrentWeather';
 import Forecast from './Forecast';
 import HourlyForecast from './HourlyForecast';
-import WindyRadarMap from './WindyRadarMap';
+import WeatherRadar from './WeatherRadar';
 import './WeatherPages.css';
 
 const WeatherPages = ({ weatherData, currentPage, setCurrentPage, coordinates, isDarkMode }) => {
@@ -72,7 +72,7 @@ const WeatherPages = ({ weatherData, currentPage, setCurrentPage, coordinates, i
       case 2:
         return <Forecast data={weatherData} />;
       case 3:
-        return <WindyRadarMap coordinates={coordinates} isDarkMode={isDarkMode} />;
+        return <WeatherRadar coordinates={coordinates} isDarkMode={isDarkMode} />;
       default:
         return <CurrentWeather data={weatherData} />;
     }

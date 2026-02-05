@@ -1,4 +1,5 @@
 import { devLog, debugLog } from './devMode';
+import axios from 'axios';
 
 // Canadian provinces mapping
 export const CANADIAN_PROVINCES = {
@@ -16,6 +17,65 @@ export const CANADIAN_PROVINCES = {
   'NT': 'Northwest Territories',
   'NU': 'Nunavut'
 };
+
+// Province bounding boxes (approximate) for coordinate-based detection
+// Format: { minLat, maxLat, minLon, maxLon }
+const PROVINCE_BOUNDS = [
+  { code: 'BC', name: 'British Columbia', minLat: 48.3, maxLat: 60, minLon: -139, maxLon: -114.05 },
+  { code: 'AB', name: 'Alberta', minLat: 49, maxLat: 60, minLon: -120, maxLon: -110 },
+  { code: 'SK', name: 'Saskatchewan', minLat: 49, maxLat: 60, minLon: -110, maxLon: -101.5 },
+  { code: 'MB', name: 'Manitoba', minLat: 49, maxLat: 60, minLon: -102, maxLon: -89 },
+  { code: 'ON', name: 'Ontario', minLat: 41.7, maxLat: 56.9, minLon: -95.2, maxLon: -74.3 },
+  { code: 'QC', name: 'Quebec', minLat: 45, maxLat: 62.6, minLon: -79.8, maxLon: -57 },
+  { code: 'NB', name: 'New Brunswick', minLat: 44.6, maxLat: 48, minLon: -69, maxLon: -63.8 },
+  { code: 'NS', name: 'Nova Scotia', minLat: 43.4, maxLat: 47.1, minLon: -66.4, maxLon: -59.7 },
+  { code: 'PE', name: 'Prince Edward Island', minLat: 45.9, maxLat: 47.1, minLon: -64.5, maxLon: -62 },
+  { code: 'NL', name: 'Newfoundland and Labrador', minLat: 46.6, maxLat: 60.4, minLon: -67.8, maxLon: -52.6 },
+  { code: 'YT', name: 'Yukon', minLat: 60, maxLat: 69.7, minLon: -141, maxLon: -124 },
+  { code: 'NT', name: 'Northwest Territories', minLat: 60, maxLat: 78.8, minLon: -136.5, maxLon: -102 },
+  { code: 'NU', name: 'Nunavut', minLat: 51.7, maxLat: 83.1, minLon: -120.7, maxLon: -61.2 }
+];
+
+/**
+ * Estimate province from coordinates (no API needed)
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude
+ * @returns {Object|null} Province info { code, name } or null if not in Canada
+ */
+export function getProvinceFromCoordinates(lat, lon) {
+  // Check if coordinates are roughly in Canada
+  if (lat < 41.5 || lat > 84 || lon < -141 || lon > -52) {
+    return null;
+  }
+
+  // Find matching province - check more specific regions first
+  // Order matters: smaller provinces should be checked before larger overlapping ones
+  const orderedBounds = [
+    ...PROVINCE_BOUNDS.filter(p => ['PE', 'NS', 'NB'].includes(p.code)), // Small Atlantic provinces first
+    ...PROVINCE_BOUNDS.filter(p => !['PE', 'NS', 'NB', 'NU'].includes(p.code)), // Regular provinces
+    ...PROVINCE_BOUNDS.filter(p => p.code === 'NU') // Nunavut last (very large, overlaps with others)
+  ];
+
+  for (const province of orderedBounds) {
+    if (lat >= province.minLat && lat <= province.maxLat &&
+        lon >= province.minLon && lon <= province.maxLon) {
+      return { code: province.code, name: province.name };
+    }
+  }
+
+  // Default fallback for coordinates that might be in Canada but don't match bounds exactly
+  if (lat >= 41.5 && lat <= 84 && lon >= -141 && lon <= -52) {
+    // Make a best guess based on longitude for mainland
+    if (lon < -120) return { code: 'BC', name: 'British Columbia' };
+    if (lon < -110) return { code: 'AB', name: 'Alberta' };
+    if (lon < -102) return { code: 'SK', name: 'Saskatchewan' };
+    if (lon < -89) return { code: 'MB', name: 'Manitoba' };
+    if (lon < -74) return { code: 'ON', name: 'Ontario' };
+    return { code: 'QC', name: 'Quebec' };
+  }
+
+  return null;
+}
 
 // Cache for location data
 const locationCache = new Map();
@@ -86,7 +146,7 @@ export const fetchCanadianWeatherStations = async () => {
 };
 
 /**
- * Search for Canadian locations by name
+ * Search for Canadian locations by name using Nominatim API
  * @param {string} query - The search query
  * @returns {Promise<Array>} Array of matching locations
  */
@@ -95,43 +155,93 @@ export const searchCanadianLocations = async (query) => {
     return [];
   }
 
-  // Normalize the query
-  const normalizedQuery = query.toLowerCase().trim();
-  
-  // Get all locations from cache or fallback data
-  const cities = await fetchCanadianCities();
-  const stations = await fetchCanadianWeatherStations();
-  const allLocations = [...cities, ...stations];
-  
-  // Filter locations based on the query
-  const results = allLocations.filter(location => {
-    const locationName = location.name.toLowerCase();
-    const provinceName = location.province ? location.province.toLowerCase() : '';
-    
-    return locationName.includes(normalizedQuery) || 
-           provinceName.includes(normalizedQuery) ||
-           (location.provinceCode && location.provinceCode.toLowerCase().includes(normalizedQuery));
-  });
+  const normalizedQuery = query.trim();
+  devLog('CanadaLocations', `Searching for locations: "${normalizedQuery}"`);
 
-  // Sort results by relevance
-  results.sort((a, b) => {
-    const aNameLower = a.name.toLowerCase();
-    const bNameLower = b.name.toLowerCase();
-    
-    // Exact matches first
-    if (aNameLower === normalizedQuery && bNameLower !== normalizedQuery) return -1;
-    if (bNameLower === normalizedQuery && aNameLower !== normalizedQuery) return 1;
-    
-    // Then starts with query
-    if (aNameLower.startsWith(normalizedQuery) && !bNameLower.startsWith(normalizedQuery)) return -1;
-    if (bNameLower.startsWith(normalizedQuery) && !aNameLower.startsWith(normalizedQuery)) return 1;
-    
-    // Then alphabetical
-    return aNameLower.localeCompare(bNameLower);
-  });
+  try {
+    // Use Open-Meteo Geocoding API - free, no API key, no rate limits
+    const response = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
+      params: {
+        name: normalizedQuery,
+        count: 20,
+        language: 'en',
+        format: 'json'
+      },
+      timeout: 8000
+    });
 
-  devLog('CanadaLocations', `Found ${results.length} matches for query "${query}"`);
-  return results;
+    if (response.data && response.data.results && response.data.results.length > 0) {
+      // Filter for Canadian results only
+      const canadianResults = response.data.results.filter(item =>
+        item.country_code === 'CA' || item.country === 'Canada'
+      );
+
+      if (canadianResults.length > 0) {
+        const results = canadianResults.map(item => {
+          // Map admin1 (province) to proper names
+          const provinceMap = {
+            'Ontario': 'ON',
+            'Quebec': 'QC',
+            'British Columbia': 'BC',
+            'Alberta': 'AB',
+            'Manitoba': 'MB',
+            'Saskatchewan': 'SK',
+            'Nova Scotia': 'NS',
+            'New Brunswick': 'NB',
+            'Newfoundland and Labrador': 'NL',
+            'Prince Edward Island': 'PE',
+            'Yukon': 'YT',
+            'Northwest Territories': 'NT',
+            'Nunavut': 'NU'
+          };
+
+          const province = item.admin1 || '';
+          const provinceCode = provinceMap[province] || '';
+
+          return {
+            name: item.name,
+            province: province,
+            provinceCode: provinceCode,
+            country: 'Canada',
+            countryCode: 'CA',
+            lat: item.latitude,
+            lon: item.longitude,
+            type: item.feature_code === 'PPL' ? 'city' : 'place',
+            source: 'open-meteo',
+            population: item.population || 0
+          };
+        });
+
+        // Sort: exact matches first, then by population
+        results.sort((a, b) => {
+          const aLower = a.name.toLowerCase();
+          const bLower = b.name.toLowerCase();
+          const queryLower = normalizedQuery.toLowerCase();
+
+          // Exact match first
+          if (aLower === queryLower && bLower !== queryLower) return -1;
+          if (bLower === queryLower && aLower !== queryLower) return 1;
+
+          // Starts with query
+          if (aLower.startsWith(queryLower) && !bLower.startsWith(queryLower)) return -1;
+          if (bLower.startsWith(queryLower) && !aLower.startsWith(queryLower)) return 1;
+
+          // Sort by population (larger cities first)
+          return (b.population || 0) - (a.population || 0);
+        });
+
+        devLog('CanadaLocations', `Found ${results.length} Canadian locations from Open-Meteo`);
+        return results.slice(0, 10); // Return top 10
+      }
+    }
+
+    devLog('CanadaLocations', 'No Canadian results from Open-Meteo');
+    return [];
+  } catch (error) {
+    console.error('Error fetching from Open-Meteo Geocoding:', error);
+    devLog('CanadaLocations', 'Open-Meteo Geocoding failed');
+    return [];
+  }
 };
 
 /**

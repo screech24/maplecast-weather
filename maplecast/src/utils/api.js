@@ -1,9 +1,13 @@
 import axios from 'axios';
+import {
+  fetchOpenMeteoWeather,
+  transformCurrentWeather,
+  transformHourlyForecast,
+  transformDailyForecast
+} from './openMeteoApi';
 
-// Get API key from environment variables with fallback to maintain compatibility
-export const API_KEY = process.env.REACT_APP_OPENWEATHERMAP_API_KEY || '5028d96732231e41c0f46dcc16db8c29';
-// Log a masked version of the key for debugging (only showing first 8 chars)
-console.log('API Key being used:', API_KEY.substring(0, 8) + '...');
+// No API key needed for Open-Meteo!
+console.log('MapleCast Weather 2.0 - Using Open-Meteo (free, no API key required)');
 
 // Get user's current position using browser geolocation with fallback
 export const getCurrentPosition = () => {
@@ -83,243 +87,46 @@ const getDefaultLocation = () => {
   };
 };
 
-// Fetch weather data from OpenWeatherMap API using free endpoints
+// Fetch weather data from Open-Meteo
 export const fetchWeatherData = async (lat, lon) => {
   try {
-    // Get current weather from free Weather API endpoint
-    const currentWeatherResponse = await axios.get(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`
-    );
-    
-    // Get forecast data (5 day / 3 hour forecast) from free endpoint
-    const forecastResponse = await axios.get(
-      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`
-    );
-    
-    // Note: We're using separate API calls instead of OneCall API 3.0 
-    // since the latter requires a paid subscription
-    // Format the data to match the structure expected by the components
-    const currentWeather = currentWeatherResponse.data;
-    const forecast = forecastResponse.data;
-    
-    // Create a structure similar to OneCall API response
+    console.log(`Fetching weather data from Open-Meteo for ${lat}, ${lon}`);
+
+    // Fetch all data from Open-Meteo
+    const openMeteoData = await fetchOpenMeteoWeather(lat, lon);
+
+    // Transform to app format
+    const current = transformCurrentWeather(openMeteoData);
+    const daily = transformDailyForecast(openMeteoData);
+    const hourly = transformHourlyForecast(openMeteoData);
+
+    console.log('Weather data fetched and transformed successfully');
+
     return {
-      current: {
-        temp: currentWeather.main.temp,
-        feels_like: currentWeather.main.feels_like,
-        humidity: currentWeather.main.humidity,
-        pressure: currentWeather.main.pressure,
-        visibility: currentWeather.visibility,
-        wind_speed: currentWeather.wind.speed,
-        wind_gust: currentWeather.wind.gust,
-        weather: currentWeather.weather,
-        uvi: 0, // Default since we can't get from OneCall
-        dt: currentWeather.dt
-      },
-      hourly: formatForecastToHourly(forecast),
-      daily: formatForecastToDaily(forecast)
+      current,
+      daily,
+      hourly
     };
   } catch (error) {
-    console.error('Error fetching weather data:', error);
-    
-    // Check for API key issues (401 error)
-    if (error.response && error.response.status === 401) {
-      console.error('API Key issue detected:', error.message);
-      throw new Error(`API key issue: ${error.message}. Please verify your OpenWeatherMap API key is valid and activated.`);
-    }
-    
-    // Check for rate limit issues (429 error)
-    if (error.response && error.response.status === 429) {
-      console.error('Rate limit exceeded:', error.message);
-      throw new Error('Rate limit exceeded. The free tier of OpenWeatherMap has limited calls per minute/day.');
-    }
-    
-    throw error;
+    console.error('Error fetching weather data from Open-Meteo:', error);
+    throw new Error(`Failed to fetch weather data: ${error.message}`);
   }
 };
 
-// Helper function to convert 5-day/3-hour forecast to daily forecast
-const formatForecastToDaily = (forecastData) => {
-  const dailyData = [];
-  const dailyMap = new Map();
-  
-  // Get today's date at midnight for consistent comparison
-  const today = new Date();
-  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  
-  console.log('Today midnight:', todayMidnight.toISOString());
-  
-  // Group forecast by day
-  forecastData.list.forEach(item => {
-    const date = new Date(item.dt * 1000);
-    const day = date.toISOString().split('T')[0];
-    
-    if (!dailyMap.has(day)) {
-      dailyMap.set(day, {
-        dt: item.dt,
-        temp: {
-          min: item.main.temp_min,
-          max: item.main.temp_max
-        },
-        weather: item.weather,
-        pop: item.pop || 0
-      });
-    } else {
-      const existing = dailyMap.get(day);
-      // Update min/max temps
-      existing.temp.min = Math.min(existing.temp.min, item.main.temp_min);
-      existing.temp.max = Math.max(existing.temp.max, item.main.temp_max);
-      // Use highest probability of precipitation
-      existing.pop = Math.max(existing.pop, item.pop || 0);
-    }
-  });
-  
-  // Convert map to array
-  dailyMap.forEach(value => {
-    dailyData.push(value);
-  });
-  
-  // Sort the daily data by timestamp to ensure chronological order
-  dailyData.sort((a, b) => a.dt - b.dt);
-  
-  // Create a new array for the final 7-day forecast
-  const sevenDayForecast = [];
-  
-  // Generate exactly 7 days starting from today
-  for (let i = 0; i < 7; i++) {
-    // Calculate the date for this forecast day
-    const forecastDate = new Date(todayMidnight);
-    forecastDate.setDate(todayMidnight.getDate() + i);
-    
-    // Set the time to noon (12:00:00) for consistent timestamps
-    forecastDate.setHours(12, 0, 0, 0);
-    
-    const forecastDay = forecastDate.toISOString().split('T')[0];
-    const noonTimestamp = Math.floor(forecastDate.getTime() / 1000);
-    
-    console.log(`Day ${i}: ${forecastDate.toISOString()} (${forecastDay}), timestamp: ${noonTimestamp}`);
-    
-    // Find if we have data for this day in our processed API data
-    const dayData = dailyData.find(day => {
-      const dayDate = new Date(day.dt * 1000);
-      const dayDateStr = dayDate.toISOString().split('T')[0];
-      return dayDateStr === forecastDay;
-    });
-    
-    if (dayData) {
-      // We have data for this day, use it but ensure the timestamp is at noon
-      const updatedDayData = {
-        ...dayData,
-        dt: noonTimestamp // Use noon timestamp for consistent time of day
-      };
-      sevenDayForecast.push(updatedDayData);
-      console.log(`Using API data for day ${i} (${forecastDay})`);
-    } else {
-      // No data for this day, generate it
-      // Use the last day's data as a base if available, otherwise use defaults
-      const baseData = sevenDayForecast.length > 0 
-        ? sevenDayForecast[sevenDayForecast.length - 1] 
-        : dailyData.length > 0 
-          ? dailyData[dailyData.length - 1]
-          : null;
-      
-      if (baseData) {
-        // Create a new forecast entry based on the base data
-        // with slight variations to make it look realistic
-        const tempVariation = Math.random() * 2 - 1; // Random variation between -1 and +1
-        
-        sevenDayForecast.push({
-          dt: noonTimestamp,
-          temp: {
-            min: baseData.temp.min + tempVariation,
-            max: baseData.temp.max + tempVariation
-          },
-          weather: [...baseData.weather], // Clone the weather array
-          pop: Math.max(0, Math.min(1, baseData.pop + (Math.random() * 0.2 - 0.1))) // Vary precipitation slightly
-        });
-        console.log(`Generated data for day ${i} (${forecastDay}) based on previous day`);
-      } else {
-        // No base data available, create default entry
-        sevenDayForecast.push({
-          dt: noonTimestamp,
-          temp: {
-            min: 10, // Default temperature
-            max: 20
-          },
-          weather: [{
-            id: 800, // Clear sky
-            main: "Clear",
-            description: "clear sky",
-            icon: "01d"
-          }],
-          pop: 0
-        });
-        console.log(`Generated default data for day ${i} (${forecastDay})`);
-      }
-    }
-  }
-  
-  // Verify we have 7 days with unique dates
-  const uniqueDates = new Set(sevenDayForecast.map(day => {
-    const date = new Date(day.dt * 1000);
-    return date.toISOString().split('T')[0];
-  }));
-  
-  console.log(`Generated ${sevenDayForecast.length} days with ${uniqueDates.size} unique dates`);
-  
-  // Log the final forecast days for debugging
-  sevenDayForecast.forEach((day, index) => {
-    const date = new Date(day.dt * 1000);
-    console.log(`Forecast day ${index}: ${date.toISOString().split('T')[0]} (${formatDate(day.dt)})`);
-  });
-  
-  return sevenDayForecast;
-};
+// Helper functions removed - now using EC transformers
 
-// Format forecast data to hourly structure
-const formatForecastToHourly = (forecastData) => {
-  if (!forecastData || !forecastData.list || !Array.isArray(forecastData.list)) {
-    return [];
-  }
-  
-  // Take the first 24 entries from the 3-hour forecast (covers about 3 days)
-  return forecastData.list.slice(0, 24).map(item => {
-    return {
-      dt: item.dt,
-      temp: item.main.temp,
-      feels_like: item.main.feels_like,
-      pressure: item.main.pressure,
-      humidity: item.main.humidity,
-      dew_point: 0, // Not available in standard API
-      clouds: item.clouds.all,
-      visibility: item.visibility,
-      wind_speed: item.wind.speed,
-      wind_deg: item.wind.deg,
-      weather: item.weather,
-      pop: item.pop || 0
-    };
-  });
-};
-
-// Check if location is in Canada (simplified version)
+// Check if location is in Canada using simple coordinate bounds
 export const isLocationInCanada = async (lat, lon) => {
-  try {
-    const response = await axios.get(
-      `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEY}`
-    );
-    return response.data[0]?.country === 'CA';
-  } catch (error) {
-    console.error('Error checking location:', error);
-    
-    // If we get a 401, don't fail the whole app, just assume not in Canada
-    if (error.response && error.response.status === 401) {
-      console.error('API Key issue while checking location:', error.message);
-      // Return true to allow the app to continue (we'll assume it might be Canada)
-      return true;
-    }
-    
-    return false; // Default to false if there's another error
-  }
+  // Approximate Canada bounding box
+  // Latitude: 41.7° N to 83.1° N
+  // Longitude: -141° W to -52.6° W
+  const isInCanada = (
+    lat >= 41.7 && lat <= 83.1 &&
+    lon >= -141 && lon <= -52.6
+  );
+
+  console.log(`Location ${lat}, ${lon} is ${isInCanada ? 'in' : 'outside'} Canada`);
+  return isInCanada;
 };
 
 // Format date from Unix timestamp
@@ -475,10 +282,3 @@ export const getRegionCode = (cityName, province) => {
   return defaultRegionsByProvince[provinceUpper] || null;
 };
 
-// Weather alert functionality removed and will be reimplemented later
-
-// Helper function to get region code for a province
-// eslint-disable-next-line no-unused-vars
-function getRegionCodeForProvince(province) {
-  // Weather alert region code functionality removed and will be reimplemented later
-} 

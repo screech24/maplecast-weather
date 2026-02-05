@@ -1,15 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWeatherAlerts, checkForNewAlerts, clearAlertsCache } from '../utils/alertUtils';
+import { EC_ALERT_COLORS } from '../utils/environmentCanadaApi';
+import { getProvinceFromCoordinates } from '../utils/canadaLocations';
 import './WeatherAlerts.css';
+
+// Polling interval: 1 minute for more responsive updates
+const POLLING_INTERVAL = 1 * 60 * 1000;
 
 const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   const [alerts, setAlerts] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedAlertId, setExpandedAlertId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading=true
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
   const [error, setError] = useState(null);
   const [prevLocationKey, setPrevLocationKey] = useState(null);
-  const [fetchAttempted, setFetchAttempted] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const pollingRef = useRef(null);
+  const fetchInProgressRef = useRef(false);
+  const regionTimeoutRef = useRef(null);
 
   // Function to filter out expired alerts
   const filterExpiredAlerts = useCallback((alertsList) => {
@@ -22,215 +31,276 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   }, []);
 
   // Function to fetch alerts
-  const fetchAlerts = useCallback(async () => {
+  const fetchAlerts = useCallback(async (forceRefresh = false) => {
+    // Prevent concurrent fetches
+    if (fetchInProgressRef.current) {
+      console.log('Fetch already in progress, skipping');
+      return;
+    }
+
     // Skip if we're in the middle of a search or don't have coordinates
-    if (isSearching || !locationInfo || !locationInfo.lat || !locationInfo.lon) {
+    const hasCoordinates = locationInfo && locationInfo.lat && locationInfo.lon;
+
+    if (isSearching || !hasCoordinates) {
       console.log('Skipping alert fetch: searching or missing coordinates');
       return;
     }
 
-    // Skip if we've already attempted a fetch for this location
-    const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
-    if (fetchAttempted && locationKey === prevLocationKey) {
-      console.log('Skipping alert fetch: already attempted for this location');
+    // Must have a city name to filter alerts properly - without it, all province alerts show
+    const cityName = locationInfo.name || locationInfo.city;
+    if (!cityName) {
+      console.log('⚠️ No city name yet - waiting for location data before fetching alerts...');
       return;
     }
-    
+
+    // Must have a region/province
+    const currentRegion = locationInfo.region || locationInfo.state;
+    if (!currentRegion) {
+      console.log('⚠️ No region yet - waiting for location data before fetching alerts...');
+      return;
+    }
+
+    // Clear cache on force refresh to get truly fresh data
+    if (forceRefresh) {
+      console.log('🔄 Force refresh - clearing alerts cache');
+      clearAlertsCache();
+    }
+
+    fetchInProgressRef.current = true;
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log('Fetching alerts for location:', locationKey);
+      console.log('🚨 Fetching alerts for:', locationInfo?.name, locationInfo?.lat, locationInfo?.lon);
       const fetchedAlerts = await fetchWeatherAlerts(locationInfo);
-      console.log('Fetched alerts:', fetchedAlerts);
-      
-      // Filter out expired alerts before setting state
+      console.log('🚨 Fetched alerts:', fetchedAlerts);
+
       const activeAlerts = filterExpiredAlerts(fetchedAlerts);
-      console.log('Active alerts after filtering expired ones:', activeAlerts);
-      
+      console.log('Active alerts after filtering:', activeAlerts.length);
+
       setAlerts(activeAlerts);
-      setFetchAttempted(true);
-      
-      // Auto-expand only if there are alerts and we're on the first page
+      setInitialFetchDone(true);
+      setLastUpdate(new Date());
+
+      // Auto-expand if there are alerts and we're on the first page
       if (activeAlerts.length > 0 && currentPage === 0) {
         setIsExpanded(true);
       }
     } catch (err) {
       console.error('Error fetching alerts:', err);
       setError('Failed to fetch weather alerts');
-      setAlerts([]); // Clear alerts on error
+      setAlerts([]);
     } finally {
       setLoading(false);
+      fetchInProgressRef.current = false;
     }
-  }, [locationInfo, currentPage, isSearching, prevLocationKey, fetchAttempted, filterExpiredAlerts]);
+  }, [locationInfo, currentPage, isSearching, filterExpiredAlerts]);
 
-  // Function to check for new alerts from service worker
-  const checkForNewAlertsFromServiceWorker = useCallback(async () => {
-    // Don't check for alerts if we're in the middle of a search
+  // Function to check for new/updated alerts
+  const pollForAlerts = useCallback(async () => {
     if (isSearching || !locationInfo || !locationInfo.lat || !locationInfo.lon) {
-      console.log('Skipping alert check during search');
+      return;
+    }
+    if (fetchInProgressRef.current) {
       return;
     }
 
+    console.log('🔄 Polling for alert updates...');
+
     try {
-      const newAlerts = await checkForNewAlerts(locationInfo);
-      if (newAlerts && newAlerts.length > 0) {
-        console.log('Found new alerts:', newAlerts);
-        
-        // Filter out expired alerts
-        const activeNewAlerts = filterExpiredAlerts(newAlerts);
-        
+      const { newAlerts, updatedAlerts, removedAlerts } = await checkForNewAlerts(locationInfo);
+
+      if (newAlerts.length > 0 || updatedAlerts.length > 0 || removedAlerts.length > 0) {
+        console.log(`📢 Alert changes: ${newAlerts.length} new, ${updatedAlerts.length} updated, ${removedAlerts.length} removed`);
+
         setAlerts(prevAlerts => {
-          // Merge new alerts with existing ones, avoiding duplicates
-          const filteredNewAlerts = activeNewAlerts.filter(
-            newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
+          const removedTitles = new Set(removedAlerts.map(a => a.title));
+          const updatedTitles = new Set(updatedAlerts.map(a => a.title));
+
+          let newAlertList = prevAlerts.filter(a =>
+            !removedTitles.has(a.title) && !updatedTitles.has(a.title)
           );
-          return [...filteredNewAlerts, ...prevAlerts];
+
+          newAlertList = [...newAlerts, ...updatedAlerts, ...newAlertList];
+
+          const activeAlerts = filterExpiredAlerts(newAlertList);
+          const severityOrder = { 'Severe': 0, 'Moderate': 1, 'Minor': 2 };
+          activeAlerts.sort((a, b) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2));
+
+          return activeAlerts;
         });
-        
-        // Auto-expand only if we're on the first page
-        if (activeNewAlerts.length > 0 && currentPage === 0) {
+
+        setLastUpdate(new Date());
+
+        if (newAlerts.length > 0 && currentPage === 0) {
           setIsExpanded(true);
         }
       }
     } catch (err) {
-      console.error('Error checking for new alerts:', err);
+      console.error('Error polling for alerts:', err);
     }
   }, [locationInfo, currentPage, isSearching, filterExpiredAlerts]);
 
   // Handle location changes
   useEffect(() => {
-    if (locationInfo && locationInfo.lat && locationInfo.lon) {
-      const locationKey = `${locationInfo.lat},${locationInfo.lon}`;
-      
-      // Check if location has changed
-      if (locationKey !== prevLocationKey) {
-        console.log('Location changed, clearing cache and preparing to fetch new alerts');
-        clearAlertsCache(); // Clear the cache when location changes
-        setAlerts([]); // Clear current alerts
-        setIsExpanded(false); // Collapse the alert panel
-        setExpandedAlertId(null); // Clear expanded alert
-        setFetchAttempted(false); // Reset fetch attempt flag
-        setPrevLocationKey(locationKey); // Update previous location key
-      }
-    } else {
-      setAlerts([]); // Clear alerts when no location info
+    // Create location key from coordinates
+    const locationKey = locationInfo?.lat && locationInfo?.lon
+      ? `${locationInfo.lat},${locationInfo.lon}`
+      : null;
+
+    // Check if we have coordinates
+    const hasCoordinates = locationInfo && locationInfo.lat && locationInfo.lon;
+
+    // Check if we have region data
+    const hasRegion = locationInfo && (locationInfo.region || locationInfo.state);
+
+    if (locationKey !== prevLocationKey) {
+      // Coordinates changed - clear old alerts immediately
+      console.log('📍 Coordinates changed, clearing old alerts');
+      clearAlertsCache();
+      setAlerts([]);
       setIsExpanded(false);
       setExpandedAlertId(null);
-      setFetchAttempted(false);
-    }
-  }, [locationInfo, prevLocationKey]);
+      setInitialFetchDone(false);
+      setLoading(true);
+      setPrevLocationKey(locationKey);
 
-  // Fetch alerts when conditions are right
-  useEffect(() => {
-    if (locationInfo && locationInfo.lat && locationInfo.lon && !isSearching && !fetchAttempted) {
-      console.log('Conditions met for fetching alerts');
-      fetchAlerts();
+      // Clear any existing timeout
+      if (regionTimeoutRef.current) {
+        clearTimeout(regionTimeoutRef.current);
+        regionTimeoutRef.current = null;
+      }
+
+      if (hasCoordinates) {
+        if (hasRegion) {
+          // Have everything - fetch immediately
+          console.log('📍 Complete location available, fetching alerts');
+          fetchAlerts(true);
+        } else {
+          // Have coordinates but no region - wait briefly then fetch anyway
+          console.log('📍 Waiting for region data (will fetch in 2s anyway)...');
+          regionTimeoutRef.current = setTimeout(() => {
+            console.log('📍 Timeout - fetching alerts without region data');
+            if (!fetchInProgressRef.current) {
+              fetchAlerts(true);
+            }
+          }, 2000);
+        }
+      }
+    } else if (hasCoordinates && hasRegion && !initialFetchDone && !fetchInProgressRef.current) {
+      // Region just became available - cancel timeout and fetch now
+      console.log('📍 Region now available, fetching alerts');
+      if (regionTimeoutRef.current) {
+        clearTimeout(regionTimeoutRef.current);
+        regionTimeoutRef.current = null;
+      }
+      fetchAlerts(true);
+    } else if (!locationKey && prevLocationKey !== null) {
+      // No location - clear everything
+      setAlerts([]);
+      setIsExpanded(false);
+      setExpandedAlertId(null);
+      setInitialFetchDone(false);
+      setPrevLocationKey(null);
     }
-  }, [locationInfo, isSearching, fetchAttempted, fetchAlerts]);
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (regionTimeoutRef.current) {
+        clearTimeout(regionTimeoutRef.current);
+      }
+    };
+  }, [locationInfo, prevLocationKey, initialFetchDone, fetchAlerts]);
 
   // Handle page changes
   useEffect(() => {
-    // Collapse alerts when changing pages
     if (currentPage !== 0) {
       setIsExpanded(false);
     }
   }, [currentPage]);
 
-  // Set up service worker message listener for new alerts
+  // Set up polling
   useEffect(() => {
-    const handleServiceWorkerMessage = (event) => {
-      if (event.data && event.data.type === 'NEW_ALERTS' && event.data.alerts) {
-        console.log('Received new alerts from service worker:', event.data.alerts);
-        
-        // Filter out expired alerts
-        const activeNewAlerts = filterExpiredAlerts(event.data.alerts);
-        
-        setAlerts(prevAlerts => {
-          // Merge new alerts with existing ones, avoiding duplicates
-          const newAlerts = activeNewAlerts.filter(
-            newAlert => !prevAlerts.some(existingAlert => existingAlert.id === newAlert.id)
-          );
-          return [...newAlerts, ...prevAlerts];
-        });
-        
-        // Auto-expand only if we're on the first page
-        if (activeNewAlerts.length > 0 && currentPage === 0) {
-          setIsExpanded(true);
+    if (locationInfo && locationInfo.lat && locationInfo.lon && !isSearching && initialFetchDone) {
+      console.log('🔄 Starting alert polling');
+
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+
+      pollingRef.current = setInterval(pollForAlerts, POLLING_INTERVAL);
+
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          pollForAlerts();
         }
-      }
-    };
+      };
 
-    // Add event listener for service worker messages
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     }
+  }, [locationInfo, isSearching, initialFetchDone, pollForAlerts]);
 
-    // Set up periodic check for new alerts (every 5 minutes)
-    const checkInterval = setInterval(() => {
-      if (locationInfo && locationInfo.lat && locationInfo.lon) {
-        checkForNewAlertsFromServiceWorker();
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-
-    // Clean up
-    return () => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
-      }
-      clearInterval(checkInterval);
-    };
-  }, [locationInfo, checkForNewAlertsFromServiceWorker, currentPage, filterExpiredAlerts]);
-
-  // Regularly filter alerts to remove expired ones
+  // Regularly filter expired alerts
   useEffect(() => {
-    // Check for expired alerts every minute
     const expiryCheckInterval = setInterval(() => {
       setAlerts(prevAlerts => {
         const activeAlerts = filterExpiredAlerts(prevAlerts);
-        // Only update state if there's a change
         if (activeAlerts.length !== prevAlerts.length) {
           console.log('Removing expired alerts, remaining:', activeAlerts.length);
           return activeAlerts;
         }
         return prevAlerts;
       });
-    }, 60 * 1000); // Check every minute
-    
+    }, 60 * 1000);
+
     return () => clearInterval(expiryCheckInterval);
   }, [filterExpiredAlerts]);
 
-  // Toggle expanded state for the entire alerts container
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
   };
 
-  // Toggle expanded state for a specific alert
   const toggleAlertExpanded = (alertId) => {
     setExpandedAlertId(expandedAlertId === alertId ? null : alertId);
   };
 
-  // Get severity class for styling
-  const getSeverityClass = (severity) => {
-    switch (severity) {
-      case 'Severe':
-        return 'alert-severe';
-      case 'Moderate':
-        return 'alert-moderate';
-      case 'Minor':
-        return 'alert-minor';
-      case 'Past':
-        return 'alert-past';
-      default:
-        return 'alert-unknown';
-    }
+  // Get alert color style based on EC color code
+  const getAlertColorStyle = (alert) => {
+    const ecColor = alert.ecColor || 'GREY';
+    const colors = EC_ALERT_COLORS[ecColor] || EC_ALERT_COLORS.GREY;
+    return {
+      backgroundColor: colors.bg,
+      color: colors.text,
+      borderColor: colors.border
+    };
+  };
+
+  // Get EC color class for border
+  const getECColorClass = (alert) => {
+    const ecColor = alert.ecColor || 'GREY';
+    return `alert-ec-${ecColor.toLowerCase()}`;
   };
 
   // Format date for display
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleString();
+      return date.toLocaleString('en-CA', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
     } catch (err) {
       return dateString;
     }
@@ -241,8 +311,22 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     return null;
   }
 
-  // If no alerts, show a "No active alerts" banner
-  if (alerts.length === 0) {
+  // Show loading spinner during initial fetch
+  if (loading && !initialFetchDone) {
+    return (
+      <div className="weather-alerts-container">
+        <div className="alerts-header alerts-loading-header">
+          <div className="alerts-header-content">
+            <i className="fa-solid fa-spinner fa-spin"></i>
+            <span>Checking for weather alerts...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no alerts after fetch, show green "No active alerts" banner
+  if (alerts.length === 0 && initialFetchDone) {
     return (
       <div className="weather-alerts-container">
         <div className="alerts-header no-alerts">
@@ -255,10 +339,15 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
     );
   }
 
+  // Get the header color based on the most severe alert
+  const mostSevereAlert = alerts[0];
+  const headerColors = mostSevereAlert?.colors || EC_ALERT_COLORS[mostSevereAlert?.ecColor] || EC_ALERT_COLORS.GREY;
+
   return (
     <div className="weather-alerts-container">
-      <div 
-        className={`alerts-header ${isExpanded ? 'expanded' : ''}`} 
+      <div
+        className={`alerts-header ${isExpanded ? 'expanded' : ''}`}
+        style={{ backgroundColor: headerColors.bg, color: headerColors.text }}
         onClick={toggleExpanded}
       >
         <div className="alerts-header-content">
@@ -267,62 +356,143 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
           <i className={`fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
         </div>
       </div>
-      
+
       {isExpanded && (
         <div className="alerts-content">
-          {loading && <div className="alerts-loading">Loading alerts...</div>}
-          
           {error && <div className="alerts-error">{error}</div>}
-          
-          {!loading && !error && alerts.map((alert) => (
-            <div 
-              key={alert.id} 
-              className={`alert-item ${getSeverityClass(alert.severity)}`}
+
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`alert-item ${getECColorClass(alert)}`}
             >
-              <div 
-                className="alert-header" 
+              <div
+                className="alert-header"
                 onClick={() => toggleAlertExpanded(alert.id)}
               >
                 <div className="alert-title">
-                  <span className="alert-severity-badge">{alert.severity}</span>
-                  {alert.title}
+                  <span
+                    className="alert-type-badge"
+                    style={getAlertColorStyle(alert)}
+                  >
+                    {alert.alertType || 'ALERT'}
+                  </span>
+                  <span className="alert-title-text">{alert.title}</span>
                 </div>
+                {/* Show affected areas in collapsed view */}
+                {alert.areas && alert.areas.length > 0 && expandedAlertId !== alert.id && (
+                  <div className="alert-areas-preview">
+                    <i className="fa-solid fa-location-dot"></i>
+                    <span>{alert.areas.slice(0, 2).join(', ')}{alert.areas.length > 2 ? ` +${alert.areas.length - 2} more` : ''}</span>
+                  </div>
+                )}
                 <div className="alert-actions">
-                  <span className="alert-time">{formatDate(alert.sent)}</span>
                   <i className={`fa-solid ${expandedAlertId === alert.id ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
                 </div>
               </div>
-              
+
               {expandedAlertId === alert.id && (
                 <div className="alert-details">
-                  <div className="alert-description" dangerouslySetInnerHTML={{ __html: alert.description }}></div>
-                  
-                  <div className="alert-meta">
-                    <div className="alert-meta-item">
-                      <strong>Issued:</strong> {formatDate(alert.sent)}
+                  {/* Issued Time - formatted nicely */}
+                  <div className="alert-issued-time">
+                    <i className="fa-solid fa-clock"></i>
+                    <span>{formatDate(alert.sent)}</span>
+                  </div>
+
+                  {/* Impact Level and Confidence */}
+                  <div className="alert-meta-grid">
+                    <div className="alert-meta-box">
+                      <span className="meta-label">Impact Level:</span>
+                      <span className={`meta-value impact-${(alert.details?.impactLevel || alert.severity || 'moderate').toLowerCase()}`}>
+                        {alert.details?.impactLevel || alert.severity || 'Moderate'}
+                      </span>
                     </div>
-                    {alert.expires && (
-                      <div className="alert-meta-item">
-                        <strong>Expires:</strong> {formatDate(alert.expires)}
-                      </div>
-                    )}
-                    <div className="alert-meta-item">
-                      <strong>Urgency:</strong> {alert.urgency}
-                    </div>
-                    <div className="alert-meta-item">
-                      <strong>Certainty:</strong> {alert.certainty}
+                    <div className="alert-meta-box">
+                      <span className="meta-label">Forecast Confidence:</span>
+                      <span className="meta-value">
+                        {alert.details?.forecastConfidence || alert.certainty || 'Observed'}
+                      </span>
                     </div>
                   </div>
-                  
-                  {alert.link && (
+
+                  {/* Summary - main description paragraph */}
+                  {alert.details?.summary && (
+                    <div className="alert-summary">
+                      {alert.details.summary.split('\n\n').map((paragraph, index) => (
+                        paragraph.trim() ? <p key={index}>{paragraph.trim()}</p> : null
+                      ))}
+                    </div>
+                  )}
+
+                  {/* What section */}
+                  <div className="alert-section">
+                    <div className="alert-section-label">
+                      <i className="fa-solid fa-cloud-bolt"></i>
+                      <span>What</span>
+                    </div>
+                    <div className="alert-section-content">{alert.details?.what || alert.title}</div>
+                  </div>
+
+                  {/* When section */}
+                  {alert.details?.when && (
+                    <div className="alert-section">
+                      <div className="alert-section-label">
+                        <i className="fa-solid fa-calendar"></i>
+                        <span>When</span>
+                      </div>
+                      <div className="alert-section-content">{alert.details.when}</div>
+                    </div>
+                  )}
+
+                  {/* Where section */}
+                  <div className="alert-section">
+                    <div className="alert-section-label">
+                      <i className="fa-solid fa-location-dot"></i>
+                      <span>Where</span>
+                    </div>
+                    <div className="alert-section-content">{alert.details?.where || alert.areas?.join(', ') || 'See alert details'}</div>
+                  </div>
+
+                  {/* Remarks / Additional Information */}
+                  {(alert.details?.remarks || alert.details?.additionalInfo) && (
+                    <div className="alert-remarks">
+                      {(alert.details.remarks || alert.details.additionalInfo).split('\n\n').map((paragraph, index) => (
+                        paragraph.trim() ? <p key={index}>{paragraph.trim()}</p> : null
+                      ))}
+                    </div>
+                  )}
+
+                  {/* In Effect For */}
+                  <div className="alert-section alert-in-effect">
+                    <div className="alert-section-label">
+                      <i className="fa-solid fa-map"></i>
+                      <span>In Effect For</span>
+                    </div>
+                    <div className="alert-section-content">{alert.details?.inEffectFor || alert.areas?.join(', ') || alert.coverage || 'See alert details'}</div>
+                  </div>
+
+                  {/* Alert footer metadata */}
+                  <div className="alert-footer">
+                    {alert.expires && (
+                      <div className="alert-expires">
+                        <i className="fa-solid fa-hourglass-end"></i>
+                        <span>Expires: {formatDate(alert.expires)}</span>
+                      </div>
+                    )}
+                    <div className="alert-source">
+                      Source: {alert.provider}
+                    </div>
+                  </div>
+
+                  {alert.detailsUrl && (
                     <div className="alert-link">
-                      <a 
-                        href={alert.link} 
-                        target="_blank" 
+                      <a
+                        href={alert.detailsUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        View Details <i className="fa-solid fa-external-link"></i>
+                        View Full Details on Environment Canada <i className="fa-solid fa-external-link"></i>
                       </a>
                     </div>
                   )}
@@ -330,11 +500,17 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
               )}
             </div>
           ))}
-          
+
           <div className="alerts-footer">
-            <button className="refresh-alerts-btn" onClick={fetchAlerts} disabled={loading}>
-              <i className="fa-solid fa-rotate"></i> Refresh Alerts
+            <button className="refresh-alerts-btn" onClick={() => fetchAlerts(true)} disabled={loading}>
+              <i className={`fa-solid ${loading ? 'fa-spinner fa-spin' : 'fa-rotate'}`}></i>
+              {loading ? 'Refreshing...' : 'Refresh Alerts'}
             </button>
+            {lastUpdate && (
+              <span className="last-update">
+                Last updated: {lastUpdate.toLocaleTimeString()}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -342,4 +518,4 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
   );
 };
 
-export default WeatherAlerts; 
+export default WeatherAlerts;

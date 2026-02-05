@@ -3,9 +3,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
   margin-top: 0.25rem; /* Reduced margin after location and navigation */
-  margin-bottom: 0.25rem; /* Reduced margin at the bottom */
+  margin-bottom: 0.25rem; /* Reduced margin at bottom */
+  position: relative;
 }
 
 .weather-pages-content {

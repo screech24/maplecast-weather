@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import './LocationSearch.css';
 import { devLog, debugLog, isDevelopment } from '../utils/devMode';
@@ -436,6 +437,46 @@ const generateSpecialLocationSearchTerms = (locationName) => {
 
 // Generate search terms with different province combinations
 
+// Separate component for the search results dropdown with portal
+const SearchResultsDropdown = ({ searchResults, onLocationSelect, formatLocationDisplay, searchContainer }) => {
+  const [dropdownStyle, setDropdownStyle] = useState({});
+
+  useEffect(() => {
+    if (searchContainer) {
+      const rect = searchContainer.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: `${rect.bottom + window.scrollY + 8}px`,
+        left: `${rect.left + window.scrollX}px`,
+        width: `${rect.width}px`,
+        zIndex: 9999
+      });
+    }
+  }, [searchContainer, searchResults.length]);
+
+  return (
+    <ul className="search-results" style={dropdownStyle}>
+      {searchResults.map((result, index) => (
+        <li 
+          key={index} 
+          onClick={() => onLocationSelect(result)}
+          className={`search-result-item ${result.country === 'CA' ? 'canadian-location' : ''}`}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onLocationSelect(result);
+            }
+          }}
+        >
+          <span className="location-name">{formatLocationDisplay(result)}</span>
+          <span className="select-indicator">Select</span>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTermChange }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -452,6 +493,20 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
     setError(null);
     devLog('LocationSearch', 'Initialized with Environment Canada location search');
   }, [apiKey]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchResults.length > 0 && !event.target.closest('.search-results') && !event.target.closest('.location-search')) {
+        setSearchResults([]);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [searchResults.length]);
 
   const handleSearchTermChange = (e) => {
     const newTerm = e.target.value;
@@ -483,7 +538,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       setIsSearching(true);
       setSearchStage(1);
       
-      // First, try to search using Environment Canada's data
+      // Use the improved searchCanadianLocations function which now uses Nominatim API
       const canadianResults = await searchCanadianLocations(term);
       
       if (canadianResults.length > 0) {
@@ -493,7 +548,7 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         return;
       }
       
-      // If no results from Environment Canada, try enhancing the search term
+      // If no results, try enhancing the search term
       const enhancedTerm = enhanceCanadianSearch(term);
       if (enhancedTerm !== term) {
         devLog('LocationSearch', `Trying enhanced search term: ${enhancedTerm}`);
@@ -634,10 +689,8 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
       display += `, ${result.country}`;
     }
     
-    // Add source indicator for debugging
-    if (isDevelopment && result.source) {
-      display += ` (${result.source})`;
-    }
+    // Remove source indicators from display
+    // No longer showing (nominatim) or other source indicators
     
     return display;
   };
@@ -723,26 +776,15 @@ const LocationSearch = ({ apiKey, onLocationSelect, onUseMyLocation, onSearchTer
         </div>
       )}
 
-      {searchResults.length > 0 && (
-        <ul className="search-results">
-          {searchResults.map((result, index) => (
-            <li 
-              key={index} 
-              onClick={() => handleLocationSelect(result)}
-              className={`search-result-item ${result.country === 'CA' ? 'canadian-location' : ''}`}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  handleLocationSelect(result);
-                }
-              }}
-            >
-              <span className="location-name">{formatLocationDisplay(result)}</span>
-              <span className="select-indicator">Select</span>
-            </li>
-          ))}
-        </ul>
+      {/* Use portal for search results to break out of stacking context */}
+      {searchResults.length > 0 && createPortal(
+        <SearchResultsDropdown 
+          searchResults={searchResults}
+          onLocationSelect={handleLocationSelect}
+          formatLocationDisplay={formatLocationDisplay}
+          searchContainer={document.querySelector('.search-container')}
+        />,
+        document.body
       )}
     </div>
   );
