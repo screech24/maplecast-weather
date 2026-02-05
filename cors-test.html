@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>CORS Test for Weather Alerts</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        // Test direct fetch
+        fetch('https://weather.gc.ca/rss/weather/43.6532_-79.3832_e.xml')
+            .then(response => {
+                results.innerHTML += '<p>Direct fetch: ' + response.status + ' ' + response.statusText + '</p>';
+                return response.text();
+            })
+            .then(text => {
+                results.innerHTML += '<p>Direct fetch content length: ' + text.length + '</p>';
+                results.innerHTML += '<p>Contains XML: ' + text.includes('<?xml') + '</p>';
+            })
+            .catch(error => {
+                results.innerHTML += '<p>Direct fetch error: ' + error.message + '</p>';
+            });
+        
+        // Test local proxy
+        fetch('/proxy-api/weather-rss/43.6532_-79.3832_e.xml')
+            .then(response => {
+                results.innerHTML += '<p>Local proxy: ' + response.status + ' ' + response.statusText + '</p>';
+                return response.text();
+            })
+            .then(text => {
+                results.innerHTML += '<p>Local proxy content length: ' + text.length + '</p>';
+                results.innerHTML += '<p>Contains XML: ' + (text.includes('<?xml') || text.includes('<feed') || text.includes('<item>')) + '</p>';
+            })
+            .catch(error => {
+                results.innerHTML += '<p>Local proxy error: ' + error.message + '</p>';
+            });
+        
+        // Test AllOrigins proxy
+        fetch('https://api.allorigins.win/raw?url=https://weather.gc.ca/rss/weather/43.6532_-79.3832_e.xml')
+            .then(response => {
+                results.innerHTML += '<p>AllOrigins proxy: ' + response.status + ' ' + response.statusText + '</p>';
+                return response.text();
+            })
+            .then(text => {
+                results.innerHTML += '<p>AllOrigins content length: ' + text.length + '</p>';
+                results.innerHTML += '<p>Contains XML: ' + text.includes('<?xml') + '</p>';
+            })
+            .catch(error => {
+                results.innerHTML += '<p>AllOrigins error: ' + error.message + '</p>';
+            });
+    </script>
+</body>
+</html>
