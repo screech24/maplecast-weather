@@ -418,31 +418,108 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
                   {/* Full alert description with proper formatting */}
                   {alert.description && (
                     <div className="alert-description">
-                      {alert.description
-                        .split('\n')
-                        .map(line => line.trim())
-                        .filter(line => {
-                          // Filter out boilerplate footer text
+                      {(() => {
+                        // Filter out boilerplate lines
+                        const isBoilerplate = (line) => {
                           const lower = line.toLowerCase();
-                          return line &&
-                            !lower.startsWith('please continue to monitor') &&
-                            !lower.startsWith('for more information') &&
-                            !lower.includes('colour-coded weather alerts') &&
-                            !lower.includes('color-coded weather alerts') &&
-                            !lower.startsWith('to report severe weather') &&
-                            !lower.includes('@ec.gc.ca') &&
-                            !lower.includes('#onstorm') &&
-                            line !== '###';
-                        })
-                        .map((line, index) => {
-                          // Style section headers differently
+                          return lower.startsWith('please continue to monitor') ||
+                            lower.startsWith('for more information') ||
+                            lower.includes('colour-coded weather alerts') ||
+                            lower.includes('color-coded weather alerts') ||
+                            lower.startsWith('to report severe weather') ||
+                            lower.includes('@ec.gc.ca') ||
+                            lower.includes('#onstorm') ||
+                            line === '###';
+                        };
+
+                        // Check if a line is a section header (What:/When:/Where:/Remarks:)
+                        const getSectionHeader = (line) => {
                           const lower = line.toLowerCase();
-                          if (lower === 'what:' || lower === 'when:' || lower === 'where:') {
-                            return <p key={index} className="alert-section-header">{line}</p>;
+                          if (lower.startsWith('what:')) return { header: 'What:', content: line.substring(5).trim() };
+                          if (lower.startsWith('when:')) return { header: 'When:', content: line.substring(5).trim() };
+                          if (lower.startsWith('where:')) return { header: 'Where:', content: line.substring(6).trim() };
+                          if (lower.startsWith('remarks:')) return { header: 'Remarks:', content: line.substring(8).trim() };
+                          return null;
+                        };
+
+                        // Split into lines, filter boilerplate, then group into paragraphs
+                        const lines = alert.description.split('\n').map(l => l.trim());
+                        const elements = [];
+                        let currentParagraph = [];
+                        let elementIndex = 0;
+
+                        const flushParagraph = () => {
+                          if (currentParagraph.length > 0) {
+                            const text = currentParagraph.join(' ');
+                            elements.push(<p key={elementIndex++}>{text}</p>);
+                            currentParagraph = [];
                           }
-                          return <p key={index}>{line}</p>;
-                        })
-                      }
+                        };
+
+                        for (let i = 0; i < lines.length; i++) {
+                          const line = lines[i];
+
+                          // Empty line = paragraph break (must check before boilerplate)
+                          if (!line) {
+                            flushParagraph();
+                            continue;
+                          }
+
+                          // Skip boilerplate
+                          if (isBoilerplate(line)) continue;
+
+                          // Check for section headers
+                          const sectionHeader = getSectionHeader(line);
+                          if (sectionHeader) {
+                            flushParagraph();
+                            if (sectionHeader.content) {
+                              // Inline header: "What: Heavy rain expected"
+                              elements.push(
+                                <p key={elementIndex++} className="alert-section-header">
+                                  <strong>{sectionHeader.header}</strong> {sectionHeader.content}
+                                </p>
+                              );
+                            } else {
+                              // Standalone header: "What:" on its own line
+                              // Collect following lines until next header or blank line
+                              const contentLines = [];
+                              while (i + 1 < lines.length && lines[i + 1] && !getSectionHeader(lines[i + 1]) && !isBoilerplate(lines[i + 1])) {
+                                i++;
+                                contentLines.push(lines[i]);
+                              }
+                              elements.push(
+                                <p key={elementIndex++} className="alert-section-header">
+                                  <strong>{sectionHeader.header}</strong> {contentLines.join(' ')}
+                                </p>
+                              );
+                            }
+                            continue;
+                          }
+
+                          // Regular content line - accumulate into paragraph
+                          currentParagraph.push(line);
+                        }
+
+                        // Flush any remaining paragraph
+                        flushParagraph();
+
+                        return elements;
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Safety tips / instructions from CAP instruction field */}
+                  {alert.instruction && (
+                    <div className="alert-instruction">
+                      <div className="alert-instruction-header">
+                        <i className="fa-solid fa-shield-halved"></i>
+                        <span>Safety Tips</span>
+                      </div>
+                      <div className="alert-instruction-content">
+                        {alert.instruction.split('\n').filter(line => line.trim()).map((line, index) => (
+                          <p key={index}>{line.trim()}</p>
+                        ))}
+                      </div>
                     </div>
                   )}
 

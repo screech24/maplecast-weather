@@ -1,8 +1,8 @@
-# MapleCast Weather App v2.2.0
+# MapleCast Weather App v2.3.1
 
 A modern, free weather application for Canadian users featuring real-time weather data, forecasts, interactive radar, and Environment Canada weather alerts. **No API key required!**
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react)](https://reactjs.org/)
 [![PWA](https://img.shields.io/badge/PWA-enabled-5A0FC8.svg)](https://web.dev/progressive-web-apps/)
@@ -10,24 +10,22 @@ A modern, free weather application for Canadian users featuring real-time weathe
 
 ## Latest Updates (February 2026)
 
+**Version 2.3.1** - Alert Formatting & Safety Tips!
+- **Safety Tips Display** - Now shows EC safety recommendations (dress warmly, frostbite warnings, pet safety, etc.)
+- **Fixed Alert Description Layout** - Paragraphs now properly separated instead of merged into one block
+- **Full Section Content** - Multi-line What/When/Where sections no longer truncated after the first line
+- **Better Section Headers** - What/When/Where labels styled with bold uppercase formatting
+- **Dark Mode Support** - Updated styles for safety tips and section headers
+
+**Version 2.3.0** - Cloudflare Proxy & Alert Improvements!
+- **Cloudflare Worker CORS Proxy** for reliable production alert fetching
+- **Alert Update/Cancel Handling** - Properly processes CAP Update and Cancel messages
+- **Matched Area Display** - Shows your specific matched area in alert banners
+
 **Version 2.2.0** - Location & Alert System Overhaul!
 - **New Location Search** - Switched to Open-Meteo Geocoding API (free, no rate limits, works reliably)
 - **Improved Reverse Geocoding** - Now uses Photon API to get city names from coordinates
 - **Fixed Alert Filtering** - Alerts now correctly filter by your specific city, not just province
-- **Enhanced Location Handling** - Fixed race conditions when switching locations
-- **Far Northern Ontario Support** - Added Sandy Lake, Pickle Lake, and other remote regions
-- **Better Cache Management** - Invalid cached data is now automatically cleared
-
-**Version 2.1.0** - Weather Alerts System Update!
-- **Updated to CAP (Common Alerting Protocol)** - Migrated from deprecated RSS battleboard feeds to modern CAP format
-- **Improved Alert Reliability** - New direct access to Environment Canada MSC Datamart CAP data
-- **Enhanced Error Handling** - Robust fallback mechanisms for alert fetching
-- **Better Alert Parsing** - More accurate severity classification and area coverage
-
-**Version 2.0.0** - Major update with free weather data!
-- Switched to Open-Meteo API - no API key required
-- Enhanced mobile experience with swipe navigation
-- Dynamic weather backgrounds based on conditions and time of day
 
 ## Features
 
@@ -57,6 +55,7 @@ The weather alerts system provides:
 - **Multiple Alert Support**: View all active alerts for your location
 - **EC Color Coding**: Proper Environment Canada color scheme (RED/YELLOW/ORANGE/GREY)
 - **Detailed Information**: Expand alerts to view complete details with What/When/Where
+- **Safety Tips**: Displays Environment Canada safety recommendations from CAP instruction data
 - **Push Notifications**: Receive alerts even when the app is closed
 - **Background Checking**: Automatic periodic checking for new alerts
 - **Robust Fallbacks**: Multiple fallback mechanisms for reliable alert delivery

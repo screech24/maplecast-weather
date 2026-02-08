@@ -134,6 +134,7 @@ async function parseCapXML(capXml) {
         id: alertId || `cap_${Date.now()}`,
         title: alertName,
         description: info.description?.[0] || '',
+        instruction: info.instruction?.[0] || '',
         headline: info.headline?.[0] || alertName,
         details: {
           issuedTime: info.effective?.[0] || sentTime,
@@ -196,6 +197,9 @@ function parseAlertDescription(description) {
   const lines = description.split(/\n/).map(line => line.trim()).filter(line => line);
 
   let summaryLines = [];
+  let whatLines = [];
+  let whenLines = [];
+  let whereLines = [];
   let remarksLines = [];
   // Track current section: 'summary', 'what', 'when', 'where', 'remarks'
   let currentSection = 'summary';
@@ -204,64 +208,68 @@ function parseAlertDescription(description) {
     const line = lines[i];
     const lowerLine = line.toLowerCase();
 
+    // Skip boilerplate footer text
+    if (lowerLine.startsWith('please continue to monitor') ||
+        lowerLine.startsWith('for more information') ||
+        lowerLine.includes('colour-coded weather alerts') ||
+        lowerLine.includes('color-coded weather alerts') ||
+        lowerLine.startsWith('to report severe weather') ||
+        lowerLine.includes('@ec.gc.ca') ||
+        lowerLine.includes('#onstorm') ||
+        lowerLine === '###') {
+      continue;
+    }
+
     // Check for section headers - "What:" or "What: content"
     if (lowerLine === 'what:' || lowerLine.startsWith('what:')) {
       currentSection = 'what';
       const content = line.substring(5).trim();
       if (content) {
-        result.what = content;
-        currentSection = 'remarks'; // Got content on same line, move to remarks
+        whatLines.push(content);
       }
     } else if (lowerLine === 'when:' || lowerLine.startsWith('when:')) {
       currentSection = 'when';
       const content = line.substring(5).trim();
       if (content) {
-        result.when = content;
-        currentSection = 'remarks';
+        whenLines.push(content);
       }
     } else if (lowerLine === 'where:' || lowerLine.startsWith('where:')) {
       currentSection = 'where';
       const content = line.substring(6).trim();
       if (content) {
-        result.where = content;
-        currentSection = 'remarks';
+        whereLines.push(content);
+      }
+    } else if (lowerLine.startsWith('remarks:') || lowerLine === 'remarks:') {
+      currentSection = 'remarks';
+      const content = line.substring(8).trim();
+      if (content) {
+        remarksLines.push(content);
       }
     } else if (lowerLine.startsWith('in effect for:')) {
       result.inEffectFor = line.substring(14).trim();
       currentSection = 'remarks';
-    } else if (lowerLine.startsWith('please continue to monitor') ||
-               lowerLine.startsWith('for more information') ||
-               lowerLine.includes('colour-coded weather alerts') ||
-               lowerLine.includes('color-coded weather alerts') ||
-               lowerLine.startsWith('to report severe weather') ||
-               lowerLine.includes('@ec.gc.ca') ||
-               lowerLine.includes('#onstorm') ||
-               lowerLine === '###') {
-      // Skip boilerplate footer text
-      continue;
     } else {
-      // Content line - handle based on current section
+      // Content line - append to current section
       if (currentSection === 'summary') {
         summaryLines.push(line);
       } else if (currentSection === 'what') {
-        result.what = line;
-        currentSection = 'remarks'; // Move to remarks after getting What content
+        whatLines.push(line);
       } else if (currentSection === 'when') {
-        result.when = line;
-        currentSection = 'remarks'; // Move to remarks after getting When content
+        whenLines.push(line);
       } else if (currentSection === 'where') {
-        result.where = line;
-        currentSection = 'remarks';
+        whereLines.push(line);
       } else {
-        // remarks section - capture all remaining content
         remarksLines.push(line);
       }
     }
   }
 
-  // Build final result
-  result.summary = summaryLines.join('\n\n');
-  result.remarks = remarksLines.join('\n\n');
+  // Build final result - join multi-line content with newlines
+  result.summary = summaryLines.join('\n');
+  result.what = whatLines.join('\n');
+  result.when = whenLines.join('\n');
+  result.where = whereLines.join('\n');
+  result.remarks = remarksLines.join('\n');
 
   return result;
 }

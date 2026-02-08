@@ -727,7 +727,7 @@ function App() {
             <a href="https://github.com/screech24/maplecast-weather/blob/main/CHANGELOG.md"
                target="_blank"
                rel="noopener noreferrer"
-               className="version">v2.3.0</a> |
+               className="version">v2.3.1</a> |
             Written with Claude Code Opus 4.5 - February 8, 2026
           </p>
         </div>
