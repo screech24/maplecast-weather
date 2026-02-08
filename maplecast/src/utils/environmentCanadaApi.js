@@ -219,15 +219,15 @@ function parseAlertDescription(description) {
       foundWhere = true;
     } else if (lowerLine.startsWith('in effect for:')) {
       result.inEffectFor = line.substring(14).trim();
-    } else if (lowerLine.includes('please continue to monitor') ||
-               lowerLine.includes('for more information') ||
-               lowerLine.includes('colour-coded') ||
-               lowerLine.includes('color-coded') ||
-               lowerLine.includes('to report severe weather') ||
+    } else if (lowerLine.startsWith('please continue to monitor') ||
+               lowerLine.startsWith('for more information') ||
+               lowerLine.includes('colour-coded weather alerts') ||
+               lowerLine.includes('color-coded weather alerts') ||
+               lowerLine.startsWith('to report severe weather') ||
                lowerLine.includes('@ec.gc.ca') ||
                lowerLine.includes('#onstorm') ||
-               lowerLine.includes('###')) {
-      // Skip boilerplate footer text
+               lowerLine === '###') {
+      // Skip boilerplate footer text only - be specific to avoid filtering safety tips
       continue;
     } else if (!foundWhat && !foundWhen && !foundWhere) {
       // Before any section headers - this is summary
