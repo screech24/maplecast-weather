@@ -415,41 +415,34 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
                     </div>
                   </div>
 
-                  {/* Summary - main description paragraph */}
-                  {alert.details?.summary && (
-                    <div className="alert-summary">
-                      {alert.details.summary.split('\n\n').map((paragraph, index) => (
-                        paragraph.trim() ? <p key={index}>{paragraph.trim()}</p> : null
-                      ))}
-                    </div>
-                  )}
-
-                  {/* What section */}
-                  <div className="alert-section">
-                    <div className="alert-section-label">
-                      <i className="fa-solid fa-cloud-bolt"></i>
-                      <span>What</span>
-                    </div>
-                    <div className="alert-section-content">{alert.details?.what || alert.title}</div>
-                  </div>
-
-                  {/* When section */}
-                  {alert.details?.when && (
-                    <div className="alert-section">
-                      <div className="alert-section-label">
-                        <i className="fa-solid fa-calendar"></i>
-                        <span>When</span>
-                      </div>
-                      <div className="alert-section-content">{alert.details.when}</div>
-                    </div>
-                  )}
-
-                  {/* Remarks / Additional Information */}
-                  {(alert.details?.remarks || alert.details?.additionalInfo) && (
-                    <div className="alert-remarks">
-                      {(alert.details.remarks || alert.details.additionalInfo).split('\n\n').map((paragraph, index) => (
-                        paragraph.trim() ? <p key={index}>{paragraph.trim()}</p> : null
-                      ))}
+                  {/* Full alert description with proper formatting */}
+                  {alert.description && (
+                    <div className="alert-description">
+                      {alert.description
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => {
+                          // Filter out boilerplate footer text
+                          const lower = line.toLowerCase();
+                          return line &&
+                            !lower.startsWith('please continue to monitor') &&
+                            !lower.startsWith('for more information') &&
+                            !lower.includes('colour-coded weather alerts') &&
+                            !lower.includes('color-coded weather alerts') &&
+                            !lower.startsWith('to report severe weather') &&
+                            !lower.includes('@ec.gc.ca') &&
+                            !lower.includes('#onstorm') &&
+                            line !== '###';
+                        })
+                        .map((line, index) => {
+                          // Style section headers differently
+                          const lower = line.toLowerCase();
+                          if (lower === 'what:' || lower === 'when:' || lower === 'where:') {
+                            return <p key={index} className="alert-section-header">{line}</p>;
+                          }
+                          return <p key={index}>{line}</p>;
+                        })
+                      }
                     </div>
                   )}
 

@@ -266,6 +266,29 @@
   margin-bottom: 0;
 }
 
+/* Full Alert Description */
+.alert-description {
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #333;
+}
+
+.alert-description p {
+  margin: 0 0 10px 0;
+}
+
+.alert-description p:last-child {
+  margin-bottom: 0;
+}
+
+.alert-description .alert-section-header {
+  font-weight: 700;
+  color: #2c3e50;
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+
 /* Alert Sections (What/When/Where) */
 .alert-section {
   margin-bottom: 16px;
