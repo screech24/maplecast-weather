@@ -5,6 +5,36 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-02-08
+
+### Added
+- **Safety Tips Display** - Extracts and displays the CAP `instruction` field containing safety recommendations (dress warmly, frostbite warnings, pet safety, etc.)
+- **Remarks Section Detection** - Parser now recognizes `Remarks:` as a section header in alert descriptions
+
+### Fixed
+- **Missing Alert Content** - Safety tips from Environment Canada alerts were not being extracted from the CAP XML `instruction` field
+- **Merged Paragraphs** - Blank lines in alert descriptions were incorrectly treated as boilerplate, causing separate paragraphs to merge into one block
+- **Truncated Section Content** - Multi-line What/When/Where sections only captured the first line; subsequent lines were incorrectly pushed to remarks
+- **Inline Section Headers** - "What: Heavy rain expected" format now properly bolds the header label instead of rendering as plain text
+- **Standalone Section Headers** - "What:" on its own line now collects all following content lines until the next section or blank line
+
+### Changed
+- Improved alert description rendering to group consecutive lines into proper paragraphs using blank lines as separators
+- Section headers (What/When/Where/Remarks) are now styled with bold uppercase labels for better readability
+- Updated dark mode styles for section headers and safety tips section
+
+## [2.3.0] - 2026-02-08
+
+### Added
+- **Cloudflare Worker CORS Proxy** for production EC alert fetching
+- **Alert Update/Cancel Handling** - Properly processes CAP Update and Cancel message types
+- **Matched Area Display** - Shows the specific area matched to user's location in alert bar
+
+### Fixed
+- Alert description parsing for What/When/Where sections on separate lines
+- Footer filter specificity to preserve safety tips
+- Full alert description display with proper formatting
+
 ## [2.2.0] - 2026-02-05
 
 ### Added
