@@ -6,6 +6,15 @@
 import axios from 'axios';
 import xml2js from 'xml2js';
 
+/**
+ * Get the base URL for EC API requests
+ * Development: use local proxy
+ * Production: use Cloudflare Worker
+ */
+const EC_API_BASE_URL = process.env.NODE_ENV === 'development'
+  ? '/proxy-api'
+  : 'https://maplecast-ec-proxy.jfabbro24.workers.dev';
+
 // EC Color codes
 export const EC_ALERT_COLORS = {
   RED: { bg: '#DC3545', text: '#FFFFFF', border: '#B02A37' },
@@ -296,7 +305,7 @@ function mapCapAlertToECCap(alertType, alertName) {
 async function fetchCapAlertsForDate(date, office) {
   try {
     // Use proxy endpoint to avoid CORS - proxy rewrites to dd.weather.gc.ca
-    const url = `/proxy-api/cap-dirs/${date}/${office}/`;
+    const url = `${EC_API_BASE_URL}/cap-dirs/${date}/${office}/`;
     console.log(`🔍 Fetching CAP directory via proxy: ${url}`);
 
     const response = await axios.get(url, {
@@ -323,7 +332,7 @@ async function fetchCapAlertsForDate(date, office) {
     const recentHours = hourDirs.slice(-3); // Check last 3 hours
     for (const hour of recentHours) {
       try {
-        const hourUrl = `/proxy-api/cap-dirs/${date}/${office}/${hour}/`;
+        const hourUrl = `${EC_API_BASE_URL}/cap-dirs/${date}/${office}/${hour}/`;
         console.log(`📂 Checking hour directory: ${hour}`);
 
         const hourResponse = await axios.get(hourUrl, {
@@ -345,7 +354,7 @@ async function fetchCapAlertsForDate(date, office) {
         // Fetch each CAP file (limit to 3 per hour to avoid overload)
         for (const capFile of capFiles.slice(-3)) {
           try {
-            const capUrl = `/proxy-api/cap-file/${date}/${office}/${hour}/${capFile}`;
+            const capUrl = `${EC_API_BASE_URL}/cap-file/${date}/${office}/${hour}/${capFile}`;
             console.log(`📄 Fetching CAP file: ${capFile}`);
 
             const capResponse = await axios.get(capUrl, {

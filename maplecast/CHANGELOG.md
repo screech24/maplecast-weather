@@ -5,6 +5,23 @@ All notable changes to the MapleCast Weather App will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-02-08
+
+### Added
+- **Cloudflare Worker CORS Proxy** - Weather alerts now work on GitHub Pages deployment
+- Production-ready proxy at `maplecast-ec-proxy.jessewarren-dev.workers.dev`
+- Automatic environment detection (development uses local proxy, production uses Cloudflare Worker)
+
+### Fixed
+- **Weather Alerts on GitHub Pages** - Alerts were failing due to CORS restrictions with Environment Canada servers
+- GitHub Pages is static hosting with no backend, so direct browser requests to EC servers were blocked
+- Cloudflare Worker acts as a CORS-enabled proxy for CAP alert data
+
+### Technical
+- Added `EC_API_BASE_URL` constant in `environmentCanadaApi.js` for environment-aware URL switching
+- Development mode continues to use local `setupProxy.js` for seamless local development
+- Production mode routes through Cloudflare Worker (free tier: 100k requests/day)
+
 ## [2.2.0] - 2026-02-05
 
 ### Added

@@ -1,14 +1,19 @@
-# MapleCast Weather App v2.2.0
+# MapleCast Weather App v2.3.0
 
 A modern, free weather application for Canadian users featuring real-time weather data, forecasts, interactive radar, and Environment Canada weather alerts. **No API key required!**
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/screech24/maplecast-weather/releases)
 [![Demo](https://img.shields.io/badge/demo-live-green.svg)](https://screech24.github.io/maplecast-weather/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react)](https://reactjs.org/)
 [![PWA](https://img.shields.io/badge/PWA-enabled-5A0FC8.svg)](https://web.dev/progressive-web-apps/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## Latest Updates (February 2026)
+
+**Version 2.3.0** - Production Alerts Fix!
+- **Weather Alerts Now Work on GitHub Pages** - Added Cloudflare Worker CORS proxy
+- Alerts were failing on production due to CORS restrictions with Environment Canada servers
+- Seamless environment detection - local dev uses proxy, production uses Cloudflare Worker
 
 **Version 2.2.0** - Location & Alert System Overhaul!
 - **New Location Search** - Switched to Open-Meteo Geocoding API (free, no rate limits, works reliably)
@@ -134,9 +139,22 @@ This application is a Progressive Web App, which means you can:
 - **Weather Data**: [Open-Meteo API](https://open-meteo.com/) - Free, no API key required
 - **Radar Data**: [RainViewer](https://www.rainviewer.com/) - Free precipitation radar
 - **Wind Data**: [Open-Meteo API](https://open-meteo.com/) - Free wind velocity data
-- **Weather Alerts**: [Environment Canada MSC Datamart](https://dd.weather.gc.ca/) - CAP format alerts
+- **Weather Alerts**: [Environment Canada MSC Datamart](https://dd.weather.gc.ca/) - CAP format alerts (via Cloudflare Worker CORS proxy)
 - **Location Search**: [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api) - Free, no rate limits
 - **Reverse Geocoding**: [Photon](https://photon.komoot.io/) - Free OpenStreetMap-based geocoding
+
+## Architecture Notes
+
+### CORS Proxy for Weather Alerts
+
+Weather alerts from Environment Canada require a CORS proxy because:
+- GitHub Pages is static hosting (no backend server)
+- Direct browser requests to EC servers are blocked by CORS policy
+
+**Solution**: A Cloudflare Worker acts as a CORS-enabled proxy:
+- **Development**: Uses local `setupProxy.js` (runs with `npm start`)
+- **Production**: Routes through `maplecast-ec-proxy.jessewarren-dev.workers.dev`
+- **Cost**: Free tier (100,000 requests/day)
 
 ## Technologies Used
 
