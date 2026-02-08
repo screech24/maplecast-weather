@@ -444,15 +444,6 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
                     </div>
                   )}
 
-                  {/* Where section */}
-                  <div className="alert-section">
-                    <div className="alert-section-label">
-                      <i className="fa-solid fa-location-dot"></i>
-                      <span>Where</span>
-                    </div>
-                    <div className="alert-section-content">{alert.details?.where || alert.areas?.join(', ') || 'See alert details'}</div>
-                  </div>
-
                   {/* Remarks / Additional Information */}
                   {(alert.details?.remarks || alert.details?.additionalInfo) && (
                     <div className="alert-remarks">

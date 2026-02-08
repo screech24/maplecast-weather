@@ -50,20 +50,49 @@ function getResponsibleOfficeForProvince(provinceCode) {
  */
 /**
  * Parse CAP XML to extract alert information
+ * Returns both alerts and metadata about cancellations/updates
  */
 async function parseCapXML(capXml) {
   try {
     const parser = new xml2js.Parser();
     const result = await parser.parseStringPromise(capXml);
     const alert = result.alert;
-    
-    if (!alert || !alert.info) {
-      return [];
+
+    if (!alert) {
+      return { alerts: [], cancellations: [], msgType: null };
+    }
+
+    const msgType = alert.msgType?.[0] || 'Alert';
+    const alertId = alert.identifier?.[0];
+    const sentTime = alert.sent?.[0];
+
+    // Parse references (format: "sender,identifier,sent" - comma separated, space between multiple refs)
+    const references = [];
+    if (alert.references && alert.references[0]) {
+      const refString = alert.references[0];
+      const refParts = refString.split(/\s+/);
+      for (const ref of refParts) {
+        const [, refId] = ref.split(',');
+        if (refId) {
+          references.push(refId);
+        }
+      }
+    }
+
+    // Handle Cancel messages - return list of cancelled alert IDs
+    if (msgType === 'Cancel') {
+      console.log(`🚫 CAP Cancel message: cancelling ${references.length} referenced alerts`);
+      return { alerts: [], cancellations: references, msgType: 'Cancel' };
+    }
+
+    // Handle case where there's no info (shouldn't happen for Alert/Update)
+    if (!alert.info) {
+      return { alerts: [], cancellations: [], msgType };
     }
 
     const alerts = [];
     const infos = Array.isArray(alert.info) ? alert.info : [alert.info];
-    
+
     for (const info of infos) {
       // Skip French alerts
       if (info.language && info.language[0] === 'fr-CA') {
@@ -72,7 +101,9 @@ async function parseCapXML(capXml) {
 
       // Skip "AllClear" alerts (ended alerts)
       if (info.responseType && info.responseType[0] === 'AllClear') {
-        continue;
+        console.log(`✅ AllClear response - alert has ended`);
+        // Treat AllClear as a cancellation of referenced alerts
+        return { alerts: [], cancellations: references.length > 0 ? references : [alertId], msgType: 'AllClear' };
       }
 
       // Skip expired alerts
@@ -100,12 +131,12 @@ async function parseCapXML(capXml) {
       const areasString = areaDescriptions.join(', ') || alertCoverage;
 
       alerts.push({
-        id: alert.identifier?.[0] || `cap_${Date.now()}`,
+        id: alertId || `cap_${Date.now()}`,
         title: alertName,
         description: info.description?.[0] || '',
         headline: info.headline?.[0] || alertName,
         details: {
-          issuedTime: info.effective?.[0] || alert.sent?.[0],
+          issuedTime: info.effective?.[0] || sentTime,
           impactLevel: severity,
           forecastConfidence: info.certainty?.[0] || 'Observed',
           summary: parsedDescription.summary || info.headline?.[0] || '',
@@ -117,7 +148,7 @@ async function parseCapXML(capXml) {
           inEffectFor: parsedDescription.inEffectFor || areasString
         },
         detailsUrl: info.web?.[0] || 'https://weather.gc.ca/',
-        sent: alert.sent?.[0],
+        sent: sentTime,
         expires: info.expires?.[0],
         severity,
         alertType: type,
@@ -128,14 +159,16 @@ async function parseCapXML(capXml) {
         certainty: info.certainty?.[0],
         event: info.event?.[0],
         areas: areaDescriptions,
-        coverage: alertCoverage
+        coverage: alertCoverage,
+        msgType: msgType,
+        supersedes: references // IDs of alerts this one supersedes (for Update messages)
       });
     }
 
-    return alerts;
+    return { alerts, cancellations: [], msgType };
   } catch (error) {
     console.error('Error parsing CAP XML:', error);
-    return [];
+    return { alerts: [], cancellations: [], msgType: null };
   }
 }
 
@@ -326,10 +359,12 @@ async function fetchCapAlertsForDate(date, office) {
 
     console.log(`📁 Found ${hourDirs.length} hour directories for ${office} on ${date}`);
 
-    const alerts = [];
+    const allAlerts = [];
+    const cancelledIds = new Set();
+    const supersededIds = new Set();
 
-    // Fetch CAP files from each hour directory (most recent hours first)
-    const recentHours = hourDirs.slice(-3); // Check last 3 hours
+    // Fetch CAP files from recent hour directories (check more hours for updates/cancellations)
+    const recentHours = hourDirs.slice(-6); // Check last 6 hours for better coverage
     for (const hour of recentHours) {
       try {
         const hourUrl = `${EC_API_BASE_URL}/cap-dirs/${date}/${office}/${hour}/`;
@@ -351,22 +386,37 @@ async function fetchCapAlertsForDate(date, office) {
 
         console.log(`📄 Found ${capFiles.length} CAP files in hour ${hour}`);
 
-        // Fetch each CAP file (limit to 3 per hour to avoid overload)
-        for (const capFile of capFiles.slice(-3)) {
+        // Fetch ALL CAP files to ensure we catch updates and cancellations
+        for (const capFile of capFiles) {
           try {
             const capUrl = `${EC_API_BASE_URL}/cap-file/${date}/${office}/${hour}/${capFile}`;
-            console.log(`📄 Fetching CAP file: ${capFile}`);
 
             const capResponse = await axios.get(capUrl, {
               headers: { 'Accept': 'application/xml,text/xml,*/*' },
               timeout: 8000
             });
 
-            const capAlerts = await parseCapXML(capResponse.data);
-            alerts.push(...capAlerts);
+            const capResult = await parseCapXML(capResponse.data);
+
+            // Track cancelled alert IDs
+            if (capResult.cancellations && capResult.cancellations.length > 0) {
+              capResult.cancellations.forEach(id => cancelledIds.add(id));
+              console.log(`🚫 Alert(s) cancelled: ${capResult.cancellations.join(', ')}`);
+            }
+
+            // Track superseded alert IDs (from Update messages)
+            if (capResult.alerts) {
+              for (const alert of capResult.alerts) {
+                if (alert.supersedes && alert.supersedes.length > 0) {
+                  alert.supersedes.forEach(id => supersededIds.add(id));
+                  console.log(`🔄 Alert ${alert.id} supersedes: ${alert.supersedes.join(', ')}`);
+                }
+                allAlerts.push(alert);
+              }
+            }
 
             // Small delay between requests
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 50));
           } catch (error) {
             console.warn(`Failed to fetch CAP file ${capFile}:`, error.message);
           }
@@ -376,7 +426,22 @@ async function fetchCapAlertsForDate(date, office) {
       }
     }
 
-    return alerts;
+    // Filter out cancelled and superseded alerts
+    const activeAlerts = allAlerts.filter(alert => {
+      if (cancelledIds.has(alert.id)) {
+        console.log(`❌ Removing cancelled alert: ${alert.id}`);
+        return false;
+      }
+      if (supersededIds.has(alert.id)) {
+        console.log(`❌ Removing superseded alert: ${alert.id}`);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`📋 ${allAlerts.length} total alerts, ${cancelledIds.size} cancelled, ${supersededIds.size} superseded, ${activeAlerts.length} active`);
+
+    return activeAlerts;
   } catch (error) {
     // 404 is normal - means no alerts for this office today
     if (error.response?.status === 404) {
