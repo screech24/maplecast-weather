@@ -379,11 +379,11 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
                   </span>
                   <span className="alert-title-text">{alert.title}</span>
                 </div>
-                {/* Show affected areas in collapsed view */}
-                {alert.areas && alert.areas.length > 0 && expandedAlertId !== alert.id && (
+                {/* Show user's matched area in collapsed view */}
+                {expandedAlertId !== alert.id && (
                   <div className="alert-areas-preview">
-                    <i className="fa-solid fa-location-dot"></i>
-                    <span>{alert.areas.slice(0, 2).join(', ')}{alert.areas.length > 2 ? ` +${alert.areas.length - 2} more` : ''}</span>
+                    <i className="fa-solid fa-map"></i>
+                    <span>{alert.matchedArea || alert.coverage || 'Your area'}</span>
                   </div>
                 )}
                 <div className="alert-actions">
