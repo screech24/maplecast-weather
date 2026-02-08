@@ -468,7 +468,7 @@ const WeatherAlerts = ({ locationInfo, currentPage, isSearching }) => {
                       <i className="fa-solid fa-map"></i>
                       <span>In Effect For</span>
                     </div>
-                    <div className="alert-section-content">{alert.details?.inEffectFor || alert.areas?.join(', ') || alert.coverage || 'See alert details'}</div>
+                    <div className="alert-section-content">{alert.matchedArea || alert.details?.inEffectFor || alert.coverage || 'Your area'}</div>
                   </div>
 
                   {/* Alert footer metadata */}

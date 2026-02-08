@@ -531,17 +531,18 @@ const EC_REGION_KEYWORDS = {
 /**
  * Check if an alert's coverage area matches the user's location
  * Uses keyword matching between EC forecast regions and geocoding location names
+ * Returns the matched area name if found, null if no match
  */
 function alertMatchesLocation(alert, locationName) {
   if (!alert.areas || alert.areas.length === 0) {
     // Province-wide alert or no areas specified - show it
     console.log(`📍 Alert "${alert.title}" has no specific areas - showing`);
-    return true;
+    return { matched: true, matchedArea: null };
   }
 
   if (!locationName) {
     // No location to filter by - show the alert
-    return true;
+    return { matched: true, matchedArea: null };
   }
 
   const normalizedLocation = locationName.toLowerCase();
@@ -555,7 +556,7 @@ function alertMatchesLocation(alert, locationName) {
     // Direct match - location name appears in area description
     if (normalizedArea.includes(normalizedLocation)) {
       console.log(`   ✅ Direct match: location in area "${area}"`);
-      return true;
+      return { matched: true, matchedArea: area };
     }
 
     // Check for coastal vs inland distinction (critical for North Coast)
@@ -568,7 +569,7 @@ function alertMatchesLocation(alert, locationName) {
       for (const keyword of coastalKeywords) {
         if (normalizedLocation.includes(keyword)) {
           console.log(`   ✅ Coastal match: "${area}" matches via "${keyword}"`);
-          return true;
+          return { matched: true, matchedArea: area };
         }
       }
       // If it's specifically a coastal alert but no coastal keywords matched, skip other checks for this area
@@ -580,7 +581,7 @@ function alertMatchesLocation(alert, locationName) {
       for (const keyword of inlandKeywords) {
         if (normalizedLocation.includes(keyword)) {
           console.log(`   ✅ Inland match: "${area}" matches via "${keyword}"`);
-          return true;
+          return { matched: true, matchedArea: area };
         }
       }
       // If it's specifically an inland alert but no inland keywords matched, skip other checks for this area
@@ -598,7 +599,7 @@ function alertMatchesLocation(alert, locationName) {
         for (const keyword of keywords) {
           if (normalizedLocation.includes(keyword)) {
             console.log(`   ✅ Region match: "${area}" matches location via keyword "${keyword}"`);
-            return true;
+            return { matched: true, matchedArea: area };
           }
         }
       }
@@ -606,7 +607,7 @@ function alertMatchesLocation(alert, locationName) {
   }
 
   console.log(`   ❌ No match - alert doesn't apply to this location`);
-  return false;
+  return { matched: false, matchedArea: null };
 }
 
 /**
@@ -644,9 +645,17 @@ export async function fetchWeatherAlerts(provinceCode, lat = null, lon = null, l
 
     console.log(`📋 Found ${uniqueAlerts.length} alerts from ${primaryOffice} for ${provinceCode.toUpperCase()}`);
 
-    // Filter alerts by location using keyword matching
+    // Filter alerts by location using keyword matching and add matched area
     if (locationName && uniqueAlerts.length > 0) {
-      const filteredAlerts = uniqueAlerts.filter(alert => alertMatchesLocation(alert, locationName));
+      const filteredAlerts = [];
+      for (const alert of uniqueAlerts) {
+        const matchResult = alertMatchesLocation(alert, locationName);
+        if (matchResult.matched) {
+          // Add the matched area to the alert for display purposes
+          alert.matchedArea = matchResult.matchedArea;
+          filteredAlerts.push(alert);
+        }
+      }
       console.log(`📍 After location filtering: ${filteredAlerts.length} of ${uniqueAlerts.length} alerts apply to "${locationName}"`);
       uniqueAlerts = filteredAlerts;
     }
