@@ -175,6 +175,7 @@ async function parseCapXML(capXml) {
 /**
  * Parse EC alert description to extract structured sections
  * EC descriptions contain What:/When:/Where: sections and other content
+ * Format can be "What: content" or "What:\ncontent" on separate lines
  */
 function parseAlertDescription(description) {
   if (!description) {
@@ -196,29 +197,38 @@ function parseAlertDescription(description) {
 
   let summaryLines = [];
   let remarksLines = [];
-  let whatContent = '';
-  let whenContent = '';
-  let whereContent = '';
-  let foundWhat = false;
-  let foundWhen = false;
-  let foundWhere = false;
+  // Track current section: 'summary', 'what', 'when', 'where', 'remarks'
+  let currentSection = 'summary';
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lowerLine = line.toLowerCase();
 
-    // Check for section headers
-    if (lowerLine.startsWith('what:')) {
-      whatContent = line.substring(5).trim();
-      foundWhat = true;
-    } else if (lowerLine.startsWith('when:')) {
-      whenContent = line.substring(5).trim();
-      foundWhen = true;
-    } else if (lowerLine.startsWith('where:')) {
-      whereContent = line.substring(6).trim();
-      foundWhere = true;
+    // Check for section headers - "What:" or "What: content"
+    if (lowerLine === 'what:' || lowerLine.startsWith('what:')) {
+      currentSection = 'what';
+      const content = line.substring(5).trim();
+      if (content) {
+        result.what = content;
+        currentSection = 'remarks'; // Got content on same line, move to remarks
+      }
+    } else if (lowerLine === 'when:' || lowerLine.startsWith('when:')) {
+      currentSection = 'when';
+      const content = line.substring(5).trim();
+      if (content) {
+        result.when = content;
+        currentSection = 'remarks';
+      }
+    } else if (lowerLine === 'where:' || lowerLine.startsWith('where:')) {
+      currentSection = 'where';
+      const content = line.substring(6).trim();
+      if (content) {
+        result.where = content;
+        currentSection = 'remarks';
+      }
     } else if (lowerLine.startsWith('in effect for:')) {
       result.inEffectFor = line.substring(14).trim();
+      currentSection = 'remarks';
     } else if (lowerLine.startsWith('please continue to monitor') ||
                lowerLine.startsWith('for more information') ||
                lowerLine.includes('colour-coded weather alerts') ||
@@ -227,23 +237,30 @@ function parseAlertDescription(description) {
                lowerLine.includes('@ec.gc.ca') ||
                lowerLine.includes('#onstorm') ||
                lowerLine === '###') {
-      // Skip boilerplate footer text only - be specific to avoid filtering safety tips
+      // Skip boilerplate footer text
       continue;
-    } else if (!foundWhat && !foundWhen && !foundWhere) {
-      // Before any section headers - this is summary
-      summaryLines.push(line);
     } else {
-      // After section headers - this is remarks/safety info
-      // Each line becomes a separate paragraph
-      remarksLines.push(line);
+      // Content line - handle based on current section
+      if (currentSection === 'summary') {
+        summaryLines.push(line);
+      } else if (currentSection === 'what') {
+        result.what = line;
+        currentSection = 'remarks'; // Move to remarks after getting What content
+      } else if (currentSection === 'when') {
+        result.when = line;
+        currentSection = 'remarks'; // Move to remarks after getting When content
+      } else if (currentSection === 'where') {
+        result.where = line;
+        currentSection = 'remarks';
+      } else {
+        // remarks section - capture all remaining content
+        remarksLines.push(line);
+      }
     }
   }
 
   // Build final result
   result.summary = summaryLines.join('\n\n');
-  result.what = whatContent;
-  result.when = whenContent;
-  result.where = whereContent;
   result.remarks = remarksLines.join('\n\n');
 
   return result;
