@@ -194,76 +194,56 @@ function parseAlertDescription(description) {
   // Split description into lines and clean up
   const lines = description.split(/\n/).map(line => line.trim()).filter(line => line);
 
-  let currentSection = 'summary';
   let summaryLines = [];
   let remarksLines = [];
-  let whatLines = [];
-  let whenLines = [];
-  let whereLines = [];
+  let whatContent = '';
+  let whenContent = '';
+  let whereContent = '';
+  let foundWhat = false;
+  let foundWhen = false;
+  let foundWhere = false;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const lowerLine = line.toLowerCase();
 
-    // Check for section headers (handle both "What:" and "What: content" formats)
+    // Check for section headers
     if (lowerLine.startsWith('what:')) {
-      const content = line.substring(5).trim();
-      if (content) whatLines.push(content);
-      currentSection = 'what';
+      whatContent = line.substring(5).trim();
+      foundWhat = true;
     } else if (lowerLine.startsWith('when:')) {
-      const content = line.substring(5).trim();
-      if (content) whenLines.push(content);
-      currentSection = 'when';
+      whenContent = line.substring(5).trim();
+      foundWhen = true;
     } else if (lowerLine.startsWith('where:')) {
-      const content = line.substring(6).trim();
-      if (content) whereLines.push(content);
-      currentSection = 'where';
-    } else if (lowerLine.startsWith('remarks:')) {
-      const content = line.substring(8).trim();
-      if (content) remarksLines.push(content);
-      currentSection = 'remarks';
-    } else if (lowerLine.startsWith('additional information:')) {
-      const content = line.substring(23).trim();
-      if (content) remarksLines.push(content);
-      currentSection = 'additionalInfo';
+      whereContent = line.substring(6).trim();
+      foundWhere = true;
     } else if (lowerLine.startsWith('in effect for:')) {
-      const content = line.substring(14).trim();
-      if (content) result.inEffectFor = content;
-      currentSection = 'inEffectFor';
+      result.inEffectFor = line.substring(14).trim();
     } else if (lowerLine.includes('please continue to monitor') ||
                lowerLine.includes('for more information') ||
                lowerLine.includes('colour-coded') ||
                lowerLine.includes('color-coded') ||
                lowerLine.includes('to report severe weather') ||
                lowerLine.includes('@ec.gc.ca') ||
-               lowerLine.includes('#')) {
+               lowerLine.includes('#onstorm') ||
+               lowerLine.includes('###')) {
       // Skip boilerplate footer text
       continue;
+    } else if (!foundWhat && !foundWhen && !foundWhere) {
+      // Before any section headers - this is summary
+      summaryLines.push(line);
     } else {
-      // Add to current section based on what we're parsing
-      if (currentSection === 'summary') {
-        summaryLines.push(line);
-      } else if (currentSection === 'what') {
-        whatLines.push(line);
-      } else if (currentSection === 'when') {
-        whenLines.push(line);
-      } else if (currentSection === 'where') {
-        whereLines.push(line);
-      } else if (currentSection === 'remarks' || currentSection === 'additionalInfo') {
-        remarksLines.push(line);
-      } else if (currentSection === 'inEffectFor') {
-        result.inEffectFor += (result.inEffectFor ? ', ' : '') + line;
-      } else {
-        // Default: add to remarks
-        remarksLines.push(line);
-      }
+      // After section headers - this is remarks/safety info
+      // Each line becomes a separate paragraph
+      remarksLines.push(line);
     }
   }
 
   // Build final result
   result.summary = summaryLines.join('\n\n');
-  result.what = whatLines.join(' ');
-  result.when = whenLines.join(' ');
-  result.where = whereLines.join(' ');
+  result.what = whatContent;
+  result.when = whenContent;
+  result.where = whereContent;
   result.remarks = remarksLines.join('\n\n');
 
   return result;
